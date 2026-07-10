@@ -5,6 +5,7 @@ import {
   check,
   foreignKey,
   index,
+  integer,
   jsonb,
   numeric,
   pgEnum,
@@ -39,6 +40,26 @@ export const planningSessions = pgTable(
       .notNull()
       .references(() => user.id),
     status: planningSessionStatus("status").notNull().default("active"),
+    // Product phase within an active session (01 §1): requirements (Analyst
+    // MCQ) → architecture (Planner). Confirmed/frozen is `status`, not a
+    // third phase value.
+    phase: text("phase", { enum: ["requirements", "architecture"] })
+      .notNull()
+      .default("requirements"),
+    // Background agent-loop state (02 §2.4): 'working' rows refuse a second
+    // concurrent agent run (claim is a conditional UPDATE, safe across
+    // instances); 'error' rows hold agent_task so "try again" re-runs it.
+    agentState: text("agent_state", { enum: ["idle", "working", "error"] })
+      .notNull()
+      .default("idle"),
+    agentTask: jsonb("agent_task"),
+    agentError: text("agent_error"),
+    // Bumped on every graph mutation; a consistency verdict is only valid
+    // for the version it checked (01 §4.3 — a stale pass never unlocks
+    // confirmation).
+    graphVersion: integer("graph_version").notNull().default(0),
+    // Latest ConsistencyResult (schemas/planning.ts), incl. graphVersion.
+    consistency: jsonb("consistency"),
     idea: text("idea").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -84,6 +105,142 @@ export const buildSpecs = pgTable(
       columns: [t.sessionId, t.organizationId],
       foreignColumns: [planningSessions.id, planningSessions.organizationId],
       name: "build_specs_session_org_fk",
+    }),
+  ],
+);
+
+/**
+ * Analyst MCQ rounds (01 §3 / 02 §2.2). Hard cap of 2 enforced here and in
+ * the service. Questions/answers are jsonb validated by zod at the boundary
+ * — their shape belongs to packages/schemas, not the DB.
+ */
+export const mcqRounds = pgTable(
+  "mcq_rounds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    sessionId: uuid("session_id").notNull(),
+    round: integer("round").notNull(),
+    questions: jsonb("questions").notNull(),
+    answers: jsonb("answers"),
+    answeredAt: timestamp("answered_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("mcq_rounds_session_round_uidx").on(t.sessionId, t.round),
+    index("mcq_rounds_org_idx").on(t.organizationId),
+    check("mcq_rounds_round_cap", sql`${t.round} IN (1, 2)`),
+    foreignKey({
+      columns: [t.sessionId, t.organizationId],
+      foreignColumns: [planningSessions.id, planningSessions.organizationId],
+      name: "mcq_rounds_session_org_fk",
+    }),
+  ],
+);
+
+/**
+ * Requirements Document versions (01 §3). Versioned, not overwritten —
+ * editing answers regenerates a new version, and the Build Spec freeze
+ * records exactly which one it consumed.
+ */
+export const requirementsDocs = pgTable(
+  "requirements_docs",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    sessionId: uuid("session_id").notNull(),
+    version: integer("version").notNull(),
+    doc: jsonb("doc").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("requirements_docs_session_version_uidx").on(t.sessionId, t.version),
+    index("requirements_docs_org_idx").on(t.organizationId),
+    foreignKey({
+      columns: [t.sessionId, t.organizationId],
+      foreignColumns: [planningSessions.id, planningSessions.organizationId],
+      name: "requirements_docs_session_org_fk",
+    }),
+  ],
+);
+
+/**
+ * Architecture graph nodes (02 §2.3). One row per (session, node_key);
+ * re-derivation updates content in place and bumps `revision` — the UI
+ * renders revision > 1 as "revised", status 'removed' as ghosted, never
+ * deleted (02 §12). Task nodes double as the Build Spec task graph.
+ */
+export const graphNodes = pgTable(
+  "graph_nodes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    sessionId: uuid("session_id").notNull(),
+    nodeKey: text("node_key").notNull(),
+    kind: text("kind", { enum: ["service", "datastore", "external", "task"] }).notNull(),
+    label: text("label").notNull(),
+    description: text("description").notNull().default(""),
+    status: text("status", { enum: ["active", "removed"] })
+      .notNull()
+      .default("active"),
+    revision: integer("revision").notNull().default(1),
+    acceptanceCriteria: text("acceptance_criteria"),
+    // Task-graph dependency keys (node_key values), for task nodes.
+    dependsOn: jsonb("depends_on").notNull().default([]),
+    // Every node traces to the decision that produced its current content
+    // (01 §9 — no node appears without a logged rationale).
+    decisionId: uuid("decision_id").references(() => decisionLog.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("graph_nodes_session_key_uidx").on(t.sessionId, t.nodeKey),
+    index("graph_nodes_org_idx").on(t.organizationId),
+    foreignKey({
+      columns: [t.sessionId, t.organizationId],
+      foreignColumns: [planningSessions.id, planningSessions.organizationId],
+      name: "graph_nodes_session_org_fk",
+    }),
+  ],
+);
+
+/** Data/call-flow edges between graph nodes, keyed by node_key (02 §2.3). */
+export const graphEdges = pgTable(
+  "graph_edges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    sessionId: uuid("session_id").notNull(),
+    sourceKey: text("source_key").notNull(),
+    targetKey: text("target_key").notNull(),
+    label: text("label"),
+    status: text("status", { enum: ["active", "removed"] })
+      .notNull()
+      .default("active"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("graph_edges_session_pair_uidx").on(t.sessionId, t.sourceKey, t.targetKey),
+    index("graph_edges_org_idx").on(t.organizationId),
+    foreignKey({
+      columns: [t.sessionId, t.organizationId],
+      foreignColumns: [planningSessions.id, planningSessions.organizationId],
+      name: "graph_edges_session_org_fk",
     }),
   ],
 );
