@@ -1,8 +1,8 @@
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
-import { schema, type Db } from "@mullion/db";
+import { schema, type Db, type Tx } from "@mullion/db";
 
 const POLL_INTERVAL_MS = 1_000;
 const HEARTBEAT_EVERY_MS = 15_000;
@@ -62,7 +62,11 @@ export function streamEvents(c: Context, args: StreamArgs): Response {
       try {
         while (!stream.aborted && !stream.closed && Date.now() < deadline) {
           const rows = await args.db
-            .select()
+            .select({
+              id: schema.streamEvents.id,
+              eventType: schema.streamEvents.eventType,
+              payload: schema.streamEvents.payload,
+            })
             .from(schema.streamEvents)
             .where(
               and(
@@ -90,7 +94,11 @@ export function streamEvents(c: Context, args: StreamArgs): Response {
             lastActivity = Date.now();
           }
 
-          await stream.sleep(POLL_INTERVAL_MS);
+          // A full page means there's likely more backfill — drain it
+          // immediately instead of trickling at 500 rows/sec.
+          if (rows.length < 500) {
+            await stream.sleep(POLL_INTERVAL_MS);
+          }
         }
       } finally {
         release();
@@ -111,9 +119,23 @@ function sanitizeEventType(eventType: string): string {
   return eventType.replace(/[\r\n]/g, "_");
 }
 
-/** How producers publish: insert the event; connected streams pick it up. */
+// Large artifacts belong in S3 with a reference in the event, not inline —
+// the payload is re-read by every poll of every connected client.
+const MAX_PAYLOAD_BYTES = 64 * 1024;
+
+/**
+ * How producers publish: insert the event; connected streams pick it up.
+ *
+ * Accepts a transaction handle so callers can pair the event with the write
+ * it announces (02 §2.3: node emission + decision-log row commit together).
+ *
+ * ADR-38: the per-stream advisory lock serializes commit order within a
+ * stream. Without it, ids are assigned at insert but become visible at
+ * commit — a slow commit could surface an id the poll cursor has already
+ * passed, and that event would never be delivered.
+ */
 export async function publishStreamEvent(
-  db: Db,
+  db: Db | Tx,
   args: {
     streamId: string;
     organizationId: string;
@@ -121,10 +143,28 @@ export async function publishStreamEvent(
     payload: unknown;
   },
 ): Promise<void> {
-  await db.insert(schema.streamEvents).values({
-    streamId: args.streamId,
-    organizationId: args.organizationId,
-    eventType: sanitizeEventType(args.eventType),
-    payload: args.payload,
-  });
+  const serialized = JSON.stringify(args.payload);
+  if (serialized.length > MAX_PAYLOAD_BYTES) {
+    throw new Error(
+      `Stream event payload exceeds ${MAX_PAYLOAD_BYTES} bytes (${serialized.length}) — store the artifact and reference it instead`,
+    );
+  }
+  const insert = async (tx: Tx): Promise<void> => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${args.streamId}, 0))`);
+    await tx.insert(schema.streamEvents).values({
+      streamId: args.streamId,
+      organizationId: args.organizationId,
+      eventType: sanitizeEventType(args.eventType),
+      payload: args.payload,
+    });
+  };
+  if (isTx(db)) {
+    await insert(db);
+  } else {
+    await db.transaction(insert);
+  }
+}
+
+function isTx(db: Db | Tx): db is Tx {
+  return "rollback" in db;
 }

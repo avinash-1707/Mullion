@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { eq, sql } from "drizzle-orm";
 import { schema, type Db } from "@mullion/db";
 
 function personalOrgSlug(name: string): string {
@@ -22,6 +23,19 @@ export async function provisionPersonalOrg(
   user: { id: string; name: string },
 ): Promise<string> {
   return db.transaction(async (tx) => {
+    // Two concurrent zero-membership requests would otherwise both
+    // provision — a member unique index can't stop that (two distinct org
+    // ids). Serialize per user and re-check inside the lock.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`personal-org:${user.id}`}, 0))`);
+    const existing = await tx
+      .select({ organizationId: schema.member.organizationId })
+      .from(schema.member)
+      .where(eq(schema.member.userId, user.id))
+      .limit(1);
+    const existingOrgId = existing[0]?.organizationId;
+    if (existingOrgId) {
+      return existingOrgId;
+    }
     const [org] = await tx
       .insert(schema.organization)
       .values({

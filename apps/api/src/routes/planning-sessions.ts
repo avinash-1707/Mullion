@@ -76,6 +76,16 @@ export const planningSessionsRoute = new Hono<{ Variables: RequiredAuthVariables
             message: "An active session exists in another organization",
           });
         }
+        // The blocking session flipped out of 'active' between our INSERT
+        // and the SELECT — the user is allowed to create one now; retry
+        // once rather than surfacing the stale unique violation as a 500.
+        const [retried] = await db
+          .insert(schema.planningSessions)
+          .values({ organizationId, userId: user.id, idea })
+          .returning();
+        if (retried) {
+          return c.json(toApiShape(retried), 201);
+        }
       }
       throw error;
     }

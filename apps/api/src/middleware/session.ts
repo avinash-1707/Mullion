@@ -52,9 +52,13 @@ export const requireOrgMember = createMiddleware<{ Variables: RequiredAuthVariab
         )
         .limit(1);
       if (!membership[0]) {
-        throw new HTTPException(403, { message: "Not a member of the active organization" });
+        // Stale claim (e.g. removed from the org, or the org was deleted) —
+        // fall through to the fallback below instead of 403-locking a user
+        // who still has valid memberships elsewhere.
+        organizationId = null;
       }
-    } else {
+    }
+    if (!organizationId) {
       // The signup-time auth session is created before the personal-org
       // hook's rows are visible, so its activeOrganizationId lands null —
       // fall back to the user's first membership and heal the session row.
