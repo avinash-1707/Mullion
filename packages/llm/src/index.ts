@@ -13,4 +13,9 @@ export {
   OpenRouterError,
   UnknownRoleError,
 } from "./errors.js";
-export { parseChatCompletion, type ChatCompletionResponse } from "./response.js";
+export {
+  parseChatCompletion,
+  parseStreamChunk,
+  type ChatCompletionResponse,
+  type StreamChunk,
+} from "./response.js";

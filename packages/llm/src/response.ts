@@ -52,6 +52,52 @@ export const openRouterErrorBodySchema = z
   })
   .loose();
 
+/**
+ * One SSE `data:` chunk of a streamed completion. Everything is optional by
+ * design: interior chunks carry only deltas, the terminal chunk carries
+ * `finish_reason` + `usage`, and a mid-stream failure arrives as a
+ * 200-status chunk with a top-level `error` (headers were already sent).
+ */
+export const streamChunkSchema = z
+  .object({
+    id: z.string().optional(),
+    model: z.string().optional(),
+    error: z
+      .object({
+        code: z.union([z.number(), z.string()]).optional(),
+        message: z.string(),
+      })
+      .loose()
+      .optional(),
+    choices: z
+      .array(
+        z
+          .object({
+            delta: z.object({ content: z.string().nullish() }).loose().optional(),
+            finish_reason: z.string().nullish(),
+          })
+          .loose(),
+      )
+      .optional(),
+    usage: openRouterUsageSchema.optional(),
+  })
+  .loose();
+
+export type StreamChunk = z.infer<typeof streamChunkSchema>;
+
+export function parseStreamChunk(raw: unknown): StreamChunk {
+  const parsed = streamChunkSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new MalformedLlmResponseError(
+      `OpenRouter stream chunk failed schema parse: ${parsed.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ")}`,
+      raw,
+    );
+  }
+  return parsed.data;
+}
+
 export function parseChatCompletion(raw: unknown): ChatCompletionResponse {
   const parsed = chatCompletionResponseSchema.safeParse(raw);
   if (!parsed.success) {

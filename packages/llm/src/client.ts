@@ -2,10 +2,24 @@ import { eq } from "drizzle-orm";
 import { schema, type Db } from "@mullion/db";
 import type { AgentRole } from "@mullion/schemas";
 import { NoZdrProviderAvailableError, OpenRouterError, UnknownRoleError } from "./errors.js";
-import { openRouterErrorBodySchema, parseChatCompletion } from "./response.js";
+import { openRouterErrorBodySchema, parseChatCompletion, parseStreamChunk } from "./response.js";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const ROUTING_CACHE_TTL_MS = 60_000;
+// Reasoning-tier completions run long, but never unbounded — a hung
+// connection must fail retryably, not wedge the caller (02 §2.4).
+const REQUEST_TIMEOUT_MS = 120_000;
+const STREAM_TIMEOUT_MS = 300_000;
+const STREAM_IDLE_TIMEOUT_MS = 45_000;
+// ~4x a 16k-token completion — anything past this is a runaway provider.
+const MAX_STREAM_CHARS = 2_000_000;
+
+function toAbortError(error: unknown, message: string): unknown {
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    return new OpenRouterError({ message, status: 408, retryable: true });
+  }
+  return error;
+}
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -48,6 +62,8 @@ export interface OpenRouterClientOptions {
   referer?: string | undefined;
   /** Injectable for tests — never hit the paid API from a test (CODING_STANDARDS §6). */
   fetchImpl?: typeof fetch | undefined;
+  /** Dev/test only: point at a local mock. Production uses the default. */
+  baseUrl?: string | undefined;
 }
 
 /**
@@ -63,6 +79,7 @@ export class OpenRouterClient {
   private readonly db: Db;
   private readonly referer: string | undefined;
   private readonly fetchImpl: typeof fetch;
+  private readonly baseUrl: string;
   private readonly routingCache = new Map<AgentRole, RoutingEntry>();
 
   constructor(options: OpenRouterClientOptions) {
@@ -70,13 +87,18 @@ export class OpenRouterClient {
     this.db = options.db;
     this.referer = options.referer;
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.baseUrl = options.baseUrl ?? OPENROUTER_BASE_URL;
   }
 
-  async completeChat(args: CompleteChatArgs): Promise<CompleteChatResult> {
-    const modelSlug = await this.resolveModel(args.role);
-
-    const response = await this.fetchImpl(`${OPENROUTER_BASE_URL}/chat/completions`, {
+  private requestInit(
+    args: CompleteChatArgs,
+    modelSlug: string,
+    stream: boolean,
+    signal: AbortSignal,
+  ): RequestInit {
+    return {
       method: "POST",
+      signal,
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
@@ -88,9 +110,26 @@ export class OpenRouterClient {
         messages: args.messages,
         ...(args.maxTokens !== undefined ? { max_tokens: args.maxTokens } : {}),
         ...(args.temperature !== undefined ? { temperature: args.temperature } : {}),
+        ...(stream ? { stream: true } : {}),
         provider: { zdr: true },
       }),
-    });
+    };
+  }
+
+  async completeChat(args: CompleteChatArgs): Promise<CompleteChatResult> {
+    const modelSlug = await this.resolveModel(args.role);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(
+        `${this.baseUrl}/chat/completions`,
+        // A hung provider must never wedge the caller's agent slot — abort
+        // and surface as retryable (security review Phase 1, finding #1).
+        this.requestInit(args, modelSlug, false, AbortSignal.timeout(REQUEST_TIMEOUT_MS)),
+      );
+    } catch (error) {
+      throw toAbortError(error, "OpenRouter request timed out");
+    }
 
     if (!response.ok) {
       throw await this.toError(response);
@@ -119,6 +158,176 @@ export class OpenRouterClient {
         promptTokens: parsed.usage.prompt_tokens,
         completionTokens: parsed.usage.completion_tokens,
         totalTokens: parsed.usage.total_tokens,
+      },
+    };
+  }
+
+  /**
+   * Streaming variant: identical routing/ZDR/cost semantics, but delivers
+   * incremental content via `onDelta` — the Planner emits graph decisions
+   * live as they generate (02 §2.3) instead of after a full completion.
+   *
+   * Wire format per OpenRouter docs: SSE `data:` lines of chunk JSON,
+   * `: OPENROUTER PROCESSING` comment keep-alives (skipped), a final
+   * `data: [DONE]` sentinel. Usage (incl. cost) arrives on the terminal
+   * chunk automatically; mid-stream failures come as a 200-status chunk
+   * with a top-level `error` key, which we surface as a typed error.
+   */
+  async completeChatStream(
+    args: CompleteChatArgs & { onDelta: (text: string) => void | Promise<void> },
+  ): Promise<CompleteChatResult> {
+    const modelSlug = await this.resolveModel(args.role);
+
+    // Two-layer abort: a hard deadline on the whole stream, plus an idle
+    // watchdog so a provider that accepts then stalls can't hold the
+    // caller's agent slot open (security review Phase 1, finding #1).
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
+    let idle = setTimeout(() => controller.abort(), STREAM_IDLE_TIMEOUT_MS);
+    const resetIdle = (): void => {
+      clearTimeout(idle);
+      idle = setTimeout(() => controller.abort(), STREAM_IDLE_TIMEOUT_MS);
+    };
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(
+        `${this.baseUrl}/chat/completions`,
+        this.requestInit(args, modelSlug, true, controller.signal),
+      );
+    } catch (error) {
+      clearTimeout(deadline);
+      clearTimeout(idle);
+      throw toAbortError(error, "OpenRouter stream timed out before responding");
+    }
+
+    if (!response.ok) {
+      clearTimeout(deadline);
+      clearTimeout(idle);
+      throw await this.toError(response);
+    }
+    if (!response.body) {
+      clearTimeout(deadline);
+      clearTimeout(idle);
+      throw new OpenRouterError({
+        message: "OpenRouter stream response had no body",
+        status: 502,
+        retryable: true,
+      });
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let content = "";
+    let generationId = "";
+    let model = modelSlug;
+    let usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number; cost: number } | undefined;
+
+    const handleLine = async (line: string): Promise<void> => {
+      const trimmed = line.trim();
+      // SSE comments (keep-alives) start with ':' — never JSON.
+      if (trimmed.length === 0 || trimmed.startsWith(":")) return;
+      if (!trimmed.startsWith("data:")) return;
+      const data = trimmed.slice("data:".length).trim();
+      if (data === "[DONE]") return;
+      const chunk = parseStreamChunk(JSON.parse(data));
+      if (chunk.error) {
+        throw new OpenRouterError({
+          message: `OpenRouter stream errored mid-flight: ${chunk.error.message}`,
+          status: 502,
+          retryable: true,
+        });
+      }
+      if (chunk.id) generationId = chunk.id;
+      if (chunk.model) model = chunk.model;
+      if (chunk.usage) usage = chunk.usage;
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (delta) {
+        content += delta;
+        await args.onDelta(delta);
+      }
+    };
+
+    try {
+      for (;;) {
+        let done: boolean;
+        let value: Uint8Array | undefined;
+        try {
+          ({ done, value } = await reader.read());
+        } catch (error) {
+          throw toAbortError(error, "OpenRouter stream timed out mid-flight");
+        }
+        if (done) break;
+        resetIdle();
+        buffer += decoder.decode(value, { stream: true });
+        // Untrusted provider output: cap accumulation so a runaway stream
+        // can't exhaust memory (security review Phase 1, finding #6).
+        if (buffer.length + content.length > MAX_STREAM_CHARS) {
+          throw new OpenRouterError({
+            message: `OpenRouter stream exceeded ${MAX_STREAM_CHARS} chars — aborted`,
+            status: 502,
+            retryable: true,
+          });
+        }
+        let newlineIndex = buffer.indexOf("\n");
+        while (newlineIndex !== -1) {
+          const line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+          await handleLine(line);
+          newlineIndex = buffer.indexOf("\n");
+        }
+      }
+      if (buffer.length > 0) {
+        await handleLine(buffer);
+      }
+    } catch (error) {
+      // Best-effort ADR-28 capture on failure: if a usage chunk arrived
+      // before the stream died, the spend is real — record it. Without one
+      // the provider-side spend is unknowable here; say so loudly.
+      if (usage) {
+        await this.recordCost(args, modelSlug, usage.cost, usage).catch(() => undefined);
+      } else if (content.length > 0) {
+        console.error(
+          `OpenRouter stream for role "${args.role}" failed after partial output with no usage chunk — provider-side spend untracked (ADR-28)`,
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(deadline);
+      clearTimeout(idle);
+      // Frees the connection on both success and mid-stream throw.
+      await reader.cancel().catch(() => undefined);
+    }
+
+    if (content.length === 0) {
+      throw new OpenRouterError({
+        message: "OpenRouter stream ended with no content",
+        status: 502,
+        retryable: true,
+      });
+    }
+    if (!usage) {
+      // Cost capture is not optional (ADR-28) — a stream that never
+      // delivered usage is treated as a failed call, not a free one.
+      throw new OpenRouterError({
+        message: "OpenRouter stream ended without a usage chunk — cost unknown",
+        status: 502,
+        retryable: true,
+      });
+    }
+
+    await this.recordCost(args, modelSlug, usage.cost, usage);
+
+    return {
+      content,
+      model,
+      generationId,
+      cost: usage.cost,
+      usage: {
+        promptTokens: usage.prompt_tokens,
+        completionTokens: usage.completion_tokens,
+        totalTokens: usage.total_tokens,
       },
     };
   }
