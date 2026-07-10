@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/*
+ * Mullion is dark-first by deliberate choice, not by default: the whole
+ * palette is defined once here and the app does not respond to
+ * prefers-color-scheme. That's the "force a single scheme" approach called
+ * out in the brief — simpler and safer than a light palette nobody has
+ * designed or tested yet.
+ */
+@theme {
+  --color-bg: #0a0b0d;
+  --color-surface: #141519;
+  --color-elevated: #1a1c22;
+  --color-border: rgba(232, 230, 224, 0.1);
+  --color-border-strong: rgba(232, 230, 224, 0.2);
+  --color-fg: #edece7;
+  --color-fg-muted: #9a9ca5;
+  --color-fg-faint: #83858e;
+  --color-accent: #f2a65a;
+  --color-accent-strong: #ffc287;
+  --color-accent-soft: rgba(242, 166, 90, 0.14);
+  --color-danger: #ef6461;
+  --color-danger-soft: rgba(239, 100, 97, 0.14);
+}
+
+/*
+ * Separate `@theme inline` block, deliberately: the font tokens reference
+ * next/font's runtime CSS variables (scoped to <html> via className, not
+ * known until the page renders). A plain `@theme` block tries to resolve
+ * theme values at build time and silently emits `undefined` for a var() it
+ * can't see yet — a documented Tailwind v4 + next/font footgun. `inline`
+ * defers resolution to the browser instead. Static color tokens above don't
+ * need this, so they stay in the plain block.
+ */
+@theme inline {
+  --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+body {
+  font-family: var(--font-display);
+}
+
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+}
+
+/* Custom deceleration curve for interactive elements — bare `ease` reads as
+   flat/synthetic (Emil Kowalski's "easing is the most important part of any
+   animation"). No overshoot, matching Jakub's bounce:0 production default. */
+.transition-swift {
+  transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Visible keyboard focus everywhere, without touching mouse-click focus
+   (browsers already suppress :focus-visible on pointer interaction). */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Emil-weighted timing: fast, custom deceleration, no bare `ease`. */
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.animate-reveal {
+  animation: reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+.animate-skeleton {
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+/* Accessibility is not optional: collapses every animation/transition to a
+   single frame and preserves final state, so nothing here can disorient a
+   user who has asked the OS to reduce motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
