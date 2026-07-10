@@ -12,6 +12,8 @@ export const planningSessionSchema = z.object({
   organizationId: z.string(),
   userId: z.string(),
   status: z.enum(["active", "confirmed", "abandoned"]),
+  phase: z.enum(["requirements", "architecture"]),
+  agentState: z.enum(["idle", "working", "error"]),
   idea: z.string(),
   createdAt: z.string(),
 });
