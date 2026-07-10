@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.next/
+.turbo/
+*.log
+
+# secrets — every env file stays local (CODING_STANDARDS §7)
+.env
+.env.*
+!.env.example
+
+# local agent artifacts
+.claude/
