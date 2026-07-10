@@ -344,6 +344,13 @@ alone answers "did we forget anything":
 | 34 | Planning UX ships before build pipeline | (governs overall sequencing, §0) | 🔧 |
 | 35 | Sign-in required before starting a session | 0 (auth wall) / 1 (enforced on session creation) | ✅ |
 | 36 | Multi-tenant orgs (Better Auth organization plugin, org-scoped data) | 0 (plugin+schema+middleware) / 1,2 (scoped usage) | ✅ |
+| 37 | Personal-org provisioning via databaseHooks | 0 | ✅ |
+| 38 | Per-stream advisory lock on SSE event publish | 0 | ✅ |
+| 39 | decision_log integrity constraints; TEXT-with-enum for evolving sets | 0 | ✅ |
+| 40 | Deletion lifecycle: RESTRICT deliberate for v1 | 0 | ✅ |
+| 41 | Planner streams JSONL decisions, applied atomically per line | 1 | ✅ |
+| 42 | Fork A bundle rendered on demand; S3 for bundles deferred | 1 | ✅ |
+| 43 | Stopgap per-org daily LLM spend ceiling (superseded by ADR-31 in Phase 2) | 1 | ✅ |
 
 Process conventions (dependency installation, doc verification, per-phase
 security review) apply to every row above but are intentionally not

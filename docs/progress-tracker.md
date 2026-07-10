@@ -27,7 +27,7 @@ ADR for that.
 | Phase | Status | Last updated | Notes |
 |---|---|---|---|
 | Phase 0 — Foundation & Platform Wiring | Done (1 DoD item pending creds) | 2026-07-10 | Built + verified live; OpenRouter round-trip awaits a real API key; Neon swap-in is a DATABASE_URL change |
-| Phase 1 — Interactive Planning Experience | Not started | 2026-07-10 | Blocked on Phase 0 |
+| Phase 1 — Interactive Planning Experience | Done (live-LLM verification pending creds) | 2026-07-11 | Built + verified end to end against a mock OpenRouter; real-model pass needs OPENROUTER_API_KEY |
 | Phase 2 — Automated Build Pipeline | Not started | 2026-07-10 | Blocked on Phase 1 |
 | Phase 3 — Observability, Evaluation & Hardening | Not started | 2026-07-10 | Blocked on Phase 2 |
 | Phase 4 — Polish & Fast-Follow | Not started | 2026-07-10 | Blocked on Phase 3 |
@@ -63,6 +63,64 @@ template.
 ```
 
 ---
+
+### [2026-07-11] Phase 1 built, verified, security-reviewed
+**Phase:** Phase 1 — Interactive Planning Experience
+**Type:** Progress update
+**Summary:** Full Phase 1 scope built and verified end to end (idea → MCQ
+rounds → Requirements Document → live-streamed architecture planning →
+consistency gate → edit re-derivation → confirm/freeze → Fork A export).
+Backend: `packages/agents` (Analyst/Planner/Reviewer prompt+parse layers on
+a shared AgentSpec contract, retry-with-backoff per ADR-30), streaming
+OpenRouter client (`completeChatStream`, ADR-41 JSONL decision streaming,
+cost from the terminal usage chunk), four new tables (mcq_rounds,
+requirements_docs, graph_nodes, graph_edges) + session phase/agent-state/
+graph-version columns (migration 0003), planning service with atomic
+per-decision transactions (decision-log row + graph writes + SSE events
+commit together per 02 §2.3), content-hashed immutable Build Spec freeze,
+on-demand zip export (ADR-42: markdown docs + graph/task/decision JSON +
+deterministic SVG diagram). Frontend: full planning UX (MCQ cards with
+"Other" escape hatch, requirements doc view, React Flow live diagram +
+decision log split panes, edit-prompt bar, consistency checklist, sealed
+mode + fork cards), TanStack Query + zod-parsed SSE with snapshot-then-
+resume (`?lastEventId=` fallback since EventSource can't set headers).
+Icons standardized on react-icons (Lucide family) per owner request.
+Everything verified live against a local mock OpenRouter (streaming
+SSE-shape-accurate): full pipeline, retry path, sealed-mode 409s, ADR-29
+conflict handling, cross-org 404s, SSE replay. 40 unit tests green;
+`turbo build` + lint + typecheck clean.
+Phase-end security review (3 parallel passes: authz/tenancy, LLM boundary,
+frontend/transport) found no true Criticals; all actionable findings fixed
+and re-verified live: atomic confirm gate (status+agent+graph-version
+conditional update; double-confirm → 409), per-org rolling-24h spend
+ceiling (ADR-43, verified 429), CSRF Origin gate on unsafe methods (evil
+origin → 403), LLM request/stream/idle timeouts + 2MB stream cap, length/
+array caps on every LLM-output schema (oversized fields now fail retryably
+at parse, not mid-transaction), partial-plan fail-fast semantics (initial
+re-plan wipes graph first; partial edit parks with a consistency-check
+retry task), mid-stream best-effort cost capture, SSE membership recheck
+every 60s, loopback-only OPENROUTER_BASE_URL, nosniff on export, byte-
+accurate event payload cap.
+**Files/areas touched:** packages/{schemas,llm,agents,config,db},
+apps/api (planning/*, routes, sse, index), apps/web (planning UI)
+**Related ADR:** New — ADR-41 (streamed JSONL planner), ADR-42 (on-demand
+export bundle, S3 deferred), ADR-43 (stopgap org spend ceiling) added to
+`04`; master table in `05` extended through ADR-43 (incl. backfilled
+37–40 rows)
+**Follow-ups:**
+- Live-model verification (real OPENROUTER_API_KEY): full pipeline against
+  actual Claude routing, prompt quality tuning on real outputs.
+- "Edit answers" regenerates the full downstream (round 2 + doc) rather
+  than only `affects`-filtered questions — spec'd refinement (01 §3) that
+  needs real-model behavior to tune; revisit with live creds.
+- Decision-log rows from a failed partial plan survive its re-run
+  (append-only ADR-08 honored; graph is wiped and rebuilt) — duplicate-ish
+  log entries possible after a mid-plan failure; acceptable for v1,
+  fold any cleanup into Phase 2's compaction thinking.
+- ADR-43's stopgap ceiling folds into ADR-31's real circuit breaker in
+  Phase 2; stream_events composite-FK hardening rides Phase 2 schema work.
+- Prod cookie topology decision still open from Phase 0 (CSRF Origin gate
+  now in place either way).
 
 ### [2026-07-10] DB audit run and findings fixed
 **Phase:** Phase 0 — Foundation & Platform Wiring

@@ -487,3 +487,71 @@ expired-row purges (session/verification/invitation) ride the same future
 job infrastructure (Temporal, Phase 2).
 **Doc:** `packages/db/drizzle/0001_*.sql` FK rules; DB-audit report
 `docs/db-audits/2026-07-10.md`
+
+### ADR-41 — Planner output is streamed JSONL, one decision object per line, applied atomically per line
+**Status:** 🔧 Designed by Claude during Phase 1 implementation
+**Context:** `02` §2.3 requires nodes to "appear incrementally as the
+Planner makes each decision" with node emission and decision-log write in
+the same transaction. A plain completion would deliver the whole plan at
+once (a burst after 30–60s of silence — the opposite of "watching the
+system think"), while a full multi-call agent loop (one LLM call per
+decision) multiplies cost and latency for no v1 benefit.
+**Decision:** The Planner produces one JSON decision object per line
+(JSONL) over OpenRouter's SSE streaming; a JsonlAccumulator parses each
+line the moment its newline arrives, and each parsed decision commits as
+one transaction: decision_log row + graph node/edge upserts + SSE events
+(riding ADR-38's per-stream lock). Decisions therefore land in the UI in
+generation order, seconds apart, while the model is still generating.
+Same mechanism handles edit prompts (line union adds a `clarification`
+variant that ends the turn). A malformed line fails the whole run
+(retry with backoff, then ADR-30's manual retry) — never a
+partially-applied silent plan. Usage/cost is read from the final stream
+chunk (OpenRouter now always includes it; the old `usage.include` opt-in
+is a documented no-op) and a stream ending without a usage chunk is
+treated as a failed call, so ADR-28's cost capture can't silently skip.
+**Alternatives considered:** Single completion + artificial paced emission
+(dishonest latency, still one long silent wait); per-decision LLM calls
+(cost/latency multiplier); streaming a single JSON document with
+incremental parsing (fragile bracket-state parsing vs. trivial line
+splits).
+**Doc:** `02` §2.3; `packages/llm/src/client.ts` (completeChatStream),
+`packages/agents/src/planner.ts`, `apps/api/src/planning/flows.ts`
+
+### ADR-42 — Fork A bundle is rendered on demand from Postgres; S3 storage of export bundles deferred
+**Status:** 🔧 Designed by Claude during Phase 1 implementation
+**Context:** `02` §4.3 lists "exported spec bundles" under S3. Phase 1 has
+no other S3 consumer — repos/diffs/artifacts all arrive with the Phase 2
+build pipeline — so honoring that line now would add a bucket, credentials
+and lifecycle config for files that are pure derivations of DB rows.
+**Decision:** `GET /api/sessions/:id/export` renders the zip (markdown
+docs, graph/task/decision JSON, deterministic SVG diagram) on demand from
+the frozen Build Spec + decision log. The spec is immutable (0002 trigger)
+so the bundle is reproducible at any time; nothing user-visible is lost by
+not persisting it. S3 lands in Phase 2 with the artifacts that genuinely
+can't be re-derived, and export bundles can start persisting then if
+there's a reason (e.g. download links in email).
+**Alternatives considered:** Standing up S3 now (infra for derivable
+files); storing bundles as bytea in Postgres (bloats the DB for no gain).
+**Doc:** `02` §4.3 (deviation scoped to Phase 1); `apps/api/src/planning/export.ts`
+
+### ADR-43 — Phase 1 stopgap: per-org rolling-24h LLM spend ceiling
+**Status:** 🔧 Designed by Claude from a Phase 1 security-review finding
+**Context:** ADR-31's combined LLM+sandbox budget circuit breaker lands in
+Phase 2, but Phase 1 already ships paid endpoints: a signed-in org member
+can fire edit prompts back-to-back (120 req/min rate limit), each costing
+a reasoning-tier completion — denial-of-wallet with no ceiling. Rate
+limiting bounds request rate, not money.
+**Decision:** Before any agent task starts (and before session creation),
+the API checks `SUM(cost)` from `cost_events` for the org over a rolling
+24 hours against `ORG_DAILY_LLM_BUDGET_USD` (env, default $10). Exhausted
+→ 429 with a plain message; nothing is queued. This is deliberately
+coarse — no reservations, no per-user split, checked at task start rather
+than per LLM call — because it exists to cap the blast radius of abuse or
+a runaway loop, not to be the real budget product. ADR-31 replaces it in
+Phase 2 with the combined per-run/per-org circuit breaker; this check
+should fold into that mechanism, not survive beside it.
+**Alternatives considered:** Tighter per-route rate limits (still
+unbounded over time); doing nothing until Phase 2 (leaves Fork A's
+standalone release uncapped).
+**Doc:** `apps/api/src/planning/flows.ts` (isOrgBudgetExhausted),
+`packages/config/src/env.ts`
