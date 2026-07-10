@@ -137,6 +137,13 @@ export class OpenRouterClient {
     if (!row) {
       throw new UnknownRoleError(role);
     }
+    if (!row.zdrOnly) {
+      // provider.zdr is hardcoded true regardless — this asserts nobody
+      // weakened the routing table thinking it would take effect (ADR-27).
+      throw new Error(
+        `model_routing row for "${role}" has zdr_only=false — ADR-27 forbids non-ZDR routing; fix the row`,
+      );
+    }
     this.routingCache.set(role, { modelSlug: row.modelSlug, fetchedAt: Date.now() });
     return row.modelSlug;
   }
@@ -187,14 +194,14 @@ export class OpenRouterClient {
 /** Seed ADR-25's routing table with the Phase 0 placeholder slugs. Idempotent. */
 export async function seedModelRouting(db: Db): Promise<void> {
   const { DEFAULT_MODEL_ROUTING } = await import("./default-routing.js");
-  for (const [role, config] of Object.entries(DEFAULT_MODEL_ROUTING)) {
-    await db
-      .insert(schema.modelRouting)
-      .values({
+  await db
+    .insert(schema.modelRouting)
+    .values(
+      Object.entries(DEFAULT_MODEL_ROUTING).map(([role, config]) => ({
         role: role as AgentRole,
         modelSlug: config.modelSlug,
         zdrOnly: config.zdrOnly,
-      })
-      .onConflictDoNothing();
-  }
+      })),
+    )
+    .onConflictDoNothing();
 }
