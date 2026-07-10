@@ -2,6 +2,8 @@ import { sql } from "drizzle-orm";
 import {
   bigserial,
   boolean,
+  check,
+  foreignKey,
   index,
   jsonb,
   numeric,
@@ -9,8 +11,10 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { organization, user } from "./auth.js";
 
@@ -37,7 +41,10 @@ export const planningSessions = pgTable(
     status: planningSessionStatus("status").notNull().default("active"),
     idea: text("idea").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
     // ADR-29: at most one active planning session per user, enforced at the
@@ -47,6 +54,9 @@ export const planningSessions = pgTable(
       .on(t.userId)
       .where(sql`${t.status} = 'active'`),
     index("planning_sessions_org_idx").on(t.organizationId),
+    // Composite-FK target: lets children pin (parent id, org) together so a
+    // denormalized organization_id can never disagree with its parent's.
+    unique("planning_sessions_id_org_uq").on(t.id, t.organizationId),
   ],
 );
 
@@ -57,18 +67,29 @@ export const buildSpecs = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id),
-    sessionId: uuid("session_id")
-      .notNull()
-      .references(() => planningSessions.id),
+    sessionId: uuid("session_id").notNull(),
     contentHash: text("content_hash").notNull(),
-    // The frozen §2.5 artifact — immutable once written.
+    // The frozen §2.5 artifact — immutable once written (also enforced by a
+    // BEFORE UPDATE/DELETE trigger in the hand-written migration).
     spec: jsonb("spec").notNull(),
     frozenAt: timestamp("frozen_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("build_specs_org_idx").on(t.organizationId)],
+  (t) => [
+    index("build_specs_org_idx").on(t.organizationId),
+    // Fork A/B fetch the spec by session, and confirmation freezes at most
+    // one spec per session (02 §2.1) — unique doubles as the lookup index.
+    uniqueIndex("build_specs_session_uidx").on(t.sessionId),
+    unique("build_specs_id_org_uq").on(t.id, t.organizationId),
+    foreignKey({
+      columns: [t.sessionId, t.organizationId],
+      foreignColumns: [planningSessions.id, planningSessions.organizationId],
+      name: "build_specs_session_org_fk",
+    }),
+  ],
 );
 
-// Append-only design memory (ADR-08); schema per 02 §4.1.
+// Append-only design memory (ADR-08); schema per 02 §4.1, tightened per
+// ADR-39: a row with no decision, actor, phase, or parent is meaningless.
 export const decisionLog = pgTable(
   "decision_log",
   {
@@ -77,19 +98,33 @@ export const decisionLog = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id),
-    buildSpecId: uuid("build_spec_id").references(() => buildSpecs.id),
-    sessionId: uuid("session_id").references(() => planningSessions.id),
-    phase: text("phase", { enum: ["requirements", "architecture", "build"] }),
-    actor: text("actor"),
-    decision: text("decision"),
+    buildSpecId: uuid("build_spec_id"),
+    sessionId: uuid("session_id"),
+    phase: text("phase", { enum: ["requirements", "architecture", "build"] }).notNull(),
+    actor: text("actor").notNull(),
+    decision: text("decision").notNull(),
     rationale: text("rationale"),
     alternativesConsidered: text("alternatives_considered"),
-    supersedes: uuid("supersedes"),
+    supersedes: uuid("supersedes").references((): AnyPgColumn => decisionLog.id),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("decision_log_session_idx").on(t.sessionId),
     index("decision_log_org_idx").on(t.organizationId),
+    check(
+      "decision_log_has_parent",
+      sql`${t.sessionId} IS NOT NULL OR ${t.buildSpecId} IS NOT NULL`,
+    ),
+    foreignKey({
+      columns: [t.sessionId, t.organizationId],
+      foreignColumns: [planningSessions.id, planningSessions.organizationId],
+      name: "decision_log_session_org_fk",
+    }),
+    foreignKey({
+      columns: [t.buildSpecId, t.organizationId],
+      foreignColumns: [buildSpecs.id, buildSpecs.organizationId],
+      name: "decision_log_build_spec_org_fk",
+    }),
   ],
 );
 
@@ -117,12 +152,13 @@ export const runs = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id),
-    buildSpecId: uuid("build_spec_id")
-      .notNull()
-      .references(() => buildSpecs.id),
+    buildSpecId: uuid("build_spec_id").notNull(),
     status: runStatus("status").notNull().default("queued"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
   (t) => [
     // ADR-29: one active build per user.
@@ -130,6 +166,12 @@ export const runs = pgTable(
       .on(t.userId)
       .where(sql`${t.status} NOT IN ('done', 'failed')`),
     index("runs_org_idx").on(t.organizationId),
+    unique("runs_id_org_uq").on(t.id, t.organizationId),
+    foreignKey({
+      columns: [t.buildSpecId, t.organizationId],
+      foreignColumns: [buildSpecs.id, buildSpecs.organizationId],
+      name: "runs_build_spec_org_fk",
+    }),
   ],
 );
 
@@ -141,14 +183,20 @@ export const tasks = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id),
-    runId: uuid("run_id")
-      .notNull()
-      .references(() => runs.id),
+    runId: uuid("run_id").notNull(),
     description: text("description").notNull(),
     payload: jsonb("payload"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("tasks_run_idx").on(t.runId), index("tasks_org_idx").on(t.organizationId)],
+  (t) => [
+    index("tasks_run_idx").on(t.runId),
+    index("tasks_org_idx").on(t.organizationId),
+    foreignKey({
+      columns: [t.runId, t.organizationId],
+      foreignColumns: [runs.id, runs.organizationId],
+      name: "tasks_run_org_fk",
+    }),
+  ],
 );
 
 /** Placeholder until Phase 2 — structured agent-message envelopes. */
@@ -159,19 +207,29 @@ export const messages = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organization.id),
-    runId: uuid("run_id")
-      .notNull()
-      .references(() => runs.id),
+    runId: uuid("run_id").notNull(),
     envelope: jsonb("envelope").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("messages_run_idx").on(t.runId), index("messages_org_idx").on(t.organizationId)],
+  (t) => [
+    index("messages_run_idx").on(t.runId),
+    index("messages_org_idx").on(t.organizationId),
+    foreignKey({
+      columns: [t.runId, t.organizationId],
+      foreignColumns: [runs.id, runs.organizationId],
+      name: "messages_run_org_fk",
+    }),
+  ],
 );
 
 /**
  * ADR-25: role → model routing lives in a config table, swappable without a
  * redeploy. Slug *values* are seeded from packages/llm (the only place a
  * model string is written down — CODING_STANDARDS §3).
+ *
+ * `role`/`phase`/`source` stay TEXT with a TS enum rather than pgEnum —
+ * deliberate: these sets grow (e.g. 'sandbox' cost source in Phase 2) and
+ * text avoids ALTER TYPE churn; zod guards the boundary (ADR-39 note).
  */
 export const modelRouting = pgTable("model_routing", {
   role: text("role", {
@@ -180,7 +238,10 @@ export const modelRouting = pgTable("model_routing", {
   modelSlug: text("model_slug").notNull(),
   // ADR-27 is global policy; a false here must never be written in v1.
   zdrOnly: boolean("zdr_only").notNull().default(true),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 /**
@@ -205,13 +266,21 @@ export const costEvents = pgTable(
     usage: jsonb("usage"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("cost_events_org_idx").on(t.organizationId)],
+  (t) => [
+    // Budget checks are SUM(cost) per org per period (ADR-28/31) — the
+    // created_at suffix keeps them a range scan, not an org-wide scan.
+    index("cost_events_org_created_idx").on(t.organizationId, t.createdAt),
+    // Per-run budget circuit breaker (02 §9).
+    index("cost_events_run_idx").on(t.runId),
+  ],
 );
 
 /**
  * SSE backfill log (ADR-18/19): every streamed event lands here first;
  * `id` is monotonic per stream and doubles as the SSE `id:` field, so a
- * reconnect with Last-Event-ID replays exactly what was missed.
+ * reconnect with Last-Event-ID replays exactly what was missed. Per-stream
+ * commit ordering is serialized by an advisory lock in publishStreamEvent
+ * (ADR-38) — without it a slow commit could be skipped by the poll cursor.
  */
 export const streamEvents = pgTable(
   "stream_events",

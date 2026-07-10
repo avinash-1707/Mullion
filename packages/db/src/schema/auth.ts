@@ -1,4 +1,5 @@
-import { boolean, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 /**
  * Better Auth core + organization-plugin tables (ADR-22, ADR-36).
@@ -13,7 +14,10 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const session = pgTable(
@@ -30,9 +34,16 @@ export const session = pgTable(
     // Added by the organization plugin.
     activeOrganizationId: text("active_organization_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
-  (t) => [index("session_user_id_idx").on(t.userId)],
+  (t) => [
+    index("session_user_id_idx").on(t.userId),
+    // Serves the eventual expired-row purge as a range scan.
+    index("session_expires_at_idx").on(t.expiresAt),
+  ],
 );
 
 export const account = pgTable(
@@ -55,19 +66,39 @@ export const account = pgTable(
     idToken: text("id_token"),
     password: text("password"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
-  (t) => [index("account_user_id_idx").on(t.userId)],
+  (t) => [
+    index("account_user_id_idx").on(t.userId),
+    // One row per external identity; also serves the OAuth-callback lookup
+    // by (provider, external id). Credential rows use accountId = userId,
+    // so the invariant holds for them too.
+    uniqueIndex("account_provider_account_uidx").on(t.providerId, t.accountId),
+  ],
 );
 
-export const verification = pgTable("verification", {
-  id: text("id").primaryKey(),
-  identifier: text("identifier").notNull(),
-  value: text("value").notNull(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const verification = pgTable(
+  "verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // Better Auth resolves verification/reset flows by identifier.
+    index("verification_identifier_idx").on(t.identifier),
+    index("verification_expires_at_idx").on(t.expiresAt),
+  ],
+);
 
 export const organization = pgTable("organization", {
   id: text("id").primaryKey(),
@@ -93,7 +124,10 @@ export const member = pgTable(
   },
   (t) => [
     index("member_user_id_idx").on(t.userId),
-    index("member_organization_id_idx").on(t.organizationId),
+    // One membership per (org, user); org-prefixed, so it also serves the
+    // plugin's org-scoped member listings — the standalone org index it
+    // replaces would be redundant.
+    uniqueIndex("member_org_user_uidx").on(t.organizationId, t.userId),
   ],
 );
 
@@ -113,5 +147,13 @@ export const invitation = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("invitation_organization_id_idx").on(t.organizationId)],
+  (t) => [
+    index("invitation_organization_id_idx").on(t.organizationId),
+    // Accept-time and "my invites" lookups filter by email.
+    index("invitation_email_idx").on(t.email),
+    // At most one pending invite per address per org.
+    uniqueIndex("invitation_org_email_pending_uidx")
+      .on(t.organizationId, t.email)
+      .where(sql`${t.status} = 'pending'`),
+  ],
 );
