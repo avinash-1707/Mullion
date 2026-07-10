@@ -16,7 +16,12 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch(path: string, init?: RequestInit): Promise<unknown> {
+interface RawResponse {
+  status: number;
+  body: unknown;
+}
+
+async function rawApiFetch(path: string, init?: RequestInit): Promise<RawResponse> {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL;
   if (!baseUrl) {
     throw new Error("NEXT_PUBLIC_API_URL is not set");
@@ -40,5 +45,18 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<unknow
     throw new ApiError(response.status, body, `Request to ${path} failed with status ${response.status}`);
   }
 
+  return { status: response.status, body };
+}
+
+export async function apiFetch(path: string, init?: RequestInit): Promise<unknown> {
+  const { body } = await rawApiFetch(path, init);
   return body;
+}
+
+// Same request/error handling as apiFetch, but also surfaces the HTTP status
+// — needed the one place a 200-vs-201 distinction is meaningful behavior,
+// not just plumbing (POST /api/sessions: 201 new vs 200 "here's your existing
+// active session instead", ADR-29).
+export async function apiFetchWithStatus(path: string, init?: RequestInit): Promise<RawResponse> {
+  return rawApiFetch(path, init);
 }

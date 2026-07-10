@@ -6,6 +6,7 @@ import { authClient } from "../../lib/auth-client";
 import { useSignOutMutation } from "../../hooks/use-auth-mutations";
 import { Button } from "../../components/ui/button";
 import { DashboardSkeleton } from "../../components/dashboard-skeleton";
+import { IdeaIntakeForm } from "../../components/planning/idea-intake-form";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -50,14 +51,8 @@ export default function DashboardPage() {
         </span>
       </div>
 
-      <div className="mt-10 rounded-2xl border border-dashed border-border-strong bg-surface p-10 text-center">
-        <p className="text-sm font-medium text-fg">Planning sessions arrive in Phase 1.</p>
-        <p className="mt-1.5 text-sm text-fg-muted">
-          This is where you&apos;ll describe an idea and watch agents plan its architecture live.
-        </p>
-        <Button variant="secondary" size="sm" disabled className="mt-6">
-          New session
-        </Button>
+      <div className="mt-10">
+        <IdeaIntakeForm />
       </div>
     </div>
   );
