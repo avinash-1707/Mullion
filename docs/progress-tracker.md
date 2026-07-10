@@ -64,6 +64,30 @@ template.
 
 ---
 
+### [2026-07-10] DB audit run and findings fixed
+**Phase:** Phase 0 — Foundation & Platform Wiring
+**Type:** Progress update + Architecture change
+**Summary:** Full static DB audit (3 parallel passes: auth/tenancy,
+planning core, streaming/cost) over all 16 tables and every live query
+site. 1 Critical (SSE poll cursor could permanently skip events published
+by a slower-committing transaction), 5 High, ~10 Medium. Everything
+"matters now" was fixed in the same pass and re-verified against a fresh
+local Postgres: per-stream advisory-lock publishing (ADR-38), member/
+account unique indexes with idempotent org provisioning, composite
+(id, organization_id) FKs pinning children to their parent's org,
+build_specs immutability trigger, decision_log NOT NULL + has-parent CHECK
+(ADR-39), pool error handler + timeouts, cost/verification/invitation
+indexes, and a batch of small query cleanups. Deletion lifecycle
+(RESTRICT) made deliberate via ADR-40. Deferred items carry explicit
+triggers in the report, not silence.
+**Files/areas touched:** packages/db (schema + migrations 0001/0002),
+apps/api (sse, org, middleware, routes), packages/llm (client)
+**Related ADR:** New — ADR-38, ADR-39, ADR-40 added to `04`
+**Follow-ups:** EXPLAIN pass on SSE poll + Better Auth lookups against a
+seeded DB (fold into Phase 3 verification); retention/purge jobs when
+Temporal lands; Phase-2 table shapes (tasks status/deps, messages seq) per
+report §3; session-history index with the Phase 1 list endpoint.
+
 ### [2026-07-10] Phase 0 built, verified, security-reviewed
 **Phase:** Phase 0 — Foundation & Platform Wiring
 **Type:** Progress update

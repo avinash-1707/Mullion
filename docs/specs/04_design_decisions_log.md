@@ -424,3 +424,66 @@ than a hard error. Membership itself is still verified against the
 authority.
 **Doc:** `02` §8 (org plugin), `05` Phase 0; implementation in
 `apps/api/src/auth.ts` and `apps/api/src/middleware/session.ts`
+
+### ADR-38 — Per-stream advisory lock serializes SSE event commit order
+**Status:** 🔧 Designed by Claude during the Phase 0 DB audit — closes a
+real event-loss race, no product-visible change
+**Context:** `stream_events.id` is a table-wide bigserial used as the SSE
+`Last-Event-ID` cursor. Sequence values are assigned at INSERT but become
+visible at COMMIT, so commit order ≠ id order: a poller can see id=9,
+advance its cursor past 9, and a slower transaction's id=5 (same stream)
+becomes visible afterwards — permanently undeliverable. Reachable whenever
+two writers hit the same stream concurrently; near-certain in Phase 2
+(multiple agents emitting to one run stream), and the window grows once
+02 §2.3's "event + decision-log row in one transaction" lands.
+**Alternatives considered:** Redis Streams fan-out with Postgres as
+backfill only (right shape long-term, but pulls Redis wiring into Phase 0
+early); xmin/snapshot settled-watermark predicates (correct but fragile —
+xid casts, wraparound); per-stream sequences with gap-blocking pollers
+(write contention, complexity).
+**Decision:** `publishStreamEvent` takes `pg_advisory_xact_lock(
+hashtextextended(stream_id, 0))` before inserting, inside the insert's
+transaction. Within a stream, ids are assigned and become visible in lock
+order, so the cursor can never skip an uncommitted row. Cross-stream
+concurrency is unaffected. It also now accepts a transaction handle so
+§2.3's paired write commits atomically with its event. Revisit toward
+Redis Streams when Phase 2's message bus lands.
+**Doc:** `02` §2.3; `apps/api/src/sse.ts`, `packages/db` schema comment
+
+### ADR-39 — decision_log integrity: required columns + has-parent CHECK; TEXT-with-enum stays for evolving sets
+**Status:** 🔧 Designed by Claude during the Phase 0 DB audit
+**Context:** `02` §4.1's sketch left `decision`, `actor`, `phase` nullable
+and both parents optional — an all-NULL "design memory" row was insertable.
+Separately, some enums are DB-enforced (`planning_session_status`,
+`run_status` as pgEnum) while others are TEXT with a TS-only enum — that
+divergence needed to be deliberate, not accidental.
+**Decision:** (1) `decision`, `actor`, `phase` are NOT NULL, and a CHECK
+requires `session_id` or `build_spec_id` — an append-only memory row must
+say who decided what, in which phase, for which parent. (2) `supersedes`
+gets its spec'd self-FK. (3) Closed lifecycle states stay pgEnum;
+open-ended sets (`phase`, `actor`, `cost_events.source`/`role`,
+`model_routing.role`) deliberately stay TEXT + zod at the boundary —
+they're expected to grow (e.g. `'sandbox'` cost source in Phase 2) and
+pgEnum's ALTER TYPE churn buys nothing there.
+**Doc:** `02` §4.1; `packages/db/src/schema/app.ts`
+
+### ADR-40 — Org/user deletion lifecycle: RESTRICT is the deliberate v1 posture
+**Status:** 🔧 Designed by Claude during the Phase 0 DB audit — records a
+default that was previously silent
+**Context:** Auth-plugin children (member, invitation) cascade on org
+delete, but every app table (`planning_sessions`, `build_specs`,
+`decision_log`, `runs`, `cost_events`, …) references org/user with NO
+ACTION — so deleting an org or user with any planning/billing history is
+blocked by the DB with a raw FK error. Inconsistent and undocumented =
+audit finding.
+**Decision:** RESTRICT is correct for v1 and now deliberate:
+`decision_log` and `cost_events` are audit/billing records that must
+survive; silently cascading a tenant's history away would be worse than
+blocking. v1 has no account-deletion product surface. When one lands
+(GDPR), it must be an explicit teardown flow — archive/export, cascade the
+ephemeral tables, retain or anonymize billing — handled in the app layer
+with a clean error today if attempted. Personal-org orphan cleanup and
+expired-row purges (session/verification/invitation) ride the same future
+job infrastructure (Temporal, Phase 2).
+**Doc:** `packages/db/drizzle/0001_*.sql` FK rules; DB-audit report
+`docs/db-audits/2026-07-10.md`
