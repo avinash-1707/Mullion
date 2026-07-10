@@ -4,15 +4,20 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/coder/__fixtures__/scripted-llm.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --exclude '**/*.integration.test.ts'",
+    "test:integration": "vitest run src/coder/build-task.integration.test.ts"
   },
   "dependencies": {
+    "@mullion/db": "workspace:*",
     "@mullion/llm": "workspace:*",
+    "@mullion/sandbox": "workspace:*",
     "@mullion/schemas": "workspace:*",
+    "drizzle-orm": "^0.45.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {

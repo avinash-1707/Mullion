@@ -555,3 +555,101 @@ unbounded over time); doing nothing until Phase 2 (leaves Fork A's
 standalone release uncapped).
 **Doc:** `apps/api/src/planning/flows.ts` (isOrgBudgetExhausted),
 `packages/config/src/env.ts`
+
+### ADR-44 — Provider-agnostic Sandbox port; hardened local Docker is M1's real sandbox
+**Status:** 🔧 Designed by Claude during Phase 2 M1 (no E2B key exists in the dev environment)
+**Context:** 02 §6 picks E2B as the v1 sandbox, but no E2B API key exists
+yet and M2/M3/M4 all bind to whatever execution interface M1 draws. A
+pure in-memory mock would make M1 a tautology — it would prove the loop
+can call a function that lies, not that generated code runs.
+**Decision:** A narrow provider-agnostic `Sandbox` port in
+`packages/sandbox` (`writeFile/readFile/runCommand → {stdout, stderr,
+exitCode, durationMs}/dispose`), with two adapters: `LocalDockerSandbox`
+(the real M1 substrate — hardened container: no network, read-only rootfs,
+tmpfs /tmp noexec + /workspace exec, cap-drop ALL, no-new-privileges,
+pids/memory/cpu limits, non-root, auto-remove, run-id labels) and
+`E2bSandbox` (compiles against the real `e2b` SDK types; runs the moment a
+key exists). `SANDBOX_DRIVER=local|e2b` selects at boot; e2b without a key
+fails startup, never mid-run. Port semantics: a command that ran returns
+its real exit code — non-zero is signal, never a throw; throws are
+reserved for the sandbox itself failing (timeout/died/protocol). No
+driver concept may leak into the port.
+**Alternatives considered:** Mock-only sandbox (retires nothing);
+E2B-first with no local driver (unbuildable without creds); child-process
+runner (no isolation boundary at all).
+**Doc:** `packages/sandbox/src/port.ts`, `src/local/docker-sandbox.ts`,
+`src/e2b/e2b-sandbox.ts`, `src/select.ts`
+
+### ADR-45 — Coder speaks native OpenAI-compatible function-calling; new tool-loop runner beside AgentSpec
+**Status:** 🔧 Designed by Claude during Phase 2 M1
+**Context:** The OpenRouter client was one-shot text only; the Coder needs
+a request→tool-call→execute→feed-result loop. Phase 1's `AgentSpec`
+(pure buildMessages/parse, single call) cannot express an agentic loop
+without contortion.
+**Decision:** `completeChatWithTools` as a sibling method on
+`OpenRouterClient` using the native OpenAI-compatible wire shape
+(`tools`/`tool_choice` in the request, `tool_calls` + nullable content in
+the response) — no home-grown ReAct text convention, so swapping the
+mocked LLM for live creds changes nothing. Non-streaming for M1 (no UI to
+stream to; avoids reassembling fragmented tool_call deltas). The loop
+itself is a second agent-execution shape, `buildTask(input, deps) →
+TaskResult`, living beside `runAgent` — the Coder is deliberately NOT
+forced into `AgentSpec`. Four tools only: writeFile/readFile/runCommand/
+submit, args zod-validated with hard caps. ZDR/cost/timeout semantics
+identical to completeChat (ADR-24/26/27 untouched).
+**Alternatives considered:** Text-protocol ReAct (diverges from the real
+wire shape, wasted work at cred-swap time); forcing Coder into AgentSpec
+(wrong contract); streaming tool calls (complexity with no consumer).
+**Doc:** `packages/llm/src/tools.ts`, `packages/agents/src/coder/`
+
+### ADR-46 — M1 crash semantics: durable per-turn transcript, startup reaper, runner-owned verification, no mid-loop resume
+**Status:** 🔧 Designed by Claude during Phase 2 M1
+**Context:** M1 has no Temporal (that is M3's whole point), so a crashed
+loop process cannot resume mid-task. Pretending otherwise would duplicate
+M3 badly; ignoring it wedges ADR-29's one-active-run index forever.
+**Decision:** Three honest guarantees instead of fake durability: (1)
+every message persists to `messages` (envelope + bigserial seq) as it
+happens, so a crash leaves a complete transcript up to the last committed
+turn; (2) the harness runs a startup reaper — any non-terminal run is
+marked failed and its labeled containers force-removed — so a crash never
+blocks the next run; (3) verified-green comes ONLY from the runner
+executing the task's `verifyCommand` in the sandbox and observing exit 0;
+the model requests verification via a no-argument `submit` tool and can
+never define or fake success (this is also the prompt-injection backstop:
+adversarial tool output can steer prose, not the exit code). Re-running a
+task starts fresh. Per-task caps (turns/wall-clock/cost) are the only
+circuit breaker in M1 — the org-level combined breaker is ADR-31 (M2+).
+**Alternatives considered:** Checkpoint/resume in M1 (re-implements
+Temporal, wrong layer); model-supplied verify command (self-grading —
+`echo pass` passes); no reaper (second run 409s forever after any crash).
+**Known limit (M1, closed in M2):** the runner owns the verify *command
+string*, but it runs in `/workspace`, which the Coder fully writes — so the
+model can satisfy verification by editing the fixtures it grades (overwrite
+the test file, add a `test: exit 0` script). M1 "verified" therefore means
+"the model made the operator's command exit 0 in a tree it controls" — real
+pipeline proof, NOT independent acceptance. M2's Tester owns test fixtures
+on a path the Coder cannot write (or verifies in a fresh container with only
+runner-supplied tests); M1 does not claim that guarantee.
+**Doc:** `packages/agents/src/coder/build-task.ts`, `persist.ts`,
+`apps/api/src/dev/build-task-cli.ts`
+
+### ADR-47 — Hermetic sandbox network policy for M1: --network none, toolchain baked into the image
+**Status:** 🔧 Designed by Claude during Phase 2 M1 (owner directive: maximize reliability under no-creds dev)
+**Context:** Generated code fetching arbitrary hosts is both the top
+isolation risk (02 §6, Phase 3 verifies egress restrictions) and the top
+flakiness source (npm installs in a sandbox with no registry mirror).
+Dependency provisioning policy defines what tasks M1 can even run.
+**Decision:** The local sandbox always runs with `NetworkMode: none`;
+whatever toolchain a task needs must be baked into `SANDBOX_IMAGE`
+(default `node:22-bookworm-slim`). M1 tasks are therefore
+stdlib-only-node scoped — dependency installation (registry mirror,
+allowlisted egress, or pre-warmed images) is an explicit M2+ decision,
+not a relaxation to make quietly. The egress block is asserted by an
+integration test (a fetch from inside the sandbox must fail), which is a
+down-payment on Phase 3's real egress verification, not a substitute.
+**Alternatives considered:** Allow network during an install phase
+(broader tasks, weaker isolation, flaky without creds/mirrors);
+E2B-style default-on internet (contradicts the ZDR-grade caution this
+project applies to user-derived content).
+**Doc:** `packages/sandbox/src/local/docker-sandbox.ts`,
+`packages/config/src/env.ts` (SANDBOX_IMAGE)

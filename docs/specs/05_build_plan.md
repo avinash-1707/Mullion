@@ -351,6 +351,10 @@ alone answers "did we forget anything":
 | 41 | Planner streams JSONL decisions, applied atomically per line | 1 | ✅ |
 | 42 | Fork A bundle rendered on demand; S3 for bundles deferred | 1 | ✅ |
 | 43 | Stopgap per-org daily LLM spend ceiling (superseded by ADR-31 in Phase 2) | 1 | ✅ |
+| 44 | Provider-agnostic Sandbox port; hardened local Docker as M1's real substrate | 2 (M1) | ✅ |
+| 45 | Native function-calling wire shape; tool-loop runner beside AgentSpec | 2 (M1) | ✅ |
+| 46 | M1 crash semantics: durable transcript, reaper, runner-owned verification | 2 (M1) | ✅ |
+| 47 | Hermetic sandbox network (--network none, toolchain baked into image) | 2 (M1) | ✅ |
 
 Process conventions (dependency installation, doc verification, per-phase
 security review) apply to every row above but are intentionally not

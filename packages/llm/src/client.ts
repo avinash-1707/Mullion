@@ -2,7 +2,13 @@ import { eq } from "drizzle-orm";
 import { schema, type Db } from "@mullion/db";
 import type { AgentRole } from "@mullion/schemas";
 import { NoZdrProviderAvailableError, OpenRouterError, UnknownRoleError } from "./errors.js";
-import { openRouterErrorBodySchema, parseChatCompletion, parseStreamChunk } from "./response.js";
+import {
+  openRouterErrorBodySchema,
+  parseChatCompletion,
+  parseStreamChunk,
+  parseToolChatCompletion,
+} from "./response.js";
+import type { ToolCall, ToolChatMessage, ToolChoice, ToolDefinition } from "./tools.js";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const ROUTING_CACHE_TTL_MS = 60_000;
@@ -40,6 +46,27 @@ export interface CompleteChatArgs {
   temperature?: number | undefined;
   // Who pays — every call is attributed to an org (ADR-28/36).
   costContext: CostContext;
+}
+
+export interface CompleteChatWithToolsArgs {
+  role: AgentRole;
+  messages: ToolChatMessage[];
+  tools: ToolDefinition[];
+  toolChoice?: ToolChoice | undefined;
+  maxTokens?: number | undefined;
+  temperature?: number | undefined;
+  costContext: CostContext;
+}
+
+export interface CompleteChatWithToolsResult {
+  /** Null is valid on a tool-call turn — the model spoke only in tool_calls. */
+  content: string | null;
+  toolCalls: ToolCall[];
+  finishReason: string | null;
+  model: string;
+  generationId: string;
+  cost: number;
+  usage: { promptTokens: number; completionTokens: number; totalTokens: number };
 }
 
 export interface CompleteChatResult {
@@ -151,6 +178,85 @@ export class OpenRouterClient {
 
     return {
       content: choice.message.content,
+      model: parsed.model,
+      generationId: parsed.id,
+      cost: parsed.usage.cost,
+      usage: {
+        promptTokens: parsed.usage.prompt_tokens,
+        completionTokens: parsed.usage.completion_tokens,
+        totalTokens: parsed.usage.total_tokens,
+      },
+    };
+  }
+
+  /**
+   * Tool-calling variant (ADR-45): identical routing/ZDR/cost/timeout
+   * semantics to completeChat, but the request carries `tools` +
+   * `tool_choice` and the response may answer in `tool_calls` with null
+   * content — a valid turn here, not the empty-completion failure.
+   * Non-streaming by design for M1: there is no UI to stream to, and it
+   * sidesteps reassembling fragmented tool_calls deltas across SSE chunks.
+   */
+  async completeChatWithTools(args: CompleteChatWithToolsArgs): Promise<CompleteChatWithToolsResult> {
+    const modelSlug = await this.resolveModel(args.role);
+
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+          ...(this.referer ? { "HTTP-Referer": this.referer } : {}),
+          "X-OpenRouter-Title": "Mullion",
+        },
+        body: JSON.stringify({
+          model: modelSlug,
+          messages: args.messages,
+          tools: args.tools,
+          tool_choice: args.toolChoice ?? "auto",
+          ...(args.maxTokens !== undefined ? { max_tokens: args.maxTokens } : {}),
+          ...(args.temperature !== undefined ? { temperature: args.temperature } : {}),
+          // ADR-26/27: ZDR hardcoded, no `models` fallback array — same
+          // structural guarantees as completeChat.
+          provider: { zdr: true },
+        }),
+      });
+    } catch (error) {
+      throw toAbortError(error, "OpenRouter tool request timed out");
+    }
+
+    if (!response.ok) {
+      throw await this.toError(response);
+    }
+
+    const parsed = parseToolChatCompletion(await response.json());
+    const choice = parsed.choices[0];
+    if (!choice) {
+      throw new OpenRouterError({
+        message: "OpenRouter tool completion returned no choices",
+        status: 502,
+        retryable: true,
+      });
+    }
+    const toolCalls = choice.message.tool_calls ?? [];
+    const content = choice.message.content ?? null;
+    if (content === null && toolCalls.length === 0) {
+      // Neither text nor tool calls — a genuinely empty turn is a failure.
+      throw new OpenRouterError({
+        message: `OpenRouter tool completion had no content and no tool_calls (finish_reason: ${choice.finish_reason ?? "unknown"})`,
+        status: 502,
+        retryable: true,
+      });
+    }
+
+    await this.recordCost(args, modelSlug, parsed.usage.cost, parsed.usage);
+
+    return {
+      content,
+      toolCalls,
+      finishReason: choice.finish_reason ?? null,
       model: parsed.model,
       generationId: parsed.id,
       cost: parsed.usage.cost,
@@ -358,7 +464,7 @@ export class OpenRouterClient {
   }
 
   private async recordCost(
-    args: CompleteChatArgs,
+    args: { role: AgentRole; costContext: CostContext },
     modelSlug: string,
     cost: number,
     usage: unknown,

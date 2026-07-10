@@ -31,6 +31,24 @@ export const apiEnvSchema = z.object({
   // socket address only; N>0 = take the Nth hop from the right of
   // x-forwarded-for. Never trust the leftmost value — it's client-supplied.
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(10).default(0),
+  // Sandbox driver selection (ADR-44): swap local↔e2b is a config change.
+  SANDBOX_DRIVER: z.enum(["local", "e2b"]).default("local"),
+  E2B_API_KEY: z.string().min(1).optional(),
+  // Container image for the local driver — toolchain must be baked in, the
+  // sandbox has no network (ADR-47).
+  SANDBOX_IMAGE: z.string().min(1).default("node:22-bookworm-slim"),
+  // $/second modeling the sandbox provider rate (~E2B 2vCPU/512MB), so the
+  // combined cost path (ADR-28, §5.1) is exercised even on free local Docker.
+  SANDBOX_COST_USD_PER_SEC: z.coerce.number().positive().default(0.000042),
+}).superRefine((env, ctx) => {
+  // Fail loud at boot, never mid-run with a half-built task.
+  if (env.SANDBOX_DRIVER === "e2b" && !env.E2B_API_KEY) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["E2B_API_KEY"],
+      message: "required when SANDBOX_DRIVER=e2b — set it or use SANDBOX_DRIVER=local",
+    });
+  }
 });
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;

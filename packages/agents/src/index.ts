@@ -26,3 +26,14 @@ export {
 } from "./consistency.js";
 export { JsonlAccumulator, parseJsonWith, stripCodeFence } from "./json.js";
 export { isRetryableAgentError, withBackoff } from "./retry.js";
+export {
+  DEFAULT_TASK_CAPS,
+  buildTask,
+  type BuildTaskDeps,
+  type BuildTaskInput,
+  type TaskCaps,
+  type ToolCallingLlm,
+} from "./coder/build-task.js";
+export { CODER_TOOL_DEFINITIONS, parseToolCall } from "./coder/tools.js";
+export { buildCoderSystemPrompt, buildCoderUserMessage, type CoderTaskInput } from "./coder/prompt.js";
+export { appendMessage, recordSandboxCost, setTaskStatus, type PersistContext } from "./coder/persist.js";

@@ -28,7 +28,7 @@ ADR for that.
 |---|---|---|---|
 | Phase 0 — Foundation & Platform Wiring | Done (1 DoD item pending creds) | 2026-07-10 | Built + verified live; OpenRouter round-trip awaits a real API key; Neon swap-in is a DATABASE_URL change |
 | Phase 1 — Interactive Planning Experience | Done (live-LLM verification pending creds) | 2026-07-11 | Built + verified end to end against a mock OpenRouter; real-model pass needs OPENROUTER_API_KEY |
-| Phase 2 — Automated Build Pipeline | Not started | 2026-07-10 | Blocked on Phase 1 |
+| Phase 2 — Automated Build Pipeline | In progress (M1 done) | 2026-07-11 | M1 (Coder + sandbox) built, verified, reviewed; M2–M4 next |
 | Phase 3 — Observability, Evaluation & Hardening | Not started | 2026-07-10 | Blocked on Phase 2 |
 | Phase 4 — Polish & Fast-Follow | Not started | 2026-07-10 | Blocked on Phase 3 |
 
@@ -63,6 +63,65 @@ template.
 ```
 
 ---
+
+### [2026-07-11] Phase 2 M1 — single Coder + sandbox tool-loop built, verified, reviewed
+**Phase:** Phase 2 — Automated Build Pipeline (milestone M1)
+**Type:** Progress update
+**Summary:** First build-pipeline milestone: one Coder agent driving one
+frozen Build Spec task to verified-green through a bounded tool-calling
+loop against a REAL local Docker sandbox — no orchestration (M3), no Tester
+(M2), no UI (M5). New `packages/sandbox`: provider-agnostic `Sandbox` port
+(non-zero exit = CommandResult, throws only on infra failure), hardened
+`LocalDockerSandbox` (dockerode; --network none, read-only rootfs, tmpfs
+/tmp noexec + /workspace exec, cap-drop ALL, no-new-privileges, pids/mem/cpu
+limits, non-root, auto-remove, run-id labels), `E2bSandbox` stub compiling
+against the real SDK, `FakeSandbox` for tests, `SANDBOX_DRIVER` select with
+boot-time e2b-key guard, crash reaper. `packages/llm`:
+`completeChatWithTools` sibling method (native OpenAI-compatible
+tools/tool_calls, ZDR/cost/timeout reused). `packages/agents/src/coder`:
+`buildTask(input, deps) → TaskResult` tool-loop runner beside `runAgent`
+(withBackoff wraps only the transport call), four tools
+(writeFile/readFile/runCommand/submit), runner-owned verification,
+per-turn+inter-call caps (turns/wall-clock/combined LLM+sandbox cost),
+durable per-turn transcript to `messages` with envelope validated on write.
+DB migration 0004: tasks status/spec_task_id/acceptance_criteria/depends_on/
+verify_command/result + `(id, org)` unique; messages task_id composite FK +
+bigserial seq. Dev CLI harness (no HTTP route until M3) with startup reaper.
+Verified end to end: DoD green (`check-types`+`lint`+`build`+`test`, 87 unit
+tests) plus both Docker integration tiers (sandbox 9, agents e2e 1 — a real
+`node --test` recovering from a real failing run to verified inside the
+container); harness run against the live dev DB produced run=done,
+task=verified, sandbox cost_event captured, 8-message transcript.
+Multi-lens review (correctness/security/tests/blast-radius) → no Criticals;
+fixed before commit: ambiguous 124/137 timeout mapping (now duration-
+confirmed, parity with E2B), buildTask now always resolves to a TaskResult
+(crashed reason wired), E2B writeFile wrapped + /workspace bootstrap +
+fake-SDK unit coverage, Docker reaper unit coverage, writeFile/envelope cap
+consistency (arguments cap raised past escaped 256KB), envelope parse
+enforced at the DB write boundary, per-turn tool-call cap + mid-turn cap
+re-checks, agents integration test split out of the unit run, reaper also
+fails orphaned task rows.
+**Files/areas touched:** packages/{sandbox (new),llm,agents,schemas,db,
+config}, apps/api/src/dev, docs/specs/{04,05}
+**Related ADR:** New — ADR-44 (Sandbox port + local Docker substrate),
+ADR-45 (native function-calling + tool-loop runner), ADR-46 (crash
+semantics + runner-owned verification), ADR-47 (hermetic sandbox network);
+`05` master table extended 44–47
+**Follow-ups:**
+- M1 "verified" is not independent acceptance — the Coder writes the tree
+  the verify command grades (ADR-46 known-limit); M2's Tester owns fixtures
+  on a Coder-unwritable path to close it.
+- E2B path is type-proven + unit-tested against a fake SDK but never run
+  live (no key); the `/workspace` bootstrap + conversion need a real-key
+  pass when one exists (rides the Phase-1 OpenRouter-key follow-up).
+- Symlink read-escape inside the sandbox is contained by ro-rootfs/no-net/
+  no-secrets, not by path resolution — add an in-sandbox realpath check when
+  real mounts/secrets arrive (E2B, M2+).
+- ADR-31 combined circuit breaker (M2) supersedes M1's per-task caps +
+  ADR-43 stopgap; sandbox cost is currently best-effort-recorded — M2's
+  budget enforcer must not read a missing sandbox cost as $0.
+- Dependency provisioning (deps beyond the base image) is out of M1 by
+  ADR-47 (--network none); an install strategy is an explicit M2+ decision.
 
 ### [2026-07-11] Phase 1 built, verified, security-reviewed
 **Phase:** Phase 1 — Interactive Planning Experience

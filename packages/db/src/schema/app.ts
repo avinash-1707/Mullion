@@ -332,7 +332,12 @@ export const runs = pgTable(
   ],
 );
 
-/** Placeholder until Phase 2. */
+/**
+ * One Build-Spec task_graph node under execution (M1: exactly one per run).
+ * `status` stays TEXT with a TS enum per the model_routing precedent —
+ * the set grows in M2+ and text avoids ALTER TYPE churn; zod guards the
+ * boundary.
+ */
 export const tasks = pgTable(
   "tasks",
   {
@@ -341,13 +346,30 @@ export const tasks = pgTable(
       .notNull()
       .references(() => organization.id),
     runId: uuid("run_id").notNull(),
+    // The task_graph's task_id string — distinct from the uuid PK.
+    specTaskId: text("spec_task_id"),
     description: text("description").notNull(),
+    acceptanceCriteria: text("acceptance_criteria"),
+    // spec_task_id strings, mirroring graph_nodes.depends_on.
+    dependsOn: jsonb("depends_on").notNull().default([]),
+    // Machine gate the runner executes on submit (ADR-46) — M2's Tester
+    // derives this; M1 takes it from the harness.
+    verifyCommand: text("verify_command"),
+    status: text("status", {
+      enum: ["pending", "running", "verified", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    // TaskResult (turns, costUsd, durationMs, failure reason).
+    result: jsonb("result"),
     payload: jsonb("payload"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("tasks_run_idx").on(t.runId),
     index("tasks_org_idx").on(t.organizationId),
+    // Lets children (messages) pin to this task's org, like runs/build_specs.
+    unique("tasks_id_org_uq").on(t.id, t.organizationId),
     foreignKey({
       columns: [t.runId, t.organizationId],
       foreignColumns: [runs.id, runs.organizationId],
@@ -356,7 +378,11 @@ export const tasks = pgTable(
   ],
 );
 
-/** Placeholder until Phase 2 — structured agent-message envelopes. */
+/**
+ * Agent-message transcript. `seq` (bigserial) gives replay order — each
+ * task's loop is the sole writer of its own messages, so insert order is
+ * uncontended; readers use WHERE task_id = ? ORDER BY seq.
+ */
 export const messages = pgTable(
   "messages",
   {
@@ -365,16 +391,25 @@ export const messages = pgTable(
       .notNull()
       .references(() => organization.id),
     runId: uuid("run_id").notNull(),
+    // Nullable: M2+ adds run-level (non-task) messages.
+    taskId: uuid("task_id"),
+    seq: bigserial("seq", { mode: "number" }).notNull(),
     envelope: jsonb("envelope").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     index("messages_run_idx").on(t.runId),
     index("messages_org_idx").on(t.organizationId),
+    index("messages_task_seq_idx").on(t.taskId, t.seq),
     foreignKey({
       columns: [t.runId, t.organizationId],
       foreignColumns: [runs.id, runs.organizationId],
       name: "messages_run_org_fk",
+    }),
+    foreignKey({
+      columns: [t.taskId, t.organizationId],
+      foreignColumns: [tasks.id, tasks.organizationId],
+      name: "messages_task_org_fk",
     }),
   ],
 );

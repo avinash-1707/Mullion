@@ -40,6 +40,65 @@ export const chatCompletionResponseSchema = z
 
 export type ChatCompletionResponse = z.infer<typeof chatCompletionResponseSchema>;
 
+export const toolCallSchema = z
+  .object({
+    id: z.string(),
+    type: z.literal("function"),
+    function: z
+      .object({
+        name: z.string(),
+        // JSON string on the wire — the caller parses + validates per tool.
+        arguments: z.string(),
+      })
+      .loose(),
+  })
+  .loose();
+
+/**
+ * Tool-calling completion (ADR-45). Differs from the text-only shape in one
+ * load-bearing way: `content` may legitimately be null when the model emits
+ * `tool_calls` — that is a valid turn, not the "no content" failure
+ * completeChat guards against.
+ */
+export const toolChatCompletionResponseSchema = z
+  .object({
+    id: z.string(),
+    model: z.string(),
+    choices: z
+      .array(
+        z
+          .object({
+            message: z
+              .object({
+                role: z.string(),
+                content: z.string().nullish(),
+                tool_calls: z.array(toolCallSchema).optional(),
+              })
+              .loose(),
+            finish_reason: z.string().nullish(),
+          })
+          .loose(),
+      )
+      .min(1),
+    usage: openRouterUsageSchema,
+  })
+  .loose();
+
+export type ToolChatCompletionResponse = z.infer<typeof toolChatCompletionResponseSchema>;
+
+export function parseToolChatCompletion(raw: unknown): ToolChatCompletionResponse {
+  const parsed = toolChatCompletionResponseSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new MalformedLlmResponseError(
+      `OpenRouter tool completion failed schema parse: ${parsed.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ")}`,
+      raw,
+    );
+  }
+  return parsed.data;
+}
+
 export const openRouterErrorBodySchema = z
   .object({
     error: z

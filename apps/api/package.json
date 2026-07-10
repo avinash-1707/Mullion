@@ -14,16 +14,17 @@
     "@better-auth/drizzle-adapter": "^1.6.23",
     "@hono/node-server": "^2.0.8",
     "@hono/zod-validator": "^0.8.0",
+    "@mullion/agents": "workspace:*",
     "@mullion/db": "workspace:*",
     "@mullion/llm": "workspace:*",
+    "@mullion/sandbox": "workspace:*",
     "@mullion/schemas": "workspace:*",
     "better-auth": "^1.6.23",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.29",
     "hono-rate-limiter": "^0.5.3",
     "jszip": "^3.10.1",
-    "zod": "^4.4.3",
-    "@mullion/agents": "workspace:*"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@mullion/config": "workspace:*",

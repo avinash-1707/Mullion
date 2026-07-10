@@ -1,0 +1,25 @@
+{
+  "name": "@mullion/sandbox",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/fake-sandbox.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run --exclude '**/*.integration.test.ts'",
+    "test:integration": "vitest run src/local/docker-sandbox.integration.test.ts"
+  },
+  "devDependencies": {
+    "@mullion/config": "workspace:*",
+    "@types/dockerode": "^4.0.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "dockerode": "^5.0.1",
+    "e2b": "^2.32.0"
+  }
+}
