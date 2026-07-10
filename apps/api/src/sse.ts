@@ -22,7 +22,15 @@ export interface StreamArgs {
   organizationId: string;
   /** Holder of the connection, for the per-user concurrency cap. */
   userId: string;
+  /**
+   * Re-checked periodically during the (up to 30-min) stream so revoking a
+   * membership doesn't keep delivering events until the lifetime cap.
+   * Return false to end the stream.
+   */
+  assertAccess?: (() => Promise<boolean>) | undefined;
 }
+
+const ACCESS_RECHECK_MS = 60_000;
 
 /**
  * The reusable `GET /.../stream` pattern (ADR-18/19), built once here and
@@ -41,8 +49,11 @@ export function streamEvents(c: Context, args: StreamArgs): Response {
   }
   activeStreamsByUser.set(args.userId, held + 1);
 
-  const lastEventIdHeader = c.req.header("Last-Event-ID");
-  const parsedLastId = lastEventIdHeader ? Number.parseInt(lastEventIdHeader, 10) : 0;
+  // Browsers only send Last-Event-ID on automatic reconnects — a fresh
+  // EventSource can't set headers, so page loads that already hold a
+  // snapshot pass the cursor as a query param instead.
+  const lastEventIdRaw = c.req.header("Last-Event-ID") ?? c.req.query("lastEventId");
+  const parsedLastId = lastEventIdRaw ? Number.parseInt(lastEventIdRaw, 10) : 0;
   let cursor = Number.isFinite(parsedLastId) && parsedLastId > 0 ? parsedLastId : 0;
 
   const release = (): void => {
@@ -59,8 +70,13 @@ export function streamEvents(c: Context, args: StreamArgs): Response {
     async (stream) => {
       const deadline = Date.now() + MAX_STREAM_LIFETIME_MS;
       let lastActivity = Date.now();
+      let lastAccessCheck = Date.now();
       try {
         while (!stream.aborted && !stream.closed && Date.now() < deadline) {
+          if (args.assertAccess && Date.now() - lastAccessCheck >= ACCESS_RECHECK_MS) {
+            lastAccessCheck = Date.now();
+            if (!(await args.assertAccess())) break;
+          }
           const rows = await args.db
             .select({
               id: schema.streamEvents.id,
@@ -144,9 +160,12 @@ export async function publishStreamEvent(
   },
 ): Promise<void> {
   const serialized = JSON.stringify(args.payload);
-  if (serialized.length > MAX_PAYLOAD_BYTES) {
+  // Byte length, not UTF-16 code units — multi-byte content must not slip
+  // past the cap (or trip it spuriously).
+  const bytes = Buffer.byteLength(serialized, "utf8");
+  if (bytes > MAX_PAYLOAD_BYTES) {
     throw new Error(
-      `Stream event payload exceeds ${MAX_PAYLOAD_BYTES} bytes (${serialized.length}) — store the artifact and reference it instead`,
+      `Stream event payload exceeds ${MAX_PAYLOAD_BYTES} bytes (${bytes}) — store the artifact and reference it instead`,
     );
   }
   const insert = async (tx: Tx): Promise<void> => {

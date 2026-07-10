@@ -15,6 +15,18 @@ export const apiEnvSchema = z.object({
   // Next.js origin, for CORS + Better Auth trustedOrigins.
   WEB_ORIGIN: z.string().url(),
   OPENROUTER_API_KEY: z.string().min(1),
+  // Dev/test only: point the LLM client at a local mock server (the full
+  // record/replay cache is Phase 3, ADR-11). Restricted to loopback so a
+  // deploy that forgot NODE_ENV=production still can't ship the API key to
+  // an arbitrary host (security review Phase 1).
+  OPENROUTER_BASE_URL: z
+    .string()
+    .url()
+    .regex(/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?/, "must point at loopback")
+    .optional(),
+  // Phase 1 stopgap spend ceiling per org per rolling 24h (ADR-43) — the
+  // real combined budget circuit breaker is ADR-31, Phase 2.
+  ORG_DAILY_LLM_BUDGET_USD: z.coerce.number().positive().default(10),
   // Number of reverse proxies in front of the API. 0 (default) = trust the
   // socket address only; N>0 = take the Nth hop from the right of
   // x-forwarded-for. Never trust the leftmost value — it's client-supplied.

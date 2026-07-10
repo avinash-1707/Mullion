@@ -31,6 +31,22 @@ app.use(
   }),
 );
 
+// CSRF gate: CORS only stops cross-origin *reads*, and a text/plain form
+// post skips preflight entirely — so state changes must check provenance
+// themselves rather than lean on the cookie's SameSite attribute (which
+// prod topology may force to None). Browser-less clients send neither
+// header and carry no ambient victim cookie, so they pass through.
+app.use("*", async (c, next) => {
+  if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
+    const referer = c.req.header("Referer");
+    const origin = c.req.header("Origin") ?? (referer ? new URL(referer).origin : undefined);
+    if (origin !== undefined && origin !== env.WEB_ORIGIN) {
+      throw new HTTPException(403, { message: "Cross-origin request rejected" });
+    }
+  }
+  await next();
+});
+
 // ADR-32: rate limits in front of every route, SSE endpoints included.
 app.use("*", ipRateLimit);
 app.use("*", sessionMiddleware);
