@@ -1,0 +1,31 @@
+{
+  "name": "@mullion/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.6.23",
+    "@hono/node-server": "^2.0.8",
+    "@hono/zod-validator": "^0.8.0",
+    "@mullion/db": "workspace:*",
+    "@mullion/llm": "workspace:*",
+    "@mullion/schemas": "workspace:*",
+    "better-auth": "^1.6.23",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.12.29",
+    "hono-rate-limiter": "^0.5.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@mullion/config": "workspace:*",
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.0",
+    "typescript": "^7.0.2"
+  }
+}
