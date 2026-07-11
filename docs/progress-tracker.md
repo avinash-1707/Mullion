@@ -64,6 +64,31 @@ template.
 
 ---
 
+### [2026-07-12] Recovery flow unified: passwordless OTP sign-in de-advertised (ADR-68)
+**Phase:** Phase 5
+**Type:** Architecture change
+**Summary:** Removed the standing "Email me a code instead" link and the
+sign-in form's code steps; deleted the orphaned send/verify sign-in-OTP
+client mutations. Forgot-password is now the single recovery door for
+every account type via the stock request-password-reset → reset-password
+flow, which (verified against Better Auth 1.6.23 source) provisions a
+first credential for social-first accounts — the assumed recovery
+dead-end never existed. Forget-password email copy neutralized to read
+correctly for set-or-reset and to teach social-first users; forgot page
+now auto-navigates to the code screen. The `/sign-in/email-otp` endpoint
+and ADR-66 guard stay live-but-dormant (guard + tests kept). New
+integration test locks the social-first recovery path end to end.
+**Files/areas touched:** `apps/web/src/components/auth/*`,
+`apps/web/src/hooks/use-auth-mutations.ts`,
+`apps/api/src/modules/email/templates.ts`,
+`apps/api/src/app.integration.test.ts`
+**Related ADR:** New — added ADR-68 to `04` (supersedes ADR-66's
+standing-link clause). Also ADR-69: hardening this surfaced a
+GC-timing-dependent `Request.clone()` "unusable" race in better-auth's
+credential routes (nondeterministic sign-up 500s); fixed with a clone
+guard at the API composition root, active in prod and tests.
+**Follow-ups:** None
+
 ### [2026-07-11] Auth surface completed: OTP verification/reset, Google + GitHub login, linking, avatars (ADR-65/66/67)
 **Phase:** Post-Phase-4 follow-on (auth hardening)
 **Type:** Progress update + Architecture change

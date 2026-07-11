@@ -5,7 +5,7 @@ import { ForgotPasswordForm } from "@/components/auth/forgot-password-form";
 
 export const metadata: Metadata = createMetadata({
   title: "Forgot password",
-  description: "Reset your Mullion password with an emailed code.",
+  description: "Get back into your Mullion account with an emailed code.",
   path: "/forgot-password",
   noIndex: true,
 });
@@ -13,13 +13,13 @@ export const metadata: Metadata = createMetadata({
 export default function ForgotPasswordPage() {
   return (
     <AuthShell
-      eyebrow="Reset password"
+      eyebrow="Account recovery"
       title={
         <>
           Let&apos;s get you <span className="text-ember">back in.</span>
         </>
       }
-      subtitle="Enter your email and we'll send a code to reset your password."
+      subtitle="Enter your email and we'll send you a code."
     >
       <ForgotPasswordForm />
     </AuthShell>

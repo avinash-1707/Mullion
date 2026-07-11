@@ -2,46 +2,26 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRequestPasswordResetMutation } from "@/hooks/use-auth-mutations";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthAlert } from "./auth-alert";
 
 export function ForgotPasswordForm() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
   const request = useRequestPasswordResetMutation();
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    request.mutate(email, { onSuccess: () => setSent(true) });
-  }
-
-  // Enumeration-safe: the server always returns success, so this state
-  // renders unconditionally on a resolved request — never "no account
-  // found" branching.
-  if (sent) {
-    return (
-      <div className="flex flex-col gap-5">
-        <AuthAlert tone="notice">
-          If an account exists for <span className="text-ink">{email}</span>, we&apos;ve sent a 6-digit code. It
-          expires in 5 minutes.
-        </AuthAlert>
-        <Link
-          href={`/reset-password?email=${encodeURIComponent(email)}`}
-          className="w-full bg-ember px-8 py-4 text-center font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97]"
-        >
-          Enter the code
-        </Link>
-        <button
-          type="button"
-          onClick={() => setSent(false)}
-          className="text-center font-mono text-[11px] uppercase tracking-[0.2em] text-ink-faint transition-colors duration-200 hover:text-ember"
-        >
-          Try a different email
-        </button>
-      </div>
-    );
+    // Enumeration-safe: the server always returns success, so this navigates
+    // unconditionally on a resolved request — never "no account found"
+    // branching. The code-entry screen carries the "if an account exists"
+    // framing.
+    request.mutate(email, {
+      onSuccess: () => router.push(`/reset-password?email=${encodeURIComponent(email)}`),
+    });
   }
 
   return (
@@ -66,7 +46,7 @@ export function ForgotPasswordForm() {
         disabled={request.isPending || !email}
         className="w-full bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
       >
-        {request.isPending ? "Sending…" : "Send reset code"}
+        {request.isPending ? "Sending…" : "Send code"}
       </button>
 
       <p className="text-center text-sm text-ink-muted">

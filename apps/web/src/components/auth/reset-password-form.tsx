@@ -56,7 +56,7 @@ export function ResetPasswordForm({ initialEmail }: ResetPasswordFormProps) {
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <Label htmlFor="otp">Reset code</Label>
+        <Label htmlFor="otp">Code</Label>
         <OtpInput
           id="otp"
           value={otp}
@@ -100,7 +100,7 @@ export function ResetPasswordForm({ initialEmail }: ResetPasswordFormProps) {
         <AuthAlert>Password needs to be at least 8 characters.</AuthAlert>
       ) : null}
       {resetPassword.error ? <AuthAlert>{resetPassword.error.message}</AuthAlert> : null}
-      {resendCode.isSuccess ? <AuthAlert tone="notice">New code sent — check your inbox.</AuthAlert> : null}
+      {resendCode.isSuccess ? <AuthAlert tone="notice">New code sent. Check your inbox.</AuthAlert> : null}
 
       <button
         type="submit"

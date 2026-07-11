@@ -1270,3 +1270,72 @@ as a fallback (a leak, not a fallback); sending via a queue/Temporal
 **Doc:** `apps/api/src/modules/email/send.ts`,
 `apps/api/src/modules/email/templates.ts`, `packages/config/src/env.ts`
 (EMAIL_DRIVER guards), `apps/api/.env.example`
+
+### ADR-68 — Recovery flow: forgot-password is the one door; passwordless OTP sign-in de-advertised
+**Status:** 🔧 Designed by Claude during Phase 5, owner-decided
+**Context:** ADR-66 kept a standing "Email me a code instead" link on
+sign-in so social-first accounts (no credential password) had a login
+path. The owner wants OTP positioned strictly as credential
+verification/recovery, never as a visible login method. Review against
+Better Auth 1.6.23 source established that the assumed dead-end does not
+exist: `request-password-reset` sends the forget-password OTP for ANY
+existing user (it never checks for a credential row), and
+`reset-password` CREATES a credential account when none exists. A
+social-first user completing forgot-password therefore ends up with a
+password — recovery already works end to end.
+**Decision:** Remove the standing link and the sign-in form's code steps;
+delete the orphaned send/verify sign-in-OTP client mutations.
+Forgot-password becomes the single recovery door for every account type,
+riding the stock `request-password-reset` → `reset-password` flow; for a
+social-first account this intentionally provisions their first password
+(implicit linking keeps the OAuth sign-in working). The forget-password
+email copy is neutralized to read correctly for both set and reset, and
+teaches social-first users what the code does. The `/sign-in/email-otp`
+endpoint and the ADR-66 otp-signin-guard stay live-but-dormant at the API
+layer (guard + tests kept) — de-advertised, not removed. Motive is
+positioning, not security: existing caps (6/hr per-email send, 10/min/IP
+credential window, 3 attempts, 5-min expiry) are unchanged.
+**Alternatives considered:** adaptive recovery (custom send-router +
+non-consuming verify oracle branching social users straight into a
+session — cleaner UX but ~4× effort, new endpoints/attack surface, and it
+keeps code-login alive under another name, contradicting the positioning
+goal); a no-code "use your Google/GitHub button" email for social-first
+accounts (strands the lost-provider cohort); deleting the passwordless
+endpoint outright (loses a working guarded path for no gain).
+**Supersedes:** the ADR-66 clause keeping passwordless OTP sign-in as a
+user-visible path (its server-side guard is unchanged).
+**Doc:** `apps/web/src/components/auth/sign-in-form.tsx`,
+`apps/web/src/hooks/use-auth-mutations.ts`,
+`apps/api/src/modules/email/templates.ts`,
+`apps/api/src/app.integration.test.ts`
+
+### ADR-69 — Global Request.clone guard at the API composition root
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** better-auth evaluates `ctx.request?.clone()` on every
+credential flow (sign-up, unverified sign-in re-send, change-email) to
+pass the request as an optional context arg to sendVerificationEmail.
+better-call has already cloned the incoming request once to parse the
+JSON body, so this is a second clone of an already-teed stream; undici
+throws `TypeError: unusable` when the stream reads as disturbed/locked,
+a GC/event-loop-timing-dependent state. Result: nondeterministic 500s on
+sign-up (~1 in 3 integration runs under load, and the same latent race
+in production). A test-side retry was tried and beaten (the flake fired
+twice consecutively).
+**Decision:** Patch `Request.prototype.clone` once at the API composition
+root (`lib/undici-clone-guard.ts`, first import in `app.ts`): try the
+native clone; if and only if it throws the exact `TypeError: unusable`,
+return the original request and log a one-time warning. Safe because our
+`sendVerificationOTP({ email, otp, type })` never reads the request arg,
+and strictly an improvement over the alternative (a hard 500). Any other
+error still throws. Active in prod and tests — the race is not
+test-only. No retries in the test harness.
+**Alternatives considered:** retry in the test helper (masks real 500s,
+already double-failed); pnpm patch on better-auth dist files (version-
+pinned, must patch three routes, silently drops on bump); vitest forks /
+fileParallelism false (race is intra-file, isolation doesn't remove the
+trigger, slows the suite); pre-buffering requests in the harness (Hono
+still yields stream-backed bodies; unfixable from the caller side).
+**Doc:** `apps/api/src/lib/undici-clone-guard.ts`, `apps/api/src/app.ts`,
+`apps/api/src/app.integration.test.ts` (retry removed),
+`apps/api/node_modules/better-auth/dist/api/routes/sign-up.mjs:245-249`
+(root cause)

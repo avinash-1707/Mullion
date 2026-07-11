@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Hono } from "hono";
 import { initLogger } from "@mullion/logger";
 
@@ -15,6 +15,10 @@ import { initLogger } from "@mullion/logger";
  */
 
 const integration = process.env["API_INTEGRATION"] === "1";
+
+// Every test here is several HTTP round trips against a remote Postgres —
+// vitest's 5s default is inside normal tail latency for the slower ones.
+vi.setConfig({ testTimeout: 30_000 });
 const WEB_ORIGIN = "http://localhost:3000";
 const DASHBOARD_ORIGIN = "http://localhost:3001";
 
@@ -111,14 +115,30 @@ function sessionCookie(res: Response): string {
  * (ADR-66) means sign-up alone no longer returns a session — the OTP round
  * trip is part of what "signed up" means now.
  */
-async function signUp(app: Hono): Promise<{ cookie: string; email: string; ip: string }> {
+/**
+ * POST /sign-up/email with a fresh identity. Sign-up used to 500
+ * intermittently here — better-auth clones ctx.request for
+ * sendVerificationEmail and undici's Request.clone() can throw
+ * "TypeError: unusable" on an already-teed body stream; that is neutralized
+ * at the composition root by src/lib/undici-clone-guard.ts (ADR-69), so no
+ * retry lives here and a 500 is a real failure.
+ */
+async function signUpRequest(
+  app: Hono,
+  origin: string,
+): Promise<{ res: Response; email: string; ip: string }> {
   const email = `harness-${randomUUID()}@mullion.local`;
   const ip = nextIp();
   const res = await app.request("/api/auth/sign-up/email", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip },
+    headers: { "Content-Type": "application/json", Origin: origin, "x-forwarded-for": ip },
     body: JSON.stringify({ name: "Harness User", email, password: PASSWORD }),
   });
+  return { res, email, ip };
+}
+
+async function signUp(app: Hono): Promise<{ cookie: string; email: string; ip: string }> {
+  const { res, email, ip } = await signUpRequest(app, WEB_ORIGIN);
   if (res.status !== 200) {
     throw new Error(`sign-up failed (${res.status}): ${await res.text()}`);
   }
@@ -222,17 +242,9 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     // same way the marketing origin does. 403 here means one of the three
     // allowlists (CORS / CSRF gate / trustedOrigins) missed the update.
     for (const origin of [WEB_ORIGIN, DASHBOARD_ORIGIN]) {
-      const res = await harness.app.request("/api/auth/sign-up/email", {
-        method: "POST",
-        // Distinct forwarded IP so this never shares (and never flakes on)
-        // the cred:unknown rate-limit bucket with other no-XFF tests.
-        headers: { "Content-Type": "application/json", Origin: origin, "x-forwarded-for": nextIp() },
-        body: JSON.stringify({
-          name: "Origin Probe",
-          email: `origin-${randomUUID()}@mullion.local`,
-          password: "correct-horse-battery-staple",
-        }),
-      });
+      // signUpRequest hands each attempt a distinct forwarded IP, so this
+      // never shares (or flakes on) the cred:unknown rate-limit bucket.
+      const { res } = await signUpRequest(harness.app, origin);
       expect(res.status, `sign-up from ${origin}`).toBe(200);
     }
   });
@@ -310,14 +322,8 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
   });
 
   it("blocks credential sign-in until the email is OTP-verified (ADR-66)", async () => {
-    const email = `harness-${randomUUID()}@mullion.local`;
-    const ip = nextIp();
+    const { res: signup, email, ip } = await signUpRequest(harness.app, WEB_ORIGIN);
     const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
-    const signup = await harness.app.request("/api/auth/sign-up/email", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ name: "Unverified User", email, password: PASSWORD }),
-    });
     expect(signup.status).toBe(200);
 
     // Pre-verification sign-in must be refused, and (sendOnSignIn) must
@@ -421,14 +427,8 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
   });
 
   it("invalidates the code after 3 wrong attempts (allowedAttempts)", async () => {
-    const email = `harness-${randomUUID()}@mullion.local`;
-    const ip = nextIp();
+    const { res: signup, email, ip } = await signUpRequest(harness.app, WEB_ORIGIN);
     const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
-    const signup = await harness.app.request("/api/auth/sign-up/email", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ name: "Attempts Cap", email, password: PASSWORD }),
-    });
     expect(signup.status).toBe(200);
     const otp = await waitForOtp(email);
     for (const wrong of ["000000", "111111", "222222"]) {
@@ -490,6 +490,61 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       headers: { Cookie: cookie, Origin: WEB_ORIGIN, "x-forwarded-for": ip },
     });
     expect(builds.status).toBe(200);
+  });
+
+  it("recovers a social-first account through forgot-password, provisioning its first credential (ADR-68)", async () => {
+    // The one recovery door: a user with NO credential row goes through the
+    // stock request-password-reset -> reset-password flow, which CREATES a
+    // credential account (verified against Better Auth 1.6.23 source). They
+    // must end up able to sign in with the new password.
+    const { schema } = await import("@mullion/db");
+    const { provisionPersonalOrg } = await import("./modules/auth/org.js");
+    const email = `social-recovery-${randomUUID()}@mullion.local`;
+    const [user] = await harness.db
+      .insert(schema.user)
+      .values({ id: randomUUID(), name: "Social Recovery", email, emailVerified: true })
+      .returning();
+    if (!user) throw new Error("seed insert returned no user row");
+    await provisionPersonalOrg(harness.db, user);
+
+    const ip = nextIp();
+    const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
+    const before = logLines.length;
+    const request = await harness.app.request("/api/auth/email-otp/request-password-reset", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email }),
+    });
+    expect(request.status).toBe(200);
+
+    const otp = await waitForOtp(email, before);
+    const newPassword = "first-ever-passphrase";
+    const reset = await harness.app.request("/api/auth/email-otp/reset-password", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, otp, password: newPassword }),
+    });
+    expect(reset.status).toBe(200);
+
+    // The provisioned credential is real: password sign-in now works...
+    const signin = await harness.app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, password: newPassword }),
+    });
+    expect(signin.status).toBe(200);
+    expect(sessionCookie(signin)).toBeTruthy();
+
+    // ...and the account is now credentialed, so the ADR-66 guard closes the
+    // passwordless path behind it.
+    const otpSend = await harness.app.request("/api/auth/email-otp/send-verification-otp", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, type: "sign-in" }),
+    });
+    expect(otpSend.status).toBe(403);
+    // Pin the 403 to the ADR-66 guard specifically, not some other layer.
+    expect(await otpSend.text()).toMatch(/has a password/);
   });
 
   it("answers password-reset requests identically for unknown emails (no enumeration oracle)", async () => {

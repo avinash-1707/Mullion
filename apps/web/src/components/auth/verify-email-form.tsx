@@ -57,7 +57,7 @@ export function VerifyEmailForm({ initialEmail }: VerifyEmailFormProps) {
       </div>
 
       {verify.error ? <AuthAlert>{verify.error.message}</AuthAlert> : null}
-      {resendOtp.isSuccess ? <AuthAlert tone="notice">New code sent — check your inbox.</AuthAlert> : null}
+      {resendOtp.isSuccess ? <AuthAlert tone="notice">New code sent. Check your inbox.</AuthAlert> : null}
       {resendOtp.error ? <AuthAlert>{resendOtp.error.message}</AuthAlert> : null}
 
       <button

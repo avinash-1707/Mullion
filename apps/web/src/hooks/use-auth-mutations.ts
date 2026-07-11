@@ -112,37 +112,6 @@ export function useSignInOAuth2Mutation() {
   });
 }
 
-// --- Email OTP sign-in ---------------------------------------------------
-//
-// Only social-first accounts (no password) can use this path — the server
-// 403s both routes below with "This account has a password — sign in with
-// it instead." for a credentialed account, and callers render that message
-// as-is rather than special-casing it.
-
-export function useSendSignInOtpMutation() {
-  return useMutation({
-    mutationFn: async (email: string) => {
-      const { data, error } = await authClient.emailOtp.sendVerificationOtp({ email, type: "sign-in" });
-      if (error) {
-        throw new Error(error.message ?? "Couldn't send a code. Try again.");
-      }
-      return data;
-    },
-  });
-}
-
-export function useVerifySignInOtpMutation() {
-  return useMutation({
-    mutationFn: async (input: { email: string; otp: string }) => {
-      const { data, error } = await authClient.signIn.emailOtp(input);
-      if (error) {
-        throw new Error(error.message ?? "That code didn't work. Check it and try again.");
-      }
-      return data;
-    },
-  });
-}
-
 // --- Email verification ---------------------------------------------------
 
 export function useSendEmailVerificationOtpMutation() {
