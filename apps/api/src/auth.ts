@@ -24,7 +24,13 @@ export const auth = betterAuth({
   ...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
     ? {
         socialProviders: {
-          github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
+          github: {
+            clientId: env.GITHUB_CLIENT_ID,
+            clientSecret: env.GITHUB_CLIENT_SECRET,
+            // Pin least-privilege SERVER-SIDE (ADR-23) — the granted scope
+            // must not be decided by the client's linkSocial({scopes}) call.
+            scope: ["repo"],
+          },
         },
       }
     : {}),

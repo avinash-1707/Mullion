@@ -356,7 +356,11 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
           });
           deliveries.push({ kind: result.kind, ref: result.ref });
         } catch (error) {
-          console.error(`delivery target "${target.kind}" failed for run ${runId}:`, error);
+          // Log message/status only — never the full error object around a
+          // credential-bearing client (Phase-2 gate).
+          const detail =
+            error instanceof Error ? error.message : typeof error === "string" ? error : "unknown error";
+          console.error(`delivery target "${target.kind}" failed for run ${runId}: ${detail}`);
         }
       }
 
@@ -373,6 +377,12 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
   };
 }
 
+// Per-run total-bytes ceiling for snapshotted artifacts — the in-container
+// caps don't cover host disk (Phase-2 security gate). A produced tree over
+// this is truncated (files past the budget skipped) rather than exhausting
+// ARTIFACT_DIR.
+const MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024;
+
 async function snapshotSandbox(
   store: ArtifactStore,
   sandbox: Sandbox,
@@ -380,6 +390,7 @@ async function snapshotSandbox(
   producedPaths: string[],
 ): Promise<void> {
   const files = [];
+  let totalBytes = 0;
   for (const path of producedPaths) {
     // Per-file guard: an unsafe path or an unreadable file is skipped, not
     // fatal — one bad path must not drop the whole snapshot.
@@ -389,7 +400,13 @@ async function snapshotSandbox(
       continue;
     }
     const content = await sandbox.readFile(path).catch(() => undefined);
-    if (content !== undefined) files.push({ path, content });
+    if (content === undefined) continue;
+    totalBytes += Buffer.byteLength(content, "utf8");
+    if (totalBytes > MAX_SNAPSHOT_BYTES) {
+      console.error(`snapshot for run ${runId} exceeded ${MAX_SNAPSHOT_BYTES} bytes — remaining files skipped`);
+      break;
+    }
+    files.push({ path, content });
   }
   if (files.length > 0) await store.put(runId, files);
 }

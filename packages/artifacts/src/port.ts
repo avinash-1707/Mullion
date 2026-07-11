@@ -28,15 +28,20 @@ export interface ArtifactStore {
 
 /** Reject a path that would escape the run's tree — same discipline as the sandbox port. */
 export function assertSafeArtifactPath(path: string): string {
-  // Normalize backslashes to '/' first, so a Windows-style `..\..\x` is
-  // rejected as traversal rather than stored as one literal filename
-  // (defense-in-depth — the deploy target is Linux).
+  // Normalize backslashes to '/' (defense-in-depth — deploy target is Linux).
   const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
   const segments: string[] = [];
   for (const part of normalized.split("/")) {
     if (part === "" || part === ".") continue;
     if (part === "..") {
-      throw new Error(`unsafe artifact path (escapes tree): ${path}`);
+      // COLLAPSE within the tree (matching the sandbox's resolveWorkdirPath,
+      // so a file the Coder legitimately wrote at `a/../b` isn't silently
+      // dropped) — but reject if it would escape the tree root.
+      if (segments.length === 0) {
+        throw new Error(`unsafe artifact path (escapes tree): ${path}`);
+      }
+      segments.pop();
+      continue;
     }
     segments.push(part);
   }

@@ -65,7 +65,9 @@ describe("createSandboxDriver", () => {
     expect(() => createSandboxDriver({ driver: "e2b" })).toThrowError(/E2B_API_KEY/);
   });
 
-  it("constructs the e2b driver when a key exists", () => {
-    expect(createSandboxDriver({ driver: "e2b", e2bApiKey: "e2b_test" }).name).toBe("e2b");
+  it("refuses e2b even with a key until hardening parity (Phase-2 gate)", () => {
+    expect(() => createSandboxDriver({ driver: "e2b", e2bApiKey: "e2b_test" })).toThrowError(
+      /not yet at parity/,
+    );
   });
 });

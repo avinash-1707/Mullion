@@ -1,6 +1,6 @@
 import { NativeConnection } from "@temporalio/worker";
 import { OpenRouterClient } from "@mullion/llm";
-import { createSandboxDriver } from "@mullion/sandbox";
+import { createSandboxDriver, reapStaleContainers } from "@mullion/sandbox";
 import { createArtifactStore } from "@mullion/artifacts";
 import {
   ArchiveDeliveryTarget,
@@ -19,7 +19,25 @@ import { publishStreamEvent } from "./sse.js";
  * deployable (02 §7.1). Run with `pnpm --filter @mullion/api worker`
  * alongside a local `temporal server start-dev`.
  */
+// A sandbox container older than this, still labeled, is an orphan from a
+// crashed/killed worker (its `sleep infinity` never triggers AutoRemove).
+const STALE_CONTAINER_MS = 60 * 60_000; // 1h — well past the per-task TTL
+const SWEEP_INTERVAL_MS = 15 * 60_000;
+
 async function main(): Promise<void> {
+  // Global orphan sweep at boot + periodically (Phase-2 gate): the per-run
+  // reaper only fires on a retry of the same run, so a SIGKILLed or
+  // abandoned run would otherwise leak its container forever.
+  if (env.SANDBOX_DRIVER === "local") {
+    const sweep = (): void => {
+      void reapStaleContainers(STALE_CONTAINER_MS).then((n) => {
+        if (n > 0) console.log(`swept ${n} stale sandbox container(s)`);
+      });
+    };
+    sweep();
+    setInterval(sweep, SWEEP_INTERVAL_MS).unref?.();
+  }
+
   const connection = await NativeConnection.connect({ address: env.TEMPORAL_ADDRESS });
 
   const llm = new OpenRouterClient({

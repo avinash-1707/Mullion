@@ -91,7 +91,10 @@ export const SANDBOX_WORKDIR = "/workspace";
  * arrive (E2B, M2+), add an in-sandbox realpath check under /workspace.
  */
 export function resolveWorkdirPath(path: string): string {
-  const candidate = path.startsWith("/") ? path : `${SANDBOX_WORKDIR}/${path}`;
+  // Normalize backslashes to '/' for symmetry with assertSafeArtifactPath —
+  // defense-in-depth (the container is Linux; containment is the boundary).
+  const normalized = path.replace(/\\/g, "/");
+  const candidate = normalized.startsWith("/") ? normalized : `${SANDBOX_WORKDIR}/${normalized}`;
   const segments: string[] = [];
   for (const part of candidate.split("/")) {
     if (part === "" || part === ".") continue;

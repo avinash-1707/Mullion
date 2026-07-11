@@ -28,7 +28,7 @@ ADR for that.
 |---|---|---|---|
 | Phase 0 — Foundation & Platform Wiring | Done (1 DoD item pending creds) | 2026-07-10 | Built + verified live; OpenRouter round-trip awaits a real API key; Neon swap-in is a DATABASE_URL change |
 | Phase 1 — Interactive Planning Experience | Done (live-LLM verification pending creds) | 2026-07-11 | Built + verified end to end against a mock OpenRouter; real-model pass needs OPENROUTER_API_KEY |
-| Phase 2 — Automated Build Pipeline | Feature-complete (M1–M4 done); close-out next | 2026-07-11 | M1–M4 built, verified, reviewed. Fork B end-to-end: build → snapshot → review → deliver, escalation gates + GitHub connect. Phase-end security review pending |
+| Phase 2 — Automated Build Pipeline | Done (live-cred verification deferred) | 2026-07-11 | M1–M4 built, verified, reviewed; phase-end security review passed (findings fixed). Fork B end-to-end. Real E2B/OpenRouter/Temporal-Cloud/GitHub-OAuth passes await creds |
 | Phase 3 — Observability, Evaluation & Hardening | Not started | 2026-07-10 | Blocked on Phase 2 |
 | Phase 4 — Polish & Fast-Follow | Not started | 2026-07-10 | Blocked on Phase 3 |
 
@@ -63,6 +63,54 @@ template.
 ```
 
 ---
+
+### [2026-07-11] Phase 2 phase-end security review — passed, findings fixed
+**Phase:** Phase 2 — Automated Build Pipeline (phase gate)
+**Type:** Progress update
+**Summary:** Phase-end security review per CODING_STANDARDS §11 + the build-plan
+Phase-2 DoD (sandbox escape/egress, GitHub token scope = repo, generated code
+never executed outside the sandbox), run as two parallel sage shards
+(execution-isolation; secrets/tenancy/injection). NO Critical, NO cross-tenant
+break, NO host-execution path. Verified clean: generated code only ever runs
+inside the container (all four tools + both verifiers + snapshot route through
+the boundary; no child_process/fs reachable); local Docker egress genuinely
+blocked (real fetch-fails test); GitHub token per-owner, repo-scoped, absent
+from every user-visible artifact (deliveries.ref, MULLION_BUILD.md,
+decision_log, SSE, summary); escalate/redirect owner-only + org-scoped +
+state-guarded + zod-capped, blast-contained to one task, cannot alter the
+verify command; the dollar budget is cumulative across redirects (redirect
+resets only the retry budget); ZDR + no-model-slug-outside-routing intact on
+the new coder/tester/reviewer calls; every Phase-2 query org-scoped; auth/CSRF/
+rate-limit ordering correct on all new routes.
+Findings FIXED before sign-off: E2B driver now REFUSES selection until its
+network/resource isolation reaches parity with the local driver + an egress
+parity-test exists (was silently weaker — the Coder prompt claims "no network";
+inert today with no key, but a phase-gate seam); boot-time + periodic GLOBAL
+stale-container sweeper (the per-run reaper only fired on a same-run retry, so a
+SIGKILLed/abandoned run leaked its `sleep infinity` container); per-run
+50MB artifact-snapshot byte budget (host disk was unbounded); readFile now
+REFUSES a file over the capture cap instead of silently truncating it (was
+corrupting the verify-copy + delivered repo); GitHub OAuth scope pinned
+`["repo"]` SERVER-SIDE (was client-decided); path guards aligned (collapse
+in-tree `..` instead of dropping legit files; backslash normalized both sides);
+delivery-failure logging trimmed to message/status (not the full error object
+around a credential-bearing client). New tests: reapStaleContainers, the
+artifact collapse behavior, the e2b-refusal.
+**Files/areas touched:** packages/{sandbox (select/docker-sandbox/port),
+artifacts (port), orchestrator (activities)}, apps/api (auth, worker)
+**Related ADR:** None new — hardening within ADR-44/47/53/56 scope
+**Follow-ups (hardening backlog, not blockers):**
+- E2B network/resource-isolation parity + an egress parity-test, before the
+  refusal in select.ts is lifted (rides the real-E2B-creds pass).
+- Two Better-Auth sign-in-guard INTEGRATION tests (raw POST /sign-in/social
+  {github}→403; a GitHub callback with no session mints no user) — needs the
+  apps/api HTTP/auth test harness that doesn't exist yet (shared Phase-3 item).
+- Verify the apps/web renderer escapes decision_log/review_result text
+  (stored-XSS surface via reviewer notes on model-influenced code) — React
+  default-escapes, so likely fine; confirm no dangerouslySetInnerHTML at the
+  render site (M5 UI work).
+- Artifact store keyed by runId only (org-verified UUID) — add organizationId
+  to the store key as defense-in-depth when convenient.
 
 ### [2026-07-11] Phase 2 M4 — Full team, delivery, escalation, GitHub (Fork B end-to-end)
 **Phase:** Phase 2 — Automated Build Pipeline (milestone M4, final build milestone)

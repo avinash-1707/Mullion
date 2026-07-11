@@ -13,10 +13,16 @@ describe("assertSafeArtifactPath", () => {
     expect(assertSafeArtifactPath("/src/a.ts")).toBe("src/a.ts");
     expect(assertSafeArtifactPath("a/./b.ts")).toBe("a/b.ts");
   });
-  it("rejects traversal and empty", () => {
+  it("rejects traversal that escapes, and empty", () => {
     expect(() => assertSafeArtifactPath("../etc")).toThrowError(/escapes/);
     expect(() => assertSafeArtifactPath("a/../../b")).toThrowError(/escapes/);
     expect(() => assertSafeArtifactPath("///")).toThrowError(/empty/);
+    expect(() => assertSafeArtifactPath("..\\..\\etc")).toThrowError(/escapes/);
+  });
+
+  it("collapses in-tree .. instead of dropping the file (aligns with the sandbox resolver)", () => {
+    expect(assertSafeArtifactPath("a/../b.ts")).toBe("b.ts");
+    expect(assertSafeArtifactPath("src/x/../y.ts")).toBe("src/y.ts");
   });
 });
 

@@ -189,6 +189,25 @@ export class LocalDockerSandbox implements Sandbox {
 
   async readFile(path: string): Promise<string> {
     const resolved = resolveWorkdirPath(path);
+    // `wc -c` first: the capture cap (MAX_CAPTURE_BYTES) is sized for command
+    // output; a larger file would be SILENTLY truncated by `cat`, corrupting
+    // the verify-copy and the delivered repo. Refuse rather than truncate.
+    const size = await this.execCapture(["wc", "-c", resolved], { timeoutMs: 30_000 });
+    if (size.exitCode !== 0) {
+      throw new SandboxError({
+        kind: "not_found",
+        message: `readFile failed for ${resolved}: ${size.stderr.slice(0, 500)}`,
+        retryable: false,
+      });
+    }
+    const bytes = Number.parseInt(size.stdout.trim().split(/\s+/)[0] ?? "0", 10);
+    if (Number.isFinite(bytes) && bytes > MAX_CAPTURE_BYTES) {
+      throw new SandboxError({
+        kind: "protocol",
+        message: `readFile: ${resolved} is ${bytes} bytes, over the ${MAX_CAPTURE_BYTES}-byte cap — refusing to return a truncated file`,
+        retryable: false,
+      });
+    }
     const result = await this.execCapture(["cat", resolved], { timeoutMs: 30_000 });
     if (result.exitCode !== 0) {
       throw new SandboxError({
@@ -394,6 +413,40 @@ export class LocalDockerDriver implements SandboxDriver {
     this.docker ??= (await resolveDocker()) as unknown as DockerodeLike;
     return LocalDockerSandbox.create(this.docker, opts);
   }
+}
+
+/**
+ * Global sweep of any Mullion sandbox container older than `maxAgeMs`,
+ * regardless of run (Phase-2 security gate). The per-run reaper only runs on
+ * a subsequent attempt of the SAME run; a worker SIGKILL or an abandoned run
+ * with no retry would otherwise leak its `sleep infinity` container forever.
+ * Call at worker boot and periodically.
+ */
+export async function reapStaleContainers(maxAgeMs: number, dockerImpl?: Docker): Promise<number> {
+  let docker: Docker;
+  try {
+    docker = dockerImpl ?? (await resolveDocker());
+  } catch {
+    return 0;
+  }
+  let containers: Docker.ContainerInfo[];
+  try {
+    containers = await docker.listContainers({ all: true, filters: { label: [RUN_ID_LABEL] } });
+  } catch {
+    return 0;
+  }
+  const cutoffSec = (Date.now() - maxAgeMs) / 1000;
+  let reaped = 0;
+  for (const info of containers) {
+    if (info.Created > cutoffSec) continue; // still young — a live build
+    try {
+      await docker.getContainer(info.Id).remove({ force: true });
+      reaped += 1;
+    } catch {
+      // Already gone.
+    }
+  }
+  return reaped;
 }
 
 /** Remove any leftover containers labeled with the given run id (crash reaper, ADR-46). */

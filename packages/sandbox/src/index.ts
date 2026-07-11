@@ -14,6 +14,7 @@ export {
   LocalDockerDriver,
   LocalDockerSandbox,
   reapContainersForRun,
+  reapStaleContainers,
   resolveDocker,
 } from "./local/docker-sandbox.js";
 export { E2bDriver, E2bSandbox } from "./e2b/e2b-sandbox.js";
