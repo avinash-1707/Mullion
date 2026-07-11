@@ -154,6 +154,28 @@ select:focus-visible,
   animation: flash-once 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Continuous "in progress" signal for a running build task (Phase 4 build
+   dashboard) — unlike flash-once above (one-shot, fires on change), this
+   loops for as long as the task stays running, so it's intentionally
+   lower-amplitude to stay calm across a graph with several tasks running at
+   once. Applied via a JS class swap keyed on useReducedMotion, not left to
+   the prefers-reduced-motion block below alone — collapsing a mid-loop
+   animation to one frame can freeze on an arbitrary intermediate glow
+   state instead of a clean static highlight. */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--color-accent-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 5px var(--color-accent-soft);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
 /*
  * React Flow (Phase 2 architecture diagram) ships a light-themed
  * stylesheet — every override below re-skins it for Mullion's dark-only

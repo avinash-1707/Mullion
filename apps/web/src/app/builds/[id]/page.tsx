@@ -10,6 +10,7 @@ import { BuildRunSkeleton } from "../../../components/build/build-skeletons";
 import { BuildRunHeader } from "../../../components/build/build-run-header";
 import { BuildEscalationGate } from "../../../components/build/build-escalation-gate";
 import { BuildTaskList } from "../../../components/build/build-task-list";
+import { BuildAgentGraph } from "../../../components/build/build-agent-graph";
 import { BuildEventTimeline } from "../../../components/build/build-event-timeline";
 import { BuildDeliveryPanel } from "../../../components/build/build-delivery-panel";
 
@@ -31,6 +32,12 @@ export default function BuildRunPage() {
   }, [build.unauthorized, router]);
 
   const [activeTab, setActiveTab] = useState<"tasks" | "timeline">("tasks");
+  const [tasksView, setTasksView] = useState<"list" | "graph">("list");
+  // Bumps whenever the graph pane transitions into visibility — same
+  // hidden-tab remount problem architecture-diagram.tsx solves (fitView
+  // against a still-0×0 container never self-corrects), bumped directly in
+  // the List/Graph toggle and mobile-tab click handlers below.
+  const [graphRefitToken, setGraphRefitToken] = useState(0);
 
   if (authPending || !authSession) {
     return <DashboardSkeleton />;
@@ -86,12 +93,16 @@ export default function BuildRunPage() {
         />
       ) : null}
 
-      <div className="flex border-b border-border lg:hidden">
+      <div className="flex border-b border-border lg:hidden" aria-label="Build panes">
         {(["tasks", "timeline"] as const).map((tab) => (
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            aria-pressed={activeTab === tab}
+            onClick={() => {
+              setActiveTab(tab);
+              if (tab === "tasks" && tasksView === "graph") setGraphRefitToken((token) => token + 1);
+            }}
             className={[
               "transition-swift flex-1 border-b-2 px-4 py-2.5 text-sm font-medium",
               activeTab === tab ? "border-accent text-fg" : "border-transparent text-fg-faint hover:text-fg-muted",
@@ -103,8 +114,38 @@ export default function BuildRunPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 sm:p-6 lg:flex-row">
-        <div className={`min-h-[20rem] flex-1 ${activeTab === "tasks" ? "" : "hidden lg:block"}`}>
-          <BuildTaskList tasks={build.tasks} />
+        <div className={`flex min-h-[20rem] flex-1 flex-col gap-3 ${activeTab === "tasks" ? "" : "hidden lg:flex"}`}>
+          <div className="flex shrink-0 justify-end">
+            <div className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface p-0.5" aria-label="Task view">
+              {(["list", "graph"] as const).map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  aria-pressed={tasksView === view}
+                  onClick={() => {
+                    setTasksView(view);
+                    if (view === "graph") setGraphRefitToken((token) => token + 1);
+                  }}
+                  className={[
+                    "transition-swift rounded-full px-3 py-1 text-xs font-medium",
+                    tasksView === view ? "bg-elevated text-fg" : "text-fg-faint hover:text-fg-muted",
+                  ].join(" ")}
+                >
+                  {view === "list" ? "List" : "Graph"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className={tasksView === "list" ? "min-h-0 flex-1" : "hidden"}>
+            <BuildTaskList tasks={build.tasks} />
+          </div>
+          <div className={tasksView === "graph" ? "min-h-0 flex-1" : "hidden"}>
+            <BuildAgentGraph
+              tasks={build.tasks}
+              escalatedSpecTaskId={build.timeline.activeEscalation?.specTaskId ?? null}
+              refitToken={graphRefitToken}
+            />
+          </div>
         </div>
         <div className={`min-h-[18rem] lg:w-[24rem] lg:shrink-0 ${activeTab === "timeline" ? "" : "hidden lg:block"}`}>
           <BuildEventTimeline entries={build.timeline.entries} />
