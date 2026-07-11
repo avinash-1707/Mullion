@@ -30,7 +30,7 @@ ADR for that.
 | Phase 1 — Interactive Planning Experience | Done (live-LLM verification pending creds) | 2026-07-11 | Built + verified end to end against a mock OpenRouter; real-model pass needs OPENROUTER_API_KEY |
 | Phase 2 — Automated Build Pipeline | Done (live-cred verification deferred) | 2026-07-11 | M1–M4 built, verified, reviewed; phase-end security review passed (findings fixed). Fork B end-to-end. Real E2B/OpenRouter/Temporal-Cloud/GitHub-OAuth passes await creds |
 | Phase 3 — Observability, Evaluation & Hardening | Done (live-cred verification deferred) | 2026-07-11 | All 6 deliverables built + verified; comprehensive 5-lens security audit passed (4 Med + 11 Low fixed). ZDR-live/OTLP-export/live-eval await creds |
-| Phase 4 — Polish & Fast-Follow | Not started | 2026-07-10 | Blocked on Phase 3 |
+| Phase 4 — Polish & Fast-Follow | Done | 2026-07-11 | Live agent-graph shipped; UX backlog swept (zero qualifying items); DoD + security review recorded in `docs/verification/phase4-dod.md`. v1 feature-complete pending only the cred-gated live passes |
 
 Update this table's **Status** column as work happens: `Not started` →
 `In progress` → `Done`. Keep **Last updated** current — a stale date here
@@ -63,6 +63,56 @@ template.
 ```
 
 ---
+
+### [2026-07-11] Phase 4 — Live agent-graph, backlog sweep, DoD verified (v1 feature-complete)
+**Phase:** Phase 4 — Polish & Fast-Follow (whole phase)
+**Type:** Progress update
+**Summary:** Phase 4 executed and closed in one pass, per its mandate of
+zero new decisions. (1) The live agent-graph visualization for the build
+phase (M5's deferred fast-follow, commit `2255c79`): task-dependency DAG
+via React Flow + the existing dagre `layoutGraph`, one node per task
+(spec-id chip, truncated description, status pill, attempt), live status
+treatment (running pulses via a new `pulse-glow` keyframe with a
+reduced-motion static-ring fallback; verified/failed/pending toned via the
+existing status palette), edges animated into running targets, and an
+ADR-07-compliant escalation override (danger fill + "Needs decision",
+suppressing the routine running-pulse) on the node matching the active
+gate's specTaskId. Wired into the build dashboard as a List/Graph toggle
+inside the tasks pane — both views stay mounted so pan/zoom and
+expanded-row state survive switching; data flow untouched (TanStack Query
+remains source of truth; no changes to use-build-run.ts). Pre-commit
+review ran as two parallel sage shards (correctness/data-flow;
+UX/ADR/a11y): no Critical/High; fixed before commit: aria-pressed on the
+new toggle AND the pre-existing mobile tab row, pending-node contrast
+(opacity 60→75 for WCAG AA), dependency-edge dedupe, status-stripe map
+typed `Record<status,…>` so a new enum member fails at the definition
+site. (2) UX-refinement backlog sweep: zero qualifying items — every open
+follow-up is architecture-gated (ADR-53 Option A), cred-gated
+(edit-answers `affects` filtering, live-model passes), or a behavior
+change (LLM commit messages), all excluded by the no-new-decisions
+mandate. (3) DoD recorded in `docs/verification/phase4-dod.md`: Doc 2 §15
+criteria mapped to standing evidence (M3 crash-resume, M4 full pipeline +
+escalation signals, eval suite, ADR-11 replay, ADR-38 SSE guarantees);
+build-plan §6 master table's stale pre-execution 🔧 markers flipped to ✅
+on Phase 3 D4's 60/60 cross-check evidence (ADR-09/10 annotated
+creds-gated); dedicated phase-end security review of the touched surface
+PASSED with zero findings (XSS/DoS/exposure/CSP/deps — full verdict in
+the DoD doc). Full DoD gates green (`check-types`+`lint`+`build`+`test`,
+24 turbo tasks).
+**Files/areas touched:** apps/web (new: components/build/{build-agent-graph,
+build-task-node-card}.tsx, lib/build-graph-{mapping,flow-types}.ts; edited:
+app/builds/[id]/page.tsx, app/globals.css), docs/specs/05 (§6 table),
+docs/verification/phase4-dod.md (new)
+**Related ADR:** None new — implements ADR-07 at the graph layer; Phase 4
+mandate (no new decisions) held: reviews confirmed nothing ADR-worthy
+smuggled in
+**Follow-ups:** v1 is feature-complete against Docs 01–04. Remaining open
+items are unchanged and externally gated: the live-cred verification
+passes (OpenRouter key, E2B parity, Temporal Cloud, GitHub OAuth), the two
+trigger-gated audit deferrals (symlink realpath on mounts/envs; ADR-31
+budget TOCTOU), and the architecture-gated fast-follows (ADR-53 Option A
+hydrate; frontend test harness; LLM commit messages) — each fires on its
+documented trigger, none block v1.
 
 ### [2026-07-11] Phase 3 D6 — Comprehensive phase-end security audit (PASSED)
 **Phase:** Phase 3 — Observability, Evaluation & Hardening (phase gate)

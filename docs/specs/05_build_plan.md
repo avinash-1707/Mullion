@@ -313,36 +313,36 @@ alone answers "did we forget anything":
 | 02 | Edits only during planning, not build | 1 | ✅ |
 | 03 | Diagram + decision log together | 1 | ✅ |
 | 04 | Archive + GitHub push delivery, no live hosting | 2 | ✅ |
-| 05 | MCQ round/question caps | 1 | 🔧 |
-| 06 | Consistency check gates confirmation | 1 | 🔧 |
-| 07 | Escalation gates distinct from editing | 2 | 🔧 |
-| 08 | Decision log replaces vector DB | 0 (schema) / 2 (active use) | 🔧 |
-| 09 | E2B managed sandbox | 2 (build) / 3 (verified) | 🔧 |
-| 10 | Temporal Cloud | 2 | 🔧 |
-| 11 | LLM replay cache | 3 | 🔧 |
-| 12 | Fixed evaluation suite | 3 | 🔧 |
-| 13 | `Queued→...` state machine rename | 2 | 🔧 |
-| 14 | Analyst + Planner/Architect roles added | 1 (Analyst/Planner) / 2 (Coder/Tester/Reviewer/DevOps) | 🔧 |
-| 15 | DevOps scope narrowed | 2 | 🔧 |
+| 05 | MCQ round/question caps | 1 | ✅ |
+| 06 | Consistency check gates confirmation | 1 | ✅ |
+| 07 | Escalation gates distinct from editing | 2 | ✅ |
+| 08 | Decision log replaces vector DB | 0 (schema) / 2 (active use) | ✅ |
+| 09 | E2B managed sandbox | 2 (build) / 3 (verified) | ✅ (port + guarded select; live E2B pass creds-gated) |
+| 10 | Temporal Cloud | 2 | ✅ (local dev server + testing harness; Cloud swap creds-gated) |
+| 11 | LLM replay cache | 3 | ✅ |
+| 12 | Fixed evaluation suite | 3 | ✅ |
+| 13 | `Queued→...` state machine rename | 2 | ✅ |
+| 14 | Analyst + Planner/Architect roles added | 1 (Analyst/Planner) / 2 (Coder/Tester/Reviewer/DevOps) | ✅ |
+| 15 | DevOps scope narrowed | 2 | ✅ |
 | 16 | Next.js + Hono | 0 | ✅ |
 | 17 | Hono on persistent Node.js | 0 | ✅ |
 | 18 | Server-Sent Events | 0 (infra) / 1,2 (usage) | ✅ |
-| 19 | SSE reconnect via Last-Event-ID | 0 | 🔧 |
+| 19 | SSE reconnect via Last-Event-ID | 0 | ✅ |
 | 20 | Neon | 0 | ✅ |
 | 21 | Drizzle ORM | 0 | ✅ |
 | 22 | Better Auth | 0 | ✅ |
 | 23 | GitHub connect separate from sign-in | 0 (scaffold) / 2 (delivery flow) | ✅ |
 | 24 | OpenRouter gateway | 0 | ✅ |
-| 25 | Role→model config table | 0 | 🔧 |
+| 25 | Role→model config table | 0 | ✅ |
 | 26 | Same-model/different-provider fallback | 0 | ✅ |
 | 27 | ZDR-only routing | 0 (config) / 3 (verified) | ✅ |
-| 28 | Cost metadata from OpenRouter | 0 (LLM only) / 2 (combined, ADR-31) | 🔧 |
+| 28 | Cost metadata from OpenRouter | 0 (LLM only) / 2 (combined, ADR-31) | ✅ |
 | 29 | One active session + one active build per user | 0 | ✅ |
-| 30 | Phase 2 planning failure handling (retry, not escalation) | 1 | 🔧 |
-| 31 | Combined LLM + sandbox cost budget | 2 | 🔧 |
-| 32 | Rate limiting / CORS on Hono | 0 | 🔧 |
-| 33 | Partial builds get identical delivery options | 2 | 🔧 |
-| 34 | Planning UX ships before build pipeline | (governs overall sequencing, §0) | 🔧 |
+| 30 | Phase 2 planning failure handling (retry, not escalation) | 1 | ✅ |
+| 31 | Combined LLM + sandbox cost budget | 2 | ✅ |
+| 32 | Rate limiting / CORS on Hono | 0 | ✅ |
+| 33 | Partial builds get identical delivery options | 2 | ✅ |
+| 34 | Planning UX ships before build pipeline | (governs overall sequencing, §0) | ✅ |
 | 35 | Sign-in required before starting a session | 0 (auth wall) / 1 (enforced on session creation) | ✅ |
 | 36 | Multi-tenant orgs (Better Auth organization plugin, org-scoped data) | 0 (plugin+schema+middleware) / 1,2 (scoped usage) | ✅ |
 | 37 | Personal-org provisioning via databaseHooks | 0 | ✅ |
