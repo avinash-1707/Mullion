@@ -30,9 +30,9 @@ async function boot(): Promise<Harness> {
   // DATABASE_URL is deliberately NOT defaulted — the test needs a real one.
   const [{ createApp }, { pool }, { seedModelRouting }, { db }] = await Promise.all([
     import("./app.js"),
-    import("./db.js"),
+    import("./lib/db.js"),
     import("@mullion/llm"),
-    import("./db.js"),
+    import("./lib/db.js"),
   ]);
   await seedModelRouting(db);
   return { app: createApp() as unknown as Hono, pool };

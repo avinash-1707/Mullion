@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { requireOrgMember, type RequiredAuthVariables } from "../middleware/session.js";
-import { getGitHubConnection } from "../github/token.js";
+import { requireOrgMember, type RequiredAuthVariables } from "../../middleware/session.js";
+import { getGitHubConnection } from "./token.js";
 
 /**
  * GitHub connection status (ADR-56). The link itself happens via Better

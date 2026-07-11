@@ -2,8 +2,8 @@ import { serve } from "@hono/node-server";
 import { startOtel } from "@mullion/otel";
 import { seedModelRouting } from "@mullion/llm";
 import { createApp } from "./app.js";
-import { db, pool } from "./db.js";
-import { env } from "./env.js";
+import { db, pool } from "./lib/db.js";
+import { env } from "./config/env.js";
 
 // No-op without OTEL_EXPORTER_OTLP_ENDPOINT (02 §9) — before any traffic.
 await startOtel({ serviceName: "mullion-api" });

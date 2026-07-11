@@ -19,8 +19,8 @@
 import { z } from "zod";
 import { schema } from "@mullion/db";
 import { OpenRouterClient } from "@mullion/llm";
-import { db, pool } from "../db.js";
-import { env } from "../env.js";
+import { db, pool } from "../../lib/db.js";
+import { env } from "../../config/env.js";
 
 const endpointsResponseSchema = z.object({
   data: z.object({

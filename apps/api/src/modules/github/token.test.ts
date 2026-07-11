@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 // The token helpers read Better Auth's `account` row. Mock the db module so
 // no real Postgres is needed for the pure parsing/null-handling logic.
-vi.mock("../db.js", () => ({ db: {} }));
+vi.mock("../../lib/db.js", () => ({ db: {} }));
 
 const rows: unknown[] = [];
 vi.mock("@mullion/db", () => ({
@@ -12,7 +12,7 @@ vi.mock("@mullion/db", () => ({
 // Rebuild a minimal db surface the helpers use: select().from().where().limit().
 async function load(row: { accessToken: string | null; scope: string | null } | undefined) {
   vi.resetModules();
-  vi.doMock("../db.js", () => ({
+  vi.doMock("../../lib/db.js", () => ({
     db: {
       select: () => ({
         from: () => ({ where: () => ({ limit: () => Promise.resolve(row ? [row] : []) }) }),

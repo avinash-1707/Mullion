@@ -2,9 +2,9 @@ import { and, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { schema } from "@mullion/db";
-import { auth, type AuthSession } from "../auth.js";
-import { db } from "../db.js";
-import { provisionPersonalOrg } from "../org.js";
+import { auth, type AuthSession } from "../modules/auth/auth.js";
+import { db } from "../lib/db.js";
+import { provisionPersonalOrg } from "../modules/auth/org.js";
 
 export interface AuthVariables {
   user: AuthSession["user"] | null;

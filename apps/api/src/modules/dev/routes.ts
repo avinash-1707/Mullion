@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { OpenRouterClient } from "@mullion/llm";
-import { db } from "../db.js";
-import { env } from "../env.js";
-import { requireOrgMember, type RequiredAuthVariables } from "../middleware/session.js";
+import { db } from "../../lib/db.js";
+import { env } from "../../config/env.js";
+import { requireOrgMember, type RequiredAuthVariables } from "../../middleware/session.js";
 
 const openRouter = new OpenRouterClient({
   apiKey: env.OPENROUTER_API_KEY,

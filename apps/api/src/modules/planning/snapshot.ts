@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, max } from "drizzle-orm";
 import { schema } from "@mullion/db";
 import { consistencyResultSchema, type PlanningSnapshot } from "@mullion/schemas";
-import { db } from "../db.js";
+import { db } from "../../lib/db.js";
 import {
   toDecisionEntry,
   toGraphEdge,

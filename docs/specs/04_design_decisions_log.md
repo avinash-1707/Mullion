@@ -1066,3 +1066,24 @@ this decision keeps the in-repo file, just human-curated); amending the
 triggering commit (force-push, unacceptable).
 **Doc:** `.github/workflows/evals.yml`, ADR-60 (amends its history-commit
 mechanism; the suite, modes, and metrics are unchanged)
+
+### ADR-62 — apps/api source layout: module-based folders
+**Status:** 🔧 Owner-directed after Phase 4 close
+**Context:** apps/api grew flat: domain logic (`planning/`, `github/`),
+shared infrastructure (`db.ts`, `llm.ts`, `sse.ts`, `temporal.ts`), env,
+and a separate `routes/` folder all mixed at `src/` root. Route handlers
+lived apart from the domain code they fronted. The owner directed a
+module-based layout with dedicated `config` and `lib` folders.
+**Decision:** `src/` is organized by role: `config/` (validated env),
+`lib/` (shared infrastructure: db, llm, llm-fetch, sse, temporal),
+`middleware/` (cross-cutting Hono middleware), and `modules/` (one folder
+per feature: `auth`, `planning`, `builds`, `github`, `dev`), with only the
+process entrypoints (`index.ts`, `worker.ts`) and the composition root
+(`app.ts`) at the top. Each module owns its routes (`routes.ts`) next to
+its domain logic and tests. File pointers in earlier ADRs and tracker
+entries are historical and intentionally not rewritten.
+**Alternatives considered:** keeping the flat layout (cheapest, but
+routes-vs-domain split already caused navigation friction); a `core/`
+folder holding config+lib+middleware together (one less top-level name,
+but hides the config/infra distinction the owner asked for explicitly).
+**Doc:** `apps/api/README.md` (layout table), `apps/api/src/`

@@ -25,8 +25,8 @@ import {
 import { ScriptedLlm, toolCall } from "@mullion/agents/testing";
 import { buildSpecArtifactSchema } from "@mullion/schemas";
 import { createSandboxDriver, reapContainersForRun } from "@mullion/sandbox";
-import { db, pool } from "../db.js";
-import { env } from "../env.js";
+import { db, pool } from "../../lib/db.js";
+import { env } from "../../config/env.js";
 
 function argValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);

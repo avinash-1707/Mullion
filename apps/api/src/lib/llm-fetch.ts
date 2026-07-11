@@ -1,5 +1,5 @@
 import { createRecordReplayFetch } from "@mullion/llm";
-import { env } from "./env.js";
+import { env } from "../config/env.js";
 
 /**
  * Shared by the API process and the build worker so both record into / replay

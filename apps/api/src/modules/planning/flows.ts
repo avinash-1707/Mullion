@@ -26,9 +26,9 @@ import {
   type RequirementsDoc,
 } from "@mullion/schemas";
 import { z } from "zod";
-import { db } from "../db.js";
-import { env } from "../env.js";
-import { llm } from "../llm.js";
+import { db } from "../../lib/db.js";
+import { env } from "../../config/env.js";
+import { llm } from "../../lib/llm.js";
 import {
   bumpGraphVersion,
   claimAgent,

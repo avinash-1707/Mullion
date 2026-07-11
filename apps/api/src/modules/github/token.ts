@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { schema } from "@mullion/db";
-import { db } from "../db.js";
+import { db } from "../../lib/db.js";
 
 /**
  * Read a user's linked GitHub access token (ADR-56). Per-user (ADR-36),

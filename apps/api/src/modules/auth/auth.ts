@@ -3,10 +3,10 @@ import { organization } from "better-auth/plugins";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
 import { schema } from "@mullion/db";
-import { db } from "./db.js";
-import { env } from "./env.js";
+import { db } from "../../lib/db.js";
+import { env } from "../../config/env.js";
 import { provisionPersonalOrg } from "./org.js";
-import { isBlockedGitHubSignin } from "./github/signin-guard.js";
+import { isBlockedGitHubSignin } from "../github/signin-guard.js";
 
 export const auth = betterAuth({
   baseURL: env.API_ORIGIN,

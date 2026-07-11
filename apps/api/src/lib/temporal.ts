@@ -1,6 +1,6 @@
 import { Client, Connection } from "@temporalio/client";
 import { OpenTelemetryWorkflowClientInterceptor } from "@temporalio/interceptors-opentelemetry";
-import { env } from "./env.js";
+import { env } from "../config/env.js";
 
 /**
  * Lazily-connected Temporal client (ADR-10/50). Connect on first build

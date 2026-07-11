@@ -14,7 +14,7 @@ import {
   type RequirementsDocVersion,
   requirementsDocSchema,
 } from "@mullion/schemas";
-import { publishStreamEvent } from "../sse.js";
+import { publishStreamEvent } from "../../lib/sse.js";
 
 export type SessionRow = typeof schema.planningSessions.$inferSelect;
 export type NodeRow = typeof schema.graphNodes.$inferSelect;

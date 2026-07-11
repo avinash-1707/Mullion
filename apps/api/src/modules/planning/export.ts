@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import JSZip from "jszip";
 import { schema } from "@mullion/db";
 import { buildSpecArtifactSchema } from "@mullion/schemas";
-import { db } from "../db.js";
+import { db } from "../../lib/db.js";
 import { renderDiagramSvg } from "./diagram.js";
 import {
   renderArchitectureMd,

@@ -10,11 +10,11 @@ import {
   type DeliveryTarget,
 } from "@mullion/delivery";
 import { createBuildWorker } from "@mullion/orchestrator";
-import { db } from "./db.js";
-import { env } from "./env.js";
-import { getGitHubAccessToken } from "./github/token.js";
-import { llmFetchImpl } from "./llm-fetch.js";
-import { publishStreamEvent } from "./sse.js";
+import { db } from "./lib/db.js";
+import { env } from "./config/env.js";
+import { getGitHubAccessToken } from "./modules/github/token.js";
+import { llmFetchImpl } from "./lib/llm-fetch.js";
+import { publishStreamEvent } from "./lib/sse.js";
 
 /**
  * Build worker process (ADR-50). Separate process from the API, same

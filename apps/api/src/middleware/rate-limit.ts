@@ -1,7 +1,7 @@
 import type { HttpBindings } from "@hono/node-server";
 import type { Context } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
-import { env } from "../env.js";
+import { env } from "../config/env.js";
 import type { AuthVariables } from "./session.js";
 
 // ADR-32: per-IP and per-user limits in front of every route, SSE included.

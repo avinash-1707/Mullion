@@ -24,18 +24,25 @@ The middleware stack (`src/app.ts`) runs in this order: logger, tracing, CORS, r
 | `/api/dev` | `POST /llm-hello`, dev/test only, gated by NODE_ENV |
 | `/health` | Liveness |
 
-SSE (`src/sse.ts`): polls the `stream_events` table with heartbeats, backfill is org-scoped, clients resume with `Last-Event-ID`, connections are capped per user and live at most 30 minutes.
+SSE (`src/lib/sse.ts`): polls the `stream_events` table with heartbeats, backfill is org-scoped, clients resume with `Last-Event-ID`, connections are capped per user and live at most 30 minutes.
 
 ## Layout
 
+Module-based layout (ADR-62): entrypoints at the root, then one folder per role.
+
 | Path | What |
 |---|---|
-| `src/planning/` | The planning domain: flows, state machine, confirm/freeze, diagram, export, snapshots, content hashing |
+| `src/index.ts`, `src/worker.ts`, `src/app.ts` | Process entrypoints and the composition root |
+| `src/config/` | Validated env (`env.ts`, via `@mullion/config`) |
+| `src/lib/` | Shared infrastructure: `db.ts`, `llm.ts` + `llm-fetch.ts` (OpenRouter wiring, record/replay, budgets), `sse.ts`, `temporal.ts` |
 | `src/middleware/` | Rate limits, session (`AuthVariables`), tracing |
-| `src/github/` | Encrypted token retrieval, sign-in guard |
-| `src/llm.ts`, `src/llm-fetch.ts` | OpenRouter client wiring: record/replay, budget enforcement |
-| `src/temporal.ts` | Lazily connected Temporal client with the OTel workflow interceptor |
-| `src/dev/` | CLI helpers (`build-task-cli.ts`, `verify-zdr-cli.ts`) |
+| `src/modules/auth/` | Better Auth config, personal-org provisioning |
+| `src/modules/planning/` | Routes plus the planning domain: flows, state machine, confirm/freeze, diagram, export, snapshots, content hashing |
+| `src/modules/builds/` | Build-run routes |
+| `src/modules/github/` | Connection route, encrypted token retrieval, sign-in guard |
+| `src/modules/dev/` | Dev-only route and CLI helpers (`build-task-cli.ts`, `verify-zdr-cli.ts`) |
+
+Each module owns its `routes.ts` next to its domain logic and tests.
 
 ## Run
 

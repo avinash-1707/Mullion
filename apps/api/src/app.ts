@@ -3,15 +3,15 @@ import type { HttpBindings } from "@hono/node-server";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
-import { auth } from "./auth.js";
-import { env } from "./env.js";
+import { auth } from "./modules/auth/auth.js";
+import { env } from "./config/env.js";
 import { credentialRateLimit, ipRateLimit, userRateLimit } from "./middleware/rate-limit.js";
 import { sessionMiddleware, type AuthVariables } from "./middleware/session.js";
 import { tracingMiddleware } from "./middleware/tracing.js";
-import { buildsRoute } from "./routes/builds.js";
-import { devRoute } from "./routes/dev.js";
-import { githubRoute } from "./routes/github.js";
-import { planningSessionsRoute } from "./routes/planning-sessions.js";
+import { buildsRoute } from "./modules/builds/routes.js";
+import { devRoute } from "./modules/dev/routes.js";
+import { githubRoute } from "./modules/github/routes.js";
+import { planningSessionsRoute } from "./modules/planning/routes.js";
 
 /**
  * Builds the fully-wired Hono app (middleware + routes) WITHOUT any process

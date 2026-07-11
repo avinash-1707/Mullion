@@ -64,6 +64,20 @@ template.
 
 ---
 
+### [2026-07-11] apps/api restructured to module-based layout (ADR-62)
+**Phase:** Post-Phase 4 maintenance
+**Type:** Architecture change (code organization only, no behavior change)
+**Summary:** Owner directive: module-based folders in apps/api. `src/` now
+holds `config/` (env), `lib/` (db, llm, llm-fetch, sse, temporal),
+`middleware/`, and `modules/{auth,planning,builds,github,dev}`, with each
+module owning its `routes.ts` next to its domain logic and tests. Only
+`index.ts`, `worker.ts`, and `app.ts` stay at the root. All imports
+rewritten; `check-types` and the unit suite pass. File pointers in earlier
+ADRs/tracker entries are historical and left unchanged.
+**Files/areas touched:** apps/api/src (27 files moved), apps/api/README.md
+**Related ADR:** New — ADR-62
+**Follow-ups:** None.
+
 ### [2026-07-11] Evals CI no longer commits to main (ADR-61)
 **Phase:** Post-Phase 4 maintenance
 **Type:** Architecture change (process)

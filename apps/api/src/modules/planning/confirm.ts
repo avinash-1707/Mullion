@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { schema } from "@mullion/db";
 import { buildSpecArtifactSchema, type BuildSpecArtifact } from "@mullion/schemas";
-import { db } from "../db.js";
+import { db } from "../../lib/db.js";
 import {
   publishPlanningEvent,
   toGraphEdge,
