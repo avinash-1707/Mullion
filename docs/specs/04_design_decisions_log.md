@@ -579,6 +579,13 @@ E2B-first with no local driver (unbuildable without creds); child-process
 runner (no isolation boundary at all).
 **Doc:** `packages/sandbox/src/port.ts`, `src/local/docker-sandbox.ts`,
 `src/e2b/e2b-sandbox.ts`, `src/select.ts`
+**Amendment (Phase 3 verification):** the Phase-2 security gate tightened
+this beyond the original text — `select.ts` refuses `SANDBOX_DRIVER=e2b`
+even with a key until the adapter reaches network/resource-isolation parity
+with the hardened local driver. The driver-parameterized egress suite that
+parity requires now exists (`packages/sandbox/src/egress.integration.test.ts`,
+passing against local Docker); enabling E2B = hardening the adapter + adding
+its driver to that suite + removing the `select.ts` guard.
 
 ### ADR-45 — Coder speaks native OpenAI-compatible function-calling; new tool-loop runner beside AgentSpec
 **Status:** 🔧 Designed by Claude during Phase 2 M1

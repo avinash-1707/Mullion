@@ -81,6 +81,20 @@ export const apiEnvSchema = z.object({
       message: "GITHUB_DELIVERY=github requires BOTH GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET (or use GITHUB_DELIVERY=fake)",
     });
   }
+  if (env.NODE_ENV === "production") {
+    // Better Auth only marks session cookies Secure (and __Secure- prefixed)
+    // when its baseURL is https — a production deploy on plain http would
+    // silently ship session tokens over cleartext (Phase 3 verification).
+    for (const key of ["API_ORIGIN", "WEB_ORIGIN"] as const) {
+      if (!env[key].startsWith("https://")) {
+        ctx.addIssue({
+          code: "custom",
+          path: [key],
+          message: "must be https in production — session cookie Secure flag depends on it",
+        });
+      }
+    }
+  }
   if (env.NODE_ENV === "production" && env.LLM_REPLAY_MODE !== "off") {
     ctx.addIssue({
       code: "custom",

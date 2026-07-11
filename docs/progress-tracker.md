@@ -64,6 +64,31 @@ template.
 
 ---
 
+### [2026-07-11] Phase 3 D4 — Verification pass (egress, ZDR, auth, ADR cross-check, EXPLAIN)
+**Phase:** Phase 3 — Observability, Evaluation & Hardening
+**Type:** Progress update + Gap found (docs)
+**Summary:** The genuine verification pass, full report in
+`docs/verification/phase3-verification.md`. (1) Egress: new driver-
+parameterized integration suite actively attempts DNS / direct-IP TCP /
+HTTPS / host-loopback from inside a sandbox — 4/4 blocked live against the
+local driver; it doubles as the E2B parity test select.ts requires. (2)
+ZDR (ADR-27): live half implemented as `verify-zdr-cli.ts` (endpoint
+ZDR-eligibility × actually-serving provider via generation API); runs the
+day a key lands. (3) Better Auth: live cookie inspection (HttpOnly,
+SameSite=Lax, 7d, signed) + config review; added production boot-guard
+requiring https origins (Secure-cookie precondition). (4) ADR cross-check
+via 3 parallel evidence-demanding reviews: 60/60 implemented, zero
+paper-only ADRs; fixed found doc gaps (ADR-44 amendment, build plan §0
+stale range, §6 table extended through ADR-60). (5) Deferred EXPLAIN pass
+done at 100k rows: SSE poll 0.16–0.65ms index-driven both distributions;
+auth lookups 0.02–0.03ms. DoD green.
+**Files/areas touched:** packages/sandbox (egress test), apps/api
+(verify-zdr-cli), packages/config (https boot-guard), docs/specs/04+05,
+docs/verification (new)
+**Related ADR:** ADR-27/44/47 (verifies); amendment to ADR-44
+**Follow-ups:** the 5 credential-gated items tabled at the end of the
+verification report — each has a ready harness.
+
 ### [2026-07-11] Phase 3 D3 — Fixed eval suite + CI trend line (ADR-12)
 **Phase:** Phase 3 — Observability, Evaluation & Hardening
 **Type:** Progress update

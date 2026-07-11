@@ -7,7 +7,8 @@ milestones (those already exist in `02_system_architecture_spec.md` §14 as
 M0–M6, and this plan tells you which milestones sit inside which phase).
 The purpose here is different: **each phase below carries an explicit
 checklist of which logged decisions (`04_design_decisions_log.md`, ADR-01
-through ADR-36) it is responsible for locking in.** The point is that
+onward — the log grows as phases execute) it is responsible for locking
+in.** The point is that
 nothing gets left to whatever a library, framework, or LLM defaults to —
 if a decision exists, it has a named home in exactly one phase below, and
 the master table at the end (§6) is the single place to check that every
@@ -365,6 +366,9 @@ alone answers "did we forget anything":
 | 55 | Escalation gate wired (signal/condition/timeout/redirect reconciles ADR-02) | 2 (M4) | ✅ |
 | 56 | GitHub link-only, hard-decoupled from sign-in | 2 (M4) | ✅ |
 | 57 | No Redis — Temporal dispatch + Postgres tables ARE the bus | 2 (M4) | ✅ |
+| 58 | Record/replay cache at the client's fetch boundary; replay misses hard-fail | 3 | ✅ |
+| 59 | OTel: no-op-by-default bootstrap, OTel 1.x line, span placement | 3 | ✅ |
+| 60 | Eval suite v1: direct-drive build phase, scripted CI baseline, committed history | 3 | ✅ |
 
 Process conventions (dependency installation, doc verification, per-phase
 security review) apply to every row above but are intentionally not
