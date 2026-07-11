@@ -111,4 +111,4 @@ and the running execution log.
 | `05_build_plan.md` | The five build phases and what each one delivers |
 | `docs/CODING_STANDARDS.md` | Code-level conventions for anyone writing it |
 | `docs/progress-tracker.md` | What's actually been built so far |
-| `CLAUDE.md` (repo root) | Quick task-to-document routing for an agent working in this repo |
+| `AGENTS.md` (repo root) | Quick task-to-document routing for an agent working in this repo |
