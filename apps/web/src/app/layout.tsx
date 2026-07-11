@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { Archivo, JetBrains_Mono } from "next/font/google";
+import { Archivo, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { SiteHeader } from "../components/site-header";
 
 const archivo = Archivo({
   variable: "--font-archivo",
@@ -12,6 +11,15 @@ const archivo = Archivo({
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
+});
+
+// Editorial serif for the marketing surface only — the product UI stays on
+// Archivo. Optical sizing axis opted in so display sizes get the
+// high-contrast cut instead of a scaled-up text face.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  axes: ["opsz"],
 });
 
 // Nonce-based CSP (src/proxy.ts) applies the per-request nonce during SSR;
@@ -35,12 +43,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${archivo.variable} ${jetbrainsMono.variable} h-full`}>
+    <html
+      lang="en"
+      className={`${archivo.variable} ${jetbrainsMono.variable} ${fraunces.variable} h-full`}
+    >
       <body className="flex min-h-full flex-col bg-bg text-fg antialiased">
-        <Providers>
-          <SiteHeader />
-          <main className="flex flex-1 flex-col">{children}</main>
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

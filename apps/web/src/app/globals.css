@@ -45,6 +45,29 @@
   --color-success: #9bc47c;
   --color-success-strong: #b6d99b;
   --color-success-soft: rgba(155, 196, 124, 0.14);
+
+  /*
+   * Landing page palette — deliberately separate from the product tokens
+   * above. The marketing surface is an editorial cream/ultramarine/ember
+   * world keyed to the generated artwork in /public; the product stays on
+   * the dark palette. Warm ivory sampled from the hero image's light half,
+   * gold from its halo ring.
+   */
+  --color-cream: #f2ecdd;
+  --color-cream-deep: #e9e1cc;
+  --color-ink: #08080d;
+  --color-ink-soft: #10101a;
+  --color-ink-muted: #57503f;
+  --color-ink-faint: #7d7663;
+  --color-ultra: #2e3fa3;
+  --color-ultra-deep: #1b2a6b;
+  --color-ember: #c4552a;
+  --color-ember-strong: #d96b3d;
+  --color-gilt: #c99b2e;
+  --color-parchment: rgba(242, 236, 221, 0.72);
+  --color-parchment-faint: rgba(242, 236, 221, 0.44);
+  --color-hairline-dark: rgba(201, 155, 46, 0.22);
+  --color-hairline-light: rgba(8, 8, 13, 0.14);
 }
 
 /*
@@ -59,6 +82,7 @@
 @theme inline {
   --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", monospace;
+  --font-serif: var(--font-fraunces), Georgia, "Times New Roman", serif;
 }
 
 :root {
@@ -224,6 +248,72 @@ select:focus-visible,
 
 .mullion-flow .react-flow__resize-control {
   border-color: var(--color-accent);
+}
+
+/*
+ * Landing page motion. Scroll reveals use state-driven transitions (not
+ * keyframes) so an element re-entering the viewport can retarget smoothly —
+ * keyframes can't be interrupted mid-flight. The enter recipe is Jakub
+ * Krehel's opacity + translateY + blur "materialize", on the same
+ * deceleration curve the product uses, slowed to editorial pace. Hidden
+ * state is applied by the Reveal client component only, so the page stays
+ * fully visible without JavaScript.
+ */
+.lp-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  filter: blur(8px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: var(--lp-delay, 0ms);
+}
+
+/* Artwork gets a whisper of settle-down scale on top of the base recipe. */
+.lp-reveal[data-reveal="art"] {
+  transform: translateY(18px) scale(1.02);
+}
+
+.lp-reveal.lp-shown {
+  opacity: 1;
+  transform: none;
+  filter: blur(0);
+}
+
+/* FAQ accordion: grid-template-rows 0fr -> 1fr is the one honest way to
+   animate an unknown height without measuring; the row content fades and
+   settles a beat behind the row itself. */
+.lp-faq-panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lp-faq-panel[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+.lp-faq-panel > div {
+  overflow: hidden;
+}
+
+.lp-faq-panel p {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1) 0.05s,
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1) 0.05s;
+}
+
+.lp-faq-panel[data-open="true"] p {
+  opacity: 1;
+  transform: none;
+}
+
+/* Anchor navigation glides; the reduced-motion block below resets it. */
+html {
+  scroll-behavior: smooth;
 }
 
 /* Accessibility is not optional: collapses every animation/transition to a

@@ -3,16 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { authClient } from "../../../lib/auth-client";
-import { usePlanningSession } from "../../../hooks/use-planning-session";
-import { RequirementsPhase } from "../../../components/planning/requirements-phase";
-import { ArchitecturePhase } from "../../../components/planning/architecture-phase";
-import { ConfirmedView } from "../../../components/planning/confirmed-view";
-import { ViewOnlyBanner } from "../../../components/planning/view-only-banner";
-import { AgentStatusStrip } from "../../../components/planning/agent-status-strip";
-import { SessionErrorState } from "../../../components/planning/session-error-state";
-import { ArchitecturePhaseSkeleton, RequirementsPhaseSkeleton } from "../../../components/planning/session-skeletons";
-import { DashboardSkeleton } from "../../../components/dashboard-skeleton";
+import { authClient } from "@/lib/auth-client";
+import { usePlanningSession } from "@/hooks/use-planning-session";
+import { RequirementsPhase } from "@/components/planning/requirements-phase";
+import { ArchitecturePhase } from "@/components/planning/architecture-phase";
+import { ConfirmedView } from "@/components/planning/confirmed-view";
+import { ViewOnlyBanner } from "@/components/planning/view-only-banner";
+import { AgentStatusStrip } from "@/components/planning/agent-status-strip";
+import { SessionErrorState } from "@/components/planning/session-error-state";
+import { ArchitecturePhaseSkeleton, RequirementsPhaseSkeleton } from "@/components/planning/session-skeletons";
+import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 
 const PHASE_LABEL: Record<string, string> = {
   requirements: "Clarifying requirements",

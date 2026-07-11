@@ -64,6 +64,39 @@ template.
 
 ---
 
+### [2026-07-11] Marketing landing page revamp (editorial redesign)
+**Phase:** Post-Phase 4 maintenance
+**Type:** Progress update
+**Summary:** Replaced the placeholder landing page with a full editorial
+marketing page (cream/ultramarine/ember palette keyed to generated artwork
+in `apps/web/public/*.png`; Fraunces serif added alongside Archivo +
+JetBrains Mono). Sections: floating nav (transparent → translucent cream
+on scroll), full-viewport hero with right-bleed artwork, four numbered
+chapter bands (manifesto, how-it-works, agent crew, control), three-tier
+pricing band (placeholder prices/features, owner will edit copy), FAQ
+accordion, closing CTA, footer. App routes restructured into route groups:
+`(marketing)` for the landing with its own chrome, `(app)` for the
+signed-in surface keeping `SiteHeader`; moved pages' relative imports
+rewritten to the `@/` alias. Motion follows the design-motion skill
+(Jakub-weighted): IntersectionObserver scroll reveals via state-driven
+transitions (opacity/translate/blur, custom cubic-bezier), grid-rows FAQ
+accordion, no loops/parallax, `prefers-reduced-motion` collapses all.
+Verified with production build + headless-Chromium screenshots of every
+band at 1440/1600/390 widths.
+**Files/areas touched:** `apps/web/src/app/(marketing)/` (new),
+`apps/web/src/app/(app)/` (moved builds/dashboard/sessions/sign-in/sign-up),
+`apps/web/src/components/landing/` (new; one component per section:
+landing-nav, hero, manifesto, how-it-works, crew, control, pricing,
+faq-section, final-cta, landing-footer + shared chapter-mark, reveal, faq),
+`apps/web/src/app/{layout.tsx,globals.css}`, `apps/web/public/*.webp`
+(artwork converted from PNG, ~15MB → ~590KB total); deleted old
+`page.tsx`, `mullion-grid.tsx`, `hero-actions.tsx`
+**Related ADR:** None — visual/marketing surface only; no product behavior
+changed
+**Follow-ups:** pricing tiers/features are placeholders pending real
+pricing; mobile nav intentionally has no hamburger (center links hide
+below md, CTA remains) — owner confirmed.
+
 ### [2026-07-11] Shared structured logging via new packages/logger (ADR-63)
 **Phase:** Post-Phase 4 maintenance
 **Type:** Architecture change

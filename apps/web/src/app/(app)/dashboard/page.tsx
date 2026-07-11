@@ -2,11 +2,11 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "../../lib/auth-client";
-import { useSignOutMutation } from "../../hooks/use-auth-mutations";
-import { Button } from "../../components/ui/button";
-import { DashboardSkeleton } from "../../components/dashboard-skeleton";
-import { IdeaIntakeForm } from "../../components/planning/idea-intake-form";
+import { authClient } from "@/lib/auth-client";
+import { useSignOutMutation } from "@/hooks/use-auth-mutations";
+import { Button } from "@/components/ui/button";
+import { DashboardSkeleton } from "@/components/dashboard-skeleton";
+import { IdeaIntakeForm } from "@/components/planning/idea-intake-form";
 
 export default function DashboardPage() {
   const router = useRouter();

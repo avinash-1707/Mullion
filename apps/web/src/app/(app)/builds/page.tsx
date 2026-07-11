@@ -5,14 +5,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { buildRunListSchema } from "@mullion/schemas";
-import { authClient } from "../../lib/auth-client";
-import { apiFetch } from "../../lib/api";
-import { DashboardSkeleton } from "../../components/dashboard-skeleton";
-import { BuildListSkeleton } from "../../components/build/build-skeletons";
-import { SessionErrorState } from "../../components/planning/session-error-state";
-import { BuildListRow } from "../../components/build/build-list-row";
-import { BuildIcon } from "../../components/planning/icons";
-import { buttonVariants } from "../../components/ui/button";
+import { authClient } from "@/lib/auth-client";
+import { apiFetch } from "@/lib/api";
+import { DashboardSkeleton } from "@/components/dashboard-skeleton";
+import { BuildListSkeleton } from "@/components/build/build-skeletons";
+import { SessionErrorState } from "@/components/planning/session-error-state";
+import { BuildListRow } from "@/components/build/build-list-row";
+import { BuildIcon } from "@/components/planning/icons";
+import { buttonVariants } from "@/components/ui/button";
 
 export default function BuildsPage() {
   const router = useRouter();

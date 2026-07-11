@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { authClient } from "../../../lib/auth-client";
-import { useBuildRun } from "../../../hooks/use-build-run";
-import { DashboardSkeleton } from "../../../components/dashboard-skeleton";
-import { SessionErrorState } from "../../../components/planning/session-error-state";
-import { BuildRunSkeleton } from "../../../components/build/build-skeletons";
-import { BuildRunHeader } from "../../../components/build/build-run-header";
-import { BuildEscalationGate } from "../../../components/build/build-escalation-gate";
-import { BuildTaskList } from "../../../components/build/build-task-list";
-import { BuildAgentGraph } from "../../../components/build/build-agent-graph";
-import { BuildEventTimeline } from "../../../components/build/build-event-timeline";
-import { BuildDeliveryPanel } from "../../../components/build/build-delivery-panel";
+import { authClient } from "@/lib/auth-client";
+import { useBuildRun } from "@/hooks/use-build-run";
+import { DashboardSkeleton } from "@/components/dashboard-skeleton";
+import { SessionErrorState } from "@/components/planning/session-error-state";
+import { BuildRunSkeleton } from "@/components/build/build-skeletons";
+import { BuildRunHeader } from "@/components/build/build-run-header";
+import { BuildEscalationGate } from "@/components/build/build-escalation-gate";
+import { BuildTaskList } from "@/components/build/build-task-list";
+import { BuildAgentGraph } from "@/components/build/build-agent-graph";
+import { BuildEventTimeline } from "@/components/build/build-event-timeline";
+import { BuildDeliveryPanel } from "@/components/build/build-delivery-panel";
 
 export default function BuildRunPage() {
   const params = useParams<{ id: string }>();
