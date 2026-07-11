@@ -1,0 +1,25 @@
+{
+  "name": "@mullion/delivery",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/fake.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@mullion/config": "workspace:*",
+    "@types/node": "^20.19.43",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "@mullion/artifacts": "workspace:*",
+    "@octokit/rest": "^22.0.1",
+    "jszip": "^3.10.1"
+  }
+}

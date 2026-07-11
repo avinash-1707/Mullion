@@ -11,6 +11,7 @@ import { ipRateLimit, userRateLimit } from "./middleware/rate-limit.js";
 import { sessionMiddleware, type AuthVariables } from "./middleware/session.js";
 import { buildsRoute } from "./routes/builds.js";
 import { devRoute } from "./routes/dev.js";
+import { githubRoute } from "./routes/github.js";
 import { planningSessionsRoute } from "./routes/planning-sessions.js";
 
 const app = new Hono<{ Bindings: HttpBindings; Variables: AuthVariables }>();
@@ -61,6 +62,7 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 app.route("/api/sessions", planningSessionsRoute);
 app.route("/api/builds", buildsRoute);
+app.route("/api/github", githubRoute);
 if (env.NODE_ENV !== "production") {
   // DoD probe only — spends real OpenRouter credits, never ships to prod.
   app.route("/api/dev", devRoute);

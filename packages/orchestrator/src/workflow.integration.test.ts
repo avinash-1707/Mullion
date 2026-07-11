@@ -6,18 +6,19 @@ import type { Db } from "@mullion/db";
 import { LocalDockerDriver, resolveDocker } from "@mullion/sandbox";
 import type { TaskResult } from "@mullion/schemas";
 import { ScriptedLlm, toolCall } from "@mullion/agents/testing";
-import { buildRunWorkflow } from "./workflows.js";
+import { buildRunWorkflow, escalationSignal, type EscalationDecision } from "./workflows.js";
 import { createActivities } from "./activities.js";
 import { WORKFLOWS_PATH } from "./worker.js";
-import { BUILD_TASK_QUEUE, type TaskGraphNode } from "./policy.js";
+import { type TaskGraphNode } from "./policy.js";
 import type { BuildActivities, BuildRunInput } from "./types.js";
 
 /**
- * Workflow-logic + crash-resume tests. These need a real (downloaded)
- * Temporal test server, so they live in the integration tier (gated by
- * TEMPORAL_INTEGRATION=1), not the binary-free unit run. Activities are
- * mocked — the crash-resume proof is about workflow durability, not the
- * real Docker/LLM pipeline (that is the full-pipeline test).
+ * Workflow-logic, escalation, crash-resume, and full-pipeline tests. Need a
+ * real (downloaded) Temporal test server → integration tier, gated by
+ * TEMPORAL_INTEGRATION=1. Two envs: TIME-SKIPPING fast-forwards the 30-min
+ * escalation timeout (for logic + the timeout-default test); LOCAL (real
+ * time) is used where a worker handoff (crash-resume) or a fast human signal
+ * (approve/redirect) must beat the timeout.
  */
 
 const RUN = (over?: Partial<BuildRunInput>): BuildRunInput => ({
@@ -28,24 +29,32 @@ const RUN = (over?: Partial<BuildRunInput>): BuildRunInput => ({
   ...over,
 });
 
-const verified: TaskResult = { status: "verified", turns: 1, costUsd: 0, durationMs: 1 };
+const verified: TaskResult = { status: "verified", turns: 1, costUsd: 0, durationMs: 1, producedPaths: [] };
 const failed = (reason: TaskResult extends { reason: infer R } ? R : never): TaskResult =>
-  ({ status: "failed", reason, turns: 1, costUsd: 0, durationMs: 1 }) as TaskResult;
+  ({ status: "failed", reason, turns: 1, costUsd: 0, durationMs: 1, producedPaths: [] }) as TaskResult;
 
-/** Build a mock activities object over a graph + a per-task result script. */
+interface MockCapture {
+  statuses: string[];
+  runCounts: Map<string, number>;
+  escalations: Array<{ specTaskId: string; reason: string }>;
+  reviews: number;
+  ships: Array<{ isPartial: boolean }>;
+  redirects: Array<string | undefined>;
+}
+function capture(): MockCapture {
+  return { statuses: [], runCounts: new Map(), escalations: [], reviews: 0, ships: [], redirects: [] };
+}
+
 function mockActivities(args: {
   graph: TaskGraphNode[];
-  run: (specTaskId: string, attempt: number) => TaskResult | Promise<TaskResult>;
-  statuses?: string[];
-  runCounts?: Map<string, number>;
-  escalations?: Array<{ specTaskId: string; reason: string }>;
+  run: (specTaskId: string, attempt: number, redirect?: string) => TaskResult | Promise<TaskResult>;
+  cap: MockCapture;
   loadThrows?: boolean;
+  reviewApproved?: boolean;
 }): BuildActivities {
   return {
     async loadTaskGraphActivity() {
       if (args.loadThrows) {
-        // Non-retryable = the real deterministic-failure path (spec parse),
-        // so the workflow's catch fires fast instead of retrying 20×.
         throw ApplicationFailure.nonRetryable("simulated spec-parse failure", "SpecMalformed");
       }
       return args.graph;
@@ -54,14 +63,23 @@ function mockActivities(args: {
       return { taskRowId: `row-${node.task_id}` };
     },
     async setRunStatusActivity({ status }) {
-      args.statuses?.push(status);
+      args.cap.statuses.push(status);
     },
-    async runTaskActivity({ specTaskId, attempt }) {
-      args.runCounts?.set(specTaskId, (args.runCounts.get(specTaskId) ?? 0) + 1);
-      return args.run(specTaskId, attempt);
+    async runTaskActivity({ specTaskId, attempt, redirectInstruction }) {
+      args.cap.runCounts.set(specTaskId, (args.cap.runCounts.get(specTaskId) ?? 0) + 1);
+      args.cap.redirects.push(redirectInstruction);
+      return args.run(specTaskId, attempt, redirectInstruction);
     },
     async publishEscalationActivity({ specTaskId, reason }) {
-      args.escalations?.push({ specTaskId, reason });
+      args.cap.escalations.push({ specTaskId, reason });
+    },
+    async reviewActivity() {
+      args.cap.reviews += 1;
+      return { approved: args.reviewApproved ?? true, blockerCount: 0 };
+    },
+    async shipActivity({ isPartial }) {
+      args.cap.ships.push({ isPartial });
+      return { deliveries: [{ kind: "archive", ref: "fake://archive" }] };
     },
   };
 }
@@ -73,27 +91,36 @@ const node = (id: string, deps: string[] = []): TaskGraphNode => ({
   depends_on: deps,
 });
 
-// Code-level gate: this file boots a real Temporal server, so it only runs
-// under TEMPORAL_INTEGRATION=1 (not merely the script name). A plain
-// `vitest run` on the file skips instead of downloading/booting a server.
+async function waitUntil(pred: () => boolean, timeoutMs = 15_000): Promise<void> {
+  const start = Date.now();
+  while (!pred()) {
+    if (Date.now() - start > timeoutMs) throw new Error("waitUntil timed out");
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 const temporalOn = process.env["TEMPORAL_INTEGRATION"] === "1";
 
-let env: TestWorkflowEnvironment;
+let skipEnv: TestWorkflowEnvironment;
+let localEnv: TestWorkflowEnvironment;
 
 beforeAll(async () => {
   if (!temporalOn) return;
-  // Real local dev server (not time-skipping): time-skipping fast-forwards
-  // timers but cannot model a worker handoff, which the crash-resume test
-  // requires. Real-time is fine here — the mock activities are instant and
-  // the workflow uses no sleeps.
-  env = await TestWorkflowEnvironment.createLocal();
-}, 120_000);
+  skipEnv = await TestWorkflowEnvironment.createTimeSkipping();
+  localEnv = await TestWorkflowEnvironment.createLocal();
+}, 180_000);
 
 afterAll(async () => {
-  await env?.teardown();
+  await skipEnv?.teardown();
+  await localEnv?.teardown();
 });
 
-async function runWorkflow(activities: BuildActivities, input: BuildRunInput, taskQueue: string) {
+async function runWorkflow(
+  env: TestWorkflowEnvironment,
+  activities: BuildActivities,
+  input: BuildRunInput,
+  taskQueue: string,
+) {
   const worker = await Worker.create({
     connection: env.nativeConnection,
     taskQueue,
@@ -110,156 +137,251 @@ async function runWorkflow(activities: BuildActivities, input: BuildRunInput, ta
 }
 
 describe.skipIf(!temporalOn)("buildRunWorkflow logic", () => {
-  it("runs a dependency chain in order and marks the run done", async () => {
-    const statuses: string[] = [];
+  it("runs a dependency chain in order, reviews, ships, and marks the run done", async () => {
+    const cap = capture();
     const seen: string[] = [];
     const acts = mockActivities({
       graph: [node("c", ["b"]), node("b", ["a"]), node("a")],
-      statuses,
+      cap,
       run: (id) => {
         seen.push(id);
         return verified;
       },
     });
-    const result = await runWorkflow(acts, RUN(), "q-order");
+    const result = await runWorkflow(skipEnv, acts, RUN(), "q-order");
     expect(result.status).toBe("done");
     expect(result.tasksVerified).toBe(3);
     expect(seen).toEqual(["a", "b", "c"]);
-    expect(statuses).toEqual(["building", "done"]);
-  }, 60_000);
-
-  it("consumes the retry budget then fails the run, emitting one escalation", async () => {
-    const counts = new Map<string, number>();
-    const escalations: Array<{ specTaskId: string; reason: string }> = [];
-    const acts = mockActivities({
-      graph: [node("a")],
-      runCounts: counts,
-      escalations,
-      run: () => failed("test_failed" as never),
-    });
-    const result = await runWorkflow(acts, RUN(), "q-budget");
-    expect(result.status).toBe("failed");
-    expect(result.failedReason).toBe("test_failed");
-    // RETRY_BUDGET = 3 attempts.
-    expect(counts.get("a")).toBe(3);
-    // Exactly one escalation_required emitted at exhaustion (ADR-51).
-    expect(escalations).toEqual([{ specTaskId: "a", reason: "test_failed" }]);
+    // M4 flow: building → reviewing → shipping → done.
+    expect(cap.statuses).toEqual(["building", "reviewing", "shipping", "done"]);
+    expect(cap.reviews).toBe(1);
+    expect(cap.ships).toEqual([{ isPartial: false }]);
+    expect(result.deliveries).toHaveLength(1);
   }, 60_000);
 
   it("recovers when a task fails twice then verifies on the last attempt", async () => {
-    const counts = new Map<string, number>();
-    const escalations: Array<{ specTaskId: string; reason: string }> = [];
+    const cap = capture();
     const acts = mockActivities({
       graph: [node("a")],
-      runCounts: counts,
-      escalations,
+      cap,
       run: (_id, attempt) => (attempt < 3 ? failed("test_failed" as never) : verified),
     });
-    const result = await runWorkflow(acts, RUN(), "q-recover");
+    const result = await runWorkflow(skipEnv, acts, RUN(), "q-recover");
     expect(result.status).toBe("done");
-    expect(result.tasksVerified).toBe(1);
-    expect(counts.get("a")).toBe(3);
-    expect(escalations).toEqual([]); // recovered before exhaustion → no escalation
+    expect(cap.runCounts.get("a")).toBe(3);
+    expect(cap.escalations).toEqual([]);
   }, 60_000);
 
-  it("stops dispatching later tasks when an early task fails", async () => {
-    const counts = new Map<string, number>();
+  it("escalation times out → abandon → still reviews, ships partial, run failed (ADR-33)", async () => {
+    const cap = capture();
+    const acts = mockActivities({
+      graph: [node("a")],
+      cap,
+      run: () => failed("test_failed" as never),
+    });
+    // No signal sent; time-skipping fast-forwards the 30-min gate → abandon.
+    const result = await runWorkflow(skipEnv, acts, RUN(), "q-timeout");
+    expect(result.status).toBe("failed");
+    expect(cap.runCounts.get("a")).toBe(3); // 3 attempts, then the gate
+    expect(cap.escalations).toEqual([{ specTaskId: "a", reason: "test_failed" }]);
+    // ADR-33: a partial build still reviews (files may exist) and ships.
+    expect(cap.ships).toEqual([{ isPartial: true }]);
+  }, 60_000);
+
+  it("skips tasks whose dependency was abandoned, ships partial", async () => {
+    const cap = capture();
     const acts = mockActivities({
       graph: [node("a"), node("b", ["a"])],
-      runCounts: counts,
+      cap,
       run: (id) => (id === "a" ? failed("test_failed" as never) : verified),
     });
-    const result = await runWorkflow(acts, RUN(), "q-earlyfail");
+    const result = await runWorkflow(skipEnv, acts, RUN(), "q-skipdep");
     expect(result.status).toBe("failed");
-    expect(result.failedTaskId).toBe("a");
-    expect(counts.get("b")).toBeUndefined(); // b never dispatched
+    expect(cap.runCounts.get("b")).toBeUndefined(); // b skipped (dep a abandoned)
+    expect(cap.ships).toEqual([{ isPartial: true }]);
+  }, 60_000);
+
+  it("diamond: skips the join when ONE of two dependencies is abandoned", async () => {
+    const cap = capture();
+    // a → {b, c} → d. c fails (→abandon on timeout); b verifies. d must skip.
+    const acts = mockActivities({
+      graph: [node("a"), node("b", ["a"]), node("c", ["a"]), node("d", ["b", "c"])],
+      cap,
+      run: (id) => (id === "c" ? failed("test_failed" as never) : verified),
+    });
+    const result = await runWorkflow(skipEnv, acts, RUN(), "q-diamond");
+    expect(result.status).toBe("failed");
+    expect(cap.runCounts.get("b")).toBe(1); // b DID run and verify
+    expect(cap.runCounts.get("d")).toBeUndefined(); // d skipped (c incomplete)
+    expect(cap.ships).toEqual([{ isPartial: true }]);
+  }, 60_000);
+
+  it("short-circuits on budget_exceeded (terminal, no gate)", async () => {
+    const cap = capture();
+    const acts = mockActivities({
+      graph: [node("a")],
+      cap,
+      run: () => failed("budget_exceeded" as never),
+    });
+    const result = await runWorkflow(skipEnv, acts, RUN(), "q-be");
+    expect(result.status).toBe("failed");
+    expect(cap.runCounts.get("a")).toBe(1);
+    expect(cap.escalations).toEqual([]); // terminal → no escalation
+  }, 60_000);
+
+  it("fails the run when the task_graph has a cycle (no review/ship)", async () => {
+    const cap = capture();
+    const acts = mockActivities({ graph: [node("a", ["b"]), node("b", ["a"])], cap, run: () => verified });
+    const result = await runWorkflow(skipEnv, acts, RUN(), "q-cycle");
+    expect(result.status).toBe("failed");
+    expect(result.failedReason).toMatch(/cycle/);
+    expect(cap.statuses).toEqual(["building", "failed"]);
+    expect(cap.ships).toEqual([]);
   }, 60_000);
 
   it("marks the run failed (not stuck 'building') when an activity exhausts its retries", async () => {
-    // The Critical fix: an uncaught activity failure must terminate the run,
-    // not wedge it in 'building' holding the ADR-29 slot with no reaper.
-    const statuses: string[] = [];
-    const acts = mockActivities({
-      graph: [node("a")],
-      statuses,
-      loadThrows: true, // loadTaskGraphActivity throws on every attempt
-      run: () => verified,
-    });
-    const result = await runWorkflow(acts, RUN(), "q-infra-fault");
+    const cap = capture();
+    const acts = mockActivities({ graph: [node("a")], cap, loadThrows: true, run: () => verified });
+    const result = await runWorkflow(skipEnv, acts, RUN(), "q-infra");
     expect(result.status).toBe("failed");
-    // building was set, then the catch drove it terminal.
-    expect(statuses).toContain("building");
-    expect(statuses.at(-1)).toBe("failed");
+    expect(cap.statuses).toContain("building");
+    expect(cap.statuses.at(-1)).toBe("failed");
+  }, 90_000);
+});
+
+describe.skipIf(!temporalOn)("escalation gate (human signal, real-time)", () => {
+  async function runWithSignal(
+    taskQueue: string,
+    acts: BuildActivities,
+    cap: MockCapture,
+    decision: EscalationDecision,
+    input = RUN({ runId: `run-${taskQueue}` }),
+  ) {
+    const worker = await Worker.create({
+      connection: localEnv.nativeConnection,
+      taskQueue,
+      workflowsPath: WORKFLOWS_PATH,
+      activities: acts,
+    });
+    const handle = await localEnv.client.workflow.start(buildRunWorkflow, {
+      workflowId: `wf-${taskQueue}`,
+      taskQueue,
+      args: [input],
+    });
+    const runP = worker.runUntil(handle.result());
+    await waitUntil(() => cap.escalations.length > 0);
+    await handle.signal(escalationSignal, decision);
+    return runP;
+  }
+
+  it("approve → task accepted-incomplete, build continues to dependents", async () => {
+    const cap = capture();
+    const acts = mockActivities({
+      graph: [node("a"), node("b", ["a"])],
+      cap,
+      run: (id) => (id === "a" ? failed("test_failed" as never) : verified),
+    });
+    const result = await runWithSignal("q-approve", acts, cap, "approve");
+    // a accepted-incomplete counts as complete for deps → b runs.
+    expect(cap.runCounts.get("b")).toBe(1);
+    expect(cap.ships).toEqual([{ isPartial: true }]); // a not verified → partial
+    expect(result.status).toBe("failed");
   }, 90_000);
 
-  it("short-circuits immediately on budget_exceeded (no retries)", async () => {
-    const counts = new Map<string, number>();
+  it("abandon → task dropped, dependents skipped, ships partial", async () => {
+    const cap = capture();
+    const acts = mockActivities({
+      graph: [node("a"), node("b", ["a"])],
+      cap,
+      run: (id) => (id === "a" ? failed("test_failed" as never) : verified),
+    });
+    await runWithSignal("q-abandon", acts, cap, "abandon");
+    expect(cap.runCounts.get("b")).toBeUndefined();
+    expect(cap.ships).toEqual([{ isPartial: true }]);
+  }, 90_000);
+
+  it("redirect → task re-run with the operator instruction, then verifies", async () => {
+    const cap = capture();
     const acts = mockActivities({
       graph: [node("a")],
-      runCounts: counts,
-      run: () => failed("budget_exceeded" as never),
+      cap,
+      // Fails until a redirect instruction is present, then verifies.
+      run: (_id, _attempt, redirect) => (redirect ? verified : failed("test_failed" as never)),
     });
-    const result = await runWorkflow(acts, RUN(), "q-be");
-    expect(result.status).toBe("failed");
-    expect(counts.get("a")).toBe(1); // terminal, no second attempt
-  }, 60_000);
+    const result = await runWithSignal("q-redirect", acts, cap, { redirect: "use a different approach" });
+    expect(result.status).toBe("done");
+    expect(cap.redirects).toContain("use a different approach");
+  }, 90_000);
 
-  it("fails the run when the task_graph has a cycle", async () => {
-    const statuses: string[] = [];
-    const acts = mockActivities({
-      graph: [node("a", ["b"]), node("b", ["a"])],
-      statuses,
-      run: () => verified,
+  it("caps redirects at MAX_REDIRECTS then abandons", async () => {
+    const cap = capture();
+    const taskQueue = "q-maxredirect";
+    // Always fails, even with a redirect → each gate gets another redirect
+    // until the cap, then abandon.
+    const acts = mockActivities({ graph: [node("a")], cap, run: () => failed("test_failed" as never) });
+    const worker = await Worker.create({
+      connection: localEnv.nativeConnection,
+      taskQueue,
+      workflowsPath: WORKFLOWS_PATH,
+      activities: acts,
     });
-    const result = await runWorkflow(acts, RUN(), "q-cycle");
-    expect(result.status).toBe("failed");
-    expect(result.failedReason).toMatch(/cycle/);
-    expect(statuses).toEqual(["building", "failed"]);
-  }, 60_000);
+    const handle = await localEnv.client.workflow.start(buildRunWorkflow, {
+      workflowId: `wf-${taskQueue}`,
+      taskQueue,
+      args: [RUN({ runId: "run-maxredirect" })],
+    });
+    const runP = worker.runUntil(handle.result());
+    // Re-signal redirect on each new escalation until the workflow finishes.
+    let sent = 0;
+    let done = false;
+    runP.then(() => (done = true)).catch(() => (done = true));
+    while (!done && sent < 5) {
+      await waitUntil(() => cap.escalations.length > sent || done);
+      if (done) break;
+      await handle.signal(escalationSignal, { redirect: `try ${sent}` }).catch(() => undefined);
+      sent += 1;
+    }
+    const result = await runP;
+    expect(result.status).toBe("failed"); // abandoned after the cap → partial
+    // MAX_REDIRECTS = 2 → 3 escalation gates (initial + 2 redirects).
+    expect(cap.escalations.length).toBe(3);
+    expect(cap.ships).toEqual([{ isPartial: true }]);
+  }, 120_000);
 });
 
 describe.skipIf(!temporalOn)("durable crash-resume (the M3 DoD)", () => {
   it("does NOT re-run a completed task after the worker is replaced", async () => {
-    // Shared across both workers — proves task A's activity fires exactly once
-    // even though a second worker takes over.
-    const runCounts = new Map<string, number>();
+    const cap = capture();
     const taskQueue = "q-crash";
     const input = RUN({ runId: "run-crash" });
-
     let resolveADone: () => void;
     const aDone = new Promise<void>((r) => {
       resolveADone = r;
     });
-
     const acts = mockActivities({
       graph: [node("a"), node("b", ["a"])],
-      runCounts,
+      cap,
       run: (id) => {
         if (id === "a") resolveADone();
         return verified;
       },
     });
 
-    // Worker 1 runs until task A has completed, then stops polling (its
-    // graceful shutdown = a worker going away mid-run). A's result is now in
-    // Temporal history.
     const worker1 = await Worker.create({
-      connection: env.nativeConnection,
+      connection: localEnv.nativeConnection,
       taskQueue,
       workflowsPath: WORKFLOWS_PATH,
       activities: acts,
     });
-    const handle = await env.client.workflow.start(buildRunWorkflow, {
+    const handle = await localEnv.client.workflow.start(buildRunWorkflow, {
       workflowId: "wf-crash",
       taskQueue,
       args: [input],
     });
     await worker1.runUntil(aDone);
 
-    // Worker 2 takes over the same task queue + server. It replays history,
-    // sees A's result, and must NOT invoke runTaskActivity for A again.
     const worker2 = await Worker.create({
-      connection: env.nativeConnection,
+      connection: localEnv.nativeConnection,
       taskQueue,
       workflowsPath: WORKFLOWS_PATH,
       activities: acts,
@@ -267,14 +389,11 @@ describe.skipIf(!temporalOn)("durable crash-resume (the M3 DoD)", () => {
     const result = await worker2.runUntil(handle.result());
 
     expect(result.status).toBe("done");
-    expect(runCounts.get("a")).toBe(1); // completed task NOT re-run across the restart
-    expect(runCounts.get("b")).toBeGreaterThanOrEqual(1);
+    expect(cap.runCounts.get("a")).toBe(1); // completed task NOT re-run
+    expect(cap.runCounts.get("b")).toBeGreaterThanOrEqual(1);
   }, 120_000);
 });
 
-// Proves the REAL activity stack composes through the workflow: a real
-// LocalDockerSandbox + scripted Coder + real buildTask, driven by the
-// orchestrator end to end. Skips without Docker.
 async function dockerUp(): Promise<boolean> {
   try {
     await resolveDocker();
@@ -285,7 +404,6 @@ async function dockerUp(): Promise<boolean> {
 }
 const dockerAvailable = await dockerUp();
 
-/** Fake db: serves runTaskActivity's task-row read, no-ops buildTask's writes. */
 function pipelineDb(): Db {
   return {
     select: () => ({
@@ -308,10 +426,6 @@ describe.skipIf(!temporalOn || !dockerAvailable)("full pipeline through the work
     const graph: TaskGraphNode[] = [
       { task_id: "sum", description: "write sum.js", acceptance_criteria: "node --test", depends_on: [] },
     ];
-    // Scripted Coder writes a correct sum.js; the inline verifier (default,
-    // no makeVerify) runs `node --test sum.test.js` — but there's no test
-    // file, so use a verify the Coder satisfies: write sum.js AND a passing
-    // check, then submit runs the verifyCommand from the task row.
     const llm = new ScriptedLlm([
       { toolCalls: [toolCall("c1", "writeFile", { path: "sum.js", content: "exports.sum=(a,b)=>a+b;" })] },
       {
@@ -329,28 +443,38 @@ describe.skipIf(!temporalOn || !dockerAvailable)("full pipeline through the work
       { toolCalls: [toolCall("c3", "submit", {})] },
     ]);
 
+    const cap = capture();
+    const real = createActivities({
+      db: pipelineDb(),
+      llm,
+      driver: new LocalDockerDriver(),
+      sandboxCostPerSec: 0.000042,
+    });
     const activities: BuildActivities = {
-      ...createActivities({
-        db: pipelineDb(),
-        llm,
-        driver: new LocalDockerDriver(),
-        sandboxCostPerSec: 0.000042,
-      }),
-      // Stub the graph load + row upsert + status writes (fake db); keep the
-      // REAL runTaskActivity (real Docker + buildTask).
+      ...real,
       async loadTaskGraphActivity() {
         return graph;
       },
-      async ensureTaskRowActivity({ node }) {
-        return { taskRowId: `row-${node.task_id}` };
+      async ensureTaskRowActivity({ node: n }) {
+        return { taskRowId: `row-${n.task_id}` };
       },
-      async setRunStatusActivity() {
-        /* no-op */
+      async setRunStatusActivity({ status }) {
+        cap.statuses.push(status);
+      },
+      async reviewActivity() {
+        cap.reviews += 1;
+        return { approved: true, blockerCount: 0 };
+      },
+      async shipActivity({ isPartial }) {
+        cap.ships.push({ isPartial });
+        return { deliveries: [{ kind: "archive", ref: "fake://archive" }] };
       },
     };
 
-    const result = await runWorkflow(activities, RUN({ runId: "run-pipe" }), "q-pipeline");
+    const result = await runWorkflow(localEnv, activities, RUN({ runId: "run-pipe" }), "q-pipeline");
     expect(result.status).toBe("done");
     expect(result.tasksVerified).toBe(1);
+    expect(cap.reviews).toBe(1);
+    expect(cap.ships).toEqual([{ isPartial: false }]);
   }, 180_000);
 });

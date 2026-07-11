@@ -1,4 +1,4 @@
-import { betterAuth } from "better-auth";
+import { betterAuth, APIError } from "better-auth";
 import { organization } from "better-auth/plugins";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
@@ -6,6 +6,7 @@ import { schema } from "@mullion/db";
 import { db } from "./db.js";
 import { env } from "./env.js";
 import { provisionPersonalOrg } from "./org.js";
+import { isBlockedGitHubSignin } from "./github/signin-guard.js";
 
 export const auth = betterAuth({
   baseURL: env.API_ORIGIN,
@@ -15,6 +16,33 @@ export const auth = betterAuth({
     enabled: true,
   },
   trustedOrigins: [env.WEB_ORIGIN],
+  // GitHub is a LINK for build delivery (ADR-23/56), NOT a login. It's
+  // configured only when an OAuth app is present (soft-optional), and the
+  // hook below hard-blocks it as a sign-in method so ADR-35's
+  // sign-in-required-via-email posture is a real guarantee, not a UI
+  // convention.
+  ...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
+    ? {
+        socialProviders: {
+          github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET },
+        },
+      }
+    : {}),
+  hooks: {
+    before: async (ctx) => {
+      // Reject GitHub as a SIGN-IN method — it may only be LINKED from an
+      // authenticated session via /link-social (ADR-56). The effective guard
+      // is /sign-in/social with provider=github (a POST carrying the provider
+      // in the body); /link-social is session-gated by Better Auth itself, and
+      // the OAuth /callback carries no body.provider so it is not (and must
+      // not be) blocked here — blocking it would break link-social's callback.
+      // The context type is narrower than runtime, so read through a view.
+      const { path, body } = ctx as unknown as { path?: string; body?: { provider?: string } };
+      if (isBlockedGitHubSignin(path, body)) {
+        throw new APIError("FORBIDDEN", { message: "GitHub is a link-only provider, not a sign-in method" });
+      }
+    },
+  },
   plugins: [
     // Personal org is the only ownership model in v1 (ADR-36) — users don't
     // hand-create orgs, they get one at signup and invite into it.

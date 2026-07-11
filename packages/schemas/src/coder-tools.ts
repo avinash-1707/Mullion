@@ -47,6 +47,11 @@ export const taskFailureReasonSchema = z.enum([
 ]);
 export type TaskFailureReason = z.infer<typeof taskFailureReasonSchema>;
 
+// Paths the Coder wrote this task (M4, ADR-53) — the runner snapshots these
+// into the artifact store so Reviewer/DevOps have a durable tree. Capped; only
+// writeFile-tracked paths (ADR-48 known-limit b).
+const producedPathsSchema = z.array(z.string().max(512)).max(2_000).default([]);
+
 /** Persisted into tasks.result at loop end. */
 export const taskResultSchema = z.discriminatedUnion("status", [
   z.object({
@@ -54,6 +59,7 @@ export const taskResultSchema = z.discriminatedUnion("status", [
     turns: z.number().int().nonnegative(),
     costUsd: z.number().nonnegative(),
     durationMs: z.number().nonnegative(),
+    producedPaths: producedPathsSchema,
   }),
   z.object({
     status: z.literal("failed"),
@@ -62,6 +68,7 @@ export const taskResultSchema = z.discriminatedUnion("status", [
     turns: z.number().int().nonnegative(),
     costUsd: z.number().nonnegative(),
     durationMs: z.number().nonnegative(),
+    producedPaths: producedPathsSchema,
   }),
 ]);
 export type TaskResult = z.infer<typeof taskResultSchema>;

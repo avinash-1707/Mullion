@@ -360,6 +360,11 @@ alone answers "did we forget anything":
 | 50 | Temporal workflow/activity split; buildTask-as-activity; sequential topo | 2 (M3) | ✅ |
 | 51 | Two-layer retry: Temporal RetryPolicy (infra) vs workflow budget (logical) | 2 (M3) | ✅ |
 | 52 | Run lifecycle → Temporal workflow; idempotent task creation; reaper removed | 2 (M3) | ✅ |
+| 53 | ArtifactStore (local-fs substrate, union workspace); snapshot after each task | 2 (M4) | ✅ |
+| 54 | Advisory Reviewer + deterministic DevOps delivery; non-gated (ADR-33) | 2 (M4) | ✅ |
+| 55 | Escalation gate wired (signal/condition/timeout/redirect reconciles ADR-02) | 2 (M4) | ✅ |
+| 56 | GitHub link-only, hard-decoupled from sign-in | 2 (M4) | ✅ |
+| 57 | No Redis — Temporal dispatch + Postgres tables ARE the bus | 2 (M4) | ✅ |
 
 Process conventions (dependency installation, doc verification, per-phase
 security review) apply to every row above but are intentionally not

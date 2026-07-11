@@ -53,3 +53,12 @@ export const buildRunSchema = z.object({
 });
 
 export type BuildRun = z.infer<typeof buildRunSchema>;
+
+// M4 (ADR-55): the human escalation decision. `redirect` is the ONE
+// free-text-during-build input fed to the Coder — hard-capped as an
+// injection/cost guard (ADR-02/07).
+export const escalationDecisionBodySchema = z.union([
+  z.object({ decision: z.enum(["approve", "abandon"]) }),
+  z.object({ redirect: z.string().min(1).max(4_000) }),
+]);
+export type EscalationDecisionBody = z.infer<typeof escalationDecisionBodySchema>;

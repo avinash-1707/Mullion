@@ -28,7 +28,7 @@ ADR for that.
 |---|---|---|---|
 | Phase 0 — Foundation & Platform Wiring | Done (1 DoD item pending creds) | 2026-07-10 | Built + verified live; OpenRouter round-trip awaits a real API key; Neon swap-in is a DATABASE_URL change |
 | Phase 1 — Interactive Planning Experience | Done (live-LLM verification pending creds) | 2026-07-11 | Built + verified end to end against a mock OpenRouter; real-model pass needs OPENROUTER_API_KEY |
-| Phase 2 — Automated Build Pipeline | In progress (M1–M3 done) | 2026-07-11 | M1 (Coder+sandbox) + M2 (Tester+budget) + M3 (Temporal orchestrator, crash-resume proven) built, verified, reviewed; M4 next |
+| Phase 2 — Automated Build Pipeline | Feature-complete (M1–M4 done); close-out next | 2026-07-11 | M1–M4 built, verified, reviewed. Fork B end-to-end: build → snapshot → review → deliver, escalation gates + GitHub connect. Phase-end security review pending |
 | Phase 3 — Observability, Evaluation & Hardening | Not started | 2026-07-10 | Blocked on Phase 2 |
 | Phase 4 — Polish & Fast-Follow | Not started | 2026-07-10 | Blocked on Phase 3 |
 
@@ -63,6 +63,78 @@ template.
 ```
 
 ---
+
+### [2026-07-11] Phase 2 M4 — Full team, delivery, escalation, GitHub (Fork B end-to-end)
+**Phase:** Phase 2 — Automated Build Pipeline (milestone M4, final build milestone)
+**Type:** Progress update
+**Summary:** Final build milestone: Reviewer + DevOps, escalation gates, and
+GitHub delivery — Fork B end to end. The real spine was the PERSISTENCE GAP:
+M1–M3 dispose each sandbox, so no durable repo existed. New
+`packages/artifacts` (ArtifactStore port: LocalFsArtifactStore substrate + S3
+stub + InMemory fake, ADR-53); `runTaskActivity` snapshots each task's
+writeFile-tracked files (`TaskResult.producedPaths`) into the store before
+dispose, regardless of pass/fail (partial files ship too, ADR-33). Reviewer:
+`buildReviewerAgent` one-shot (clone of the consistency reviewer) run in a new
+`reviewing` phase over the produced tree + acceptance criteria + decision log;
+advisory — verdict recorded to decision_log + streamed, blocker flags the
+summary, no auto-fix loop (ADR-54). DevOps/delivery: new `packages/delivery`
+(DeliveryTarget port — ArchiveDeliveryTarget via jszip + GitHubDeliveryTarget
+via Octokit create-repo→blobs→tree→commit→ref + local fakes) in a `shipping`
+phase reached on EVERY terminal path with a "what's built/missing" summary
+(ADR-33 non-gated delivery; the workflow now collects per-task outcomes,
+skips dependents of abandoned tasks, and ships partial). Escalation gate WIRED
+(ADR-55): on budget exhaustion the workflow condition()-waits (30-min timeout →
+abandon) for an approve/abandon/redirect signal; redirect re-runs the task with
+an operator instruction (the one sanctioned free-text-during-build, reconciled
+with ADR-02), budget-reset once, capped at 2. POST /api/builds/:id/escalate
+signals it. GitHub (ADR-56): Better Auth `socialProviders.github` gated on a
+soft-optional OAuth app + a `hooks.before` that HARD-BLOCKS GitHub as a sign-in
+method (link-only), per-user repo-scoped token read only at delivery,
+GET /api/github/connection. No Redis (ADR-57): Temporal dispatch + messages/
+stream_events ARE the bus. Migration 0006 adds the `deliveries` table.
+**Verified:** full DoD green (`check-types`+`lint`+`build`+`test`, 156 unit
+tests across artifacts/delivery/reviewer/orchestrator/etc.) plus the
+orchestrator integration tier (28 tests): the M4 flow (building→reviewing→
+shipping→done), the escalation gate exercised with REAL human signals
+(approve→continue, abandon→skip-deps, redirect→re-run-and-verify) against a
+real Temporal server, ADR-33 partial-build delivery, crash-resume (still
+green), and the full-pipeline (real Docker + buildTask → review → ship).
+**Files/areas touched:** packages/{artifacts (new),delivery (new),agents
+(reviewer),schemas (reviewer/producedPaths),orchestrator (workflows/activities/
+types),db (deliveries + migration 0006),config}, apps/api (auth, github/,
+routes/{builds escalate, github},worker), docs/specs/{04,05}
+**Related ADR:** New — ADR-53 (ArtifactStore + union workspace), ADR-54
+(advisory Reviewer + delivery, non-gated), ADR-55 (escalation wired + redirect
+reconciles ADR-02), ADR-56 (GitHub link-only), ADR-57 (no Redis); `05` table
+extended 53–57
+**Follow-ups:**
+- Workspace is union-only (Option B); snapshot+HYDRATE for genuinely dependent
+  multi-file task builds is the immediate fast-follow (ADR-53 Option A) — needs
+  threading base files into the M2 verify sandbox.
+- Reviewer is advisory; the automated `fixing` loop (reviewer reject → re-run)
+  is deferred (§12 infinite-negotiation risk) — wire behind the escalation gate.
+- DevOps commit message is static; a fast-tier LLM commit/README message is a
+  fast-follow.
+- GitHub push + real linkSocial only run against the local fake so far (no OAuth
+  app); a real-creds pass rides the existing cred follow-ups. Archive delivery is
+  fully real (jszip).
+- Live full-stack smoke (API + worker + temporal start-dev + Docker + a linked
+  GitHub) needs the running processes, like planning needs the OpenRouter mock.
+- Route-test harness for apps/api (POST /api/builds, /escalate, /github) is still
+  the Phase-3 hardening item (no HTTP/auth test harness exists yet).
+- Multi-lens review (3 High, 2+ Medium, Lows + test gaps) run and FIXED before
+  commit: the escalation route POST /api/builds/:id/escalate was CLAIMED but
+  MISSING — now added (owner-only, state-guarded, zod-capped redirect, signals
+  the workflow); delivery zip stored under a sibling key so a ship retry can't
+  zip-in-zip / commit the blob into the repo; shipActivity per-target try/catch +
+  idempotent (skip already-delivered kind) + always emits delivery_result;
+  reviewActivity wrapped so a review failure never gates delivery (advisory);
+  snapshot made best-effort per-file so it can't fail a verified task; auth
+  github-signin guard extracted + unit-tested (dead /callback clause removed);
+  config requires BOTH github creds; producedPaths sliced; backslash rejected in
+  path guard. New tests: reviewActivity/shipActivity/snapshot activity bodies
+  (MockActivityEnvironment), MAX_REDIRECTS cap, diamond-skip, github token, the
+  signin guard.
 
 ### [2026-07-11] Phase 2 M3 — Temporal build orchestrator + durable crash-resume
 **Phase:** Phase 2 — Automated Build Pipeline (milestone M3)

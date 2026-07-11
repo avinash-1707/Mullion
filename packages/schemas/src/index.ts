@@ -5,3 +5,4 @@ export * from "./planning.ts";
 export * from "./coder-tools.ts";
 export * from "./agent-message.ts";
 export * from "./tester.ts";
+export * from "./reviewer.ts";

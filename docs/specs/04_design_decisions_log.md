@@ -824,3 +824,123 @@ mid-task checkpointing (re-implements Temporal one layer too deep);
 composite FK on stream_events (impossible — polymorphic parent).
 **Doc:** `packages/orchestrator/src/activities.ts`,
 `packages/db/drizzle/0005_*.sql`, `apps/api/src/dev/build-task-cli.ts`
+
+### ADR-53 — ArtifactStore: durable produced-repo tree; local-fs substrate, union workspace
+**Status:** 🔧 Designed by Claude during Phase 2 M4
+**Context:** M1–M3 run each task in a fresh sandbox that is disposed; the
+produced files were never persisted and tasks never shared a workspace.
+Reviewer (needs the repo) and DevOps (needs to package/push it) both require
+a durable cumulative tree — the real M4 spine, missing until now.
+**Decision:** An `ArtifactStore` port (`packages/artifacts`) mirroring the
+Sandbox dual-adapter shape (ADR-44): `LocalFsArtifactStore`
+(ARTIFACT_DIR/<runId>/… — the real M4 substrate, genuine files) + an
+`S3ArtifactStore` stub (compiles, unused, no creds) + `InMemoryArtifactStore`
+(tests), selected by `ARTIFACT_STORE=local|s3` (s3 without a bucket fails at
+boot). After each task, `runTaskActivity` snapshots the sandbox's
+writeFile-tracked files (`TaskResult.producedPaths`) into the store BEFORE
+dispose — regardless of verified/failed, since a partial task's files still
+belong in the delivered repo (ADR-33). Accumulation is UNION-only
+(last-writer-wins per path); hydration back into sandboxes (dependent-task
+builds) is deferred to a fast-follow (Option A). Only writeFile-tracked files
+are captured (ADR-48 known-limit b carries forward — files a task produces via
+runCommand are not snapshotted).
+**Alternatives considered:** reconstruct the repo from the messages transcript
+(lossy — truncation caps + runCommand files missing); DB blobs (rejected for
+derivable/large files, consistent with ADR-42); snapshot+hydrate now (real
+surgery into M2's verifier — deferred).
+**Doc:** `packages/artifacts/`, `packages/agents/src/coder/build-task.ts`
+(producedPaths), `packages/orchestrator/src/activities.ts` (snapshot)
+
+### ADR-54 — Full team: advisory Reviewer, deterministic DevOps delivery, non-gated on success
+**Status:** 🔧 Designed by Claude during Phase 2 M4
+**Context:** M4 adds Reviewer + DevOps and Fork B end-to-end delivery
+(02 §5/§11). Delivery must be offered identically for full and
+partial/abandoned builds (ADR-33), and packaging must not require live-deploy
+creds (ADR-04/15).
+**Decision:** (1) Reviewer = a one-shot AgentSpec (`buildReviewerAgent`, role
+reviewer, temp 0), a near-clone of the planning consistency reviewer, run in a
+`reviewing` phase over the artifact-store tree + task acceptance criteria +
+decision log. ADVISORY: the verdict is recorded (decision_log, actor reviewer)
++ streamed (review_result), and a blocker flags the delivery summary, but does
+NOT auto-loop a fix cycle (the automated `fixing` loop = §12's infinite-
+negotiation risk, deferred). DoD "clears one review round" = one pass runs and
+its verdict is durably recorded. (2) DevOps/delivery = a `DeliveryTarget` port
+(`packages/delivery`): `ArchiveDeliveryTarget` (jszip, reusing ADR-42's dep,
+always available) + `GitHubDeliveryTarget` (Octokit create-repo → blobs → tree
+→ commit → ref, scope `repo`) + local fakes. Commit message is static for M4
+(DevOps LLM use deferred). (3) ADR-33 non-gated delivery: `orchestrate()`
+collects per-task outcomes and runs to a terminal SHIP on every path — full,
+partial, or abandoned — with a "what's built / missing" summary; both `done`
+and `failed` pass through `shipping`. A task whose dependency didn't complete
+is skipped-and-flagged.
+**Alternatives considered:** Reviewer reject → auto-fix loop (deferral, §12
+risk) or → human gate (couples happy-path to a signal); simple-git push (needs
+a git binary + token-in-URL leak — Octokit is cleaner); archiver v8 (uncertain
+new API — jszip already a dep).
+**Doc:** `packages/agents/src/reviewer/`, `packages/delivery/`,
+`packages/orchestrator/src/{workflows,activities}.ts`
+
+### ADR-55 — Escalation gate wired: signal + condition + timeout; redirect is the one build free-text
+**Status:** 🔧 Designed by Claude during Phase 2 M4
+**Context:** M3 defined `escalationSignal` but left it unhandled (auto-fail).
+02 §3.1/ADR-07 want a real human approve/redirect/abandon gate on retry-budget
+exhaustion, and ADR-02 forbids free-text edits DURING build — which a redirect
+appears to violate.
+**Decision:** On budget exhaustion the workflow emits `escalation_required`
+and `condition()`-waits (ESCALATION_TIMEOUT 30 min) for the human decision via
+`setHandler(escalationSignal)`; a timeout defaults to ABANDON so an unattended
+gate can't hang forever holding the ADR-29 slot. `approve` = accept the
+current state (task accepted-incomplete, flagged partial); `abandon` = drop
+the task, skip its dependents; `redirect` = re-run the task with a new
+instruction, resetting the retry budget once, capped at 2 redirects.
+POST /api/builds/:id/escalate signals the workflow. RECONCILING ADR-02: a
+redirect is the ONE sanctioned free-text-during-build input — but it is a
+signal to a PAUSED workflow, scoped to a single stuck task's instruction,
+mechanically and visually distinct from a Phase-2 planner edit-prompt (which
+re-derives architecture). It does not reopen planning.
+**Alternatives considered:** auto-fail (M3 placeholder, no human control);
+full gate with no timeout (hangs, wedges ADR-29); unbounded redirects
+(infinite loop).
+**Doc:** `packages/orchestrator/src/workflows.ts`, `apps/api/src/routes/builds.ts`
+
+### ADR-56 — GitHub is a link-only delivery connection, hard-decoupled from sign-in
+**Status:** 🔧 Designed by Claude during Phase 2 M4
+**Context:** ADR-23 wants GitHub `linkSocial` with `repo` scope for delivery;
+ADR-35 requires email/password sign-in and no anonymous/social login. Better
+Auth's `socialProviders.github` is shared by both link AND the /sign-in/social
++ /callback/github routes, so "decoupled from sign-in" was only a UI
+convention, not a guarantee.
+**Decision:** GitHub is configured only when a soft-optional OAuth app is
+present (`GITHUB_CLIENT_ID/SECRET` — absence is fine, GitHub push is an
+optional target), and a Better Auth `hooks.before` HARD-BLOCKS
+`provider: "github"` on /sign-in/social and /callback/github, so it can only
+be linked from an authenticated session via /link-social. The `repo`-scoped
+token lives per-user in Better Auth's `account` row (ADR-36), read only at
+delivery time (`getGitHubAccessToken`). GitHub OAuth Apps issue no refresh
+token and don't expire, so no refresh flow. `GET /api/github/connection`
+reports link status. Delivery selects `GITHUB_DELIVERY=fake|github` (fake =
+local "remote", no creds — the M4 substrate).
+**Alternatives considered:** UI-only decoupling (not a real guarantee — a raw
+POST /sign-in/social would still sign in via GitHub); make GitHub a boot-hard
+requirement (wrong — it's optional).
+**Doc:** `apps/api/src/auth.ts`, `apps/api/src/github/token.ts`,
+`apps/api/src/routes/github.ts`
+
+### ADR-57 — No Redis message bus; Temporal dispatch + Postgres tables ARE the bus
+**Status:** 🔧 Designed by Claude during Phase 2 M4
+**Context:** 02 §3 names Redis Streams as the "message bus" for the build
+team. That predates ADR-50 moving dispatch into Temporal activities.
+**Decision:** Do NOT build Redis. The v1 realization of the §3 bus is:
+Temporal activity dispatch (the orchestrator IS the coordinator — task
+routing), the `messages` table (durable structured envelopes per task, already
+envelope+seq), and `stream_events`/SSE (the client feed, incl. M4's
+`review_result`/`delivery_result` events). Redis Streams would add an
+operational dependency with zero consumer. ADR-38 already anticipated the
+revisit; the conclusion is that it is not needed for v1. Revisit only if a
+genuine cross-service pub/sub need emerges (e.g. multiple worker fleets that
+must coordinate outside Temporal).
+**Alternatives considered:** Build Redis Streams now (operational burden, no
+consumer); a DB-polling pseudo-bus separate from Temporal (duplicates what the
+orchestrator already does).
+**Doc:** `packages/orchestrator/` (Temporal dispatch), `packages/db`
+(messages/stream_events)

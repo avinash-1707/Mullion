@@ -19,7 +19,9 @@
   },
   "dependencies": {
     "@mullion/agents": "workspace:*",
+    "@mullion/artifacts": "workspace:*",
     "@mullion/db": "workspace:*",
+    "@mullion/delivery": "workspace:*",
     "@mullion/sandbox": "workspace:*",
     "@mullion/schemas": "workspace:*",
     "@temporalio/activity": "^1.20.2",

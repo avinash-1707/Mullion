@@ -423,6 +423,36 @@ export const messages = pgTable(
 );
 
 /**
+ * Delivery records (M4, ADR-54). One row per successful delivery of a run to
+ * a target (archive | github). `is_partial` records ADR-33 partial/abandoned
+ * builds delivered identically to full ones.
+ */
+export const deliveries = pgTable(
+  "deliveries",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    runId: uuid("run_id").notNull(),
+    kind: text("kind", { enum: ["archive", "github"] }).notNull(),
+    ref: text("ref").notNull(),
+    isPartial: boolean("is_partial").notNull().default(false),
+    summary: text("summary"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("deliveries_run_idx").on(t.runId),
+    index("deliveries_org_idx").on(t.organizationId),
+    foreignKey({
+      columns: [t.runId, t.organizationId],
+      foreignColumns: [runs.id, runs.organizationId],
+      name: "deliveries_run_org_fk",
+    }),
+  ],
+);
+
+/**
  * ADR-25: role → model routing lives in a config table, swappable without a
  * redeploy. Slug *values* are seeded from packages/llm (the only place a
  * model string is written down — CODING_STANDARDS §3).

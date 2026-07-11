@@ -8,7 +8,7 @@ export {
 } from "./policy.js";
 export { createActivities, type ActivityDeps } from "./activities.js";
 export { createBuildWorker, WORKFLOWS_PATH } from "./worker.js";
-export { startBuildRun } from "./client.js";
+export { startBuildRun, workflowIdForRun } from "./client.js";
 export { buildRunWorkflow, escalationSignal, type EscalationDecision } from "./workflows.js";
 export type {
   BuildActivities,

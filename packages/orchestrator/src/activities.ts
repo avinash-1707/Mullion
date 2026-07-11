@@ -4,15 +4,26 @@ import { and, eq } from "drizzle-orm";
 import { schema, type Db } from "@mullion/db";
 import {
   DEFAULT_TASK_CAPS,
+  buildReviewerAgent,
   buildTask,
+  withBackoff,
   type BudgetConfig,
+  type OneShotLlm,
   type ToolCallingLlm,
   type Verifier,
 } from "@mullion/agents";
 import { buildSpecArtifactSchema, type TaskResult } from "@mullion/schemas";
-import { reapContainersForRun, type SandboxDriver } from "@mullion/sandbox";
+import { reapContainersForRun, type Sandbox, type SandboxDriver } from "@mullion/sandbox";
+import { assertSafeArtifactPath, type ArtifactStore } from "@mullion/artifacts";
+import type { DeliveryTarget } from "@mullion/delivery";
 import type { TaskGraphNode } from "./policy.js";
-import type { BuildActivities, RunStatus, RunTaskActivityArgs } from "./types.js";
+import type {
+  BuildActivities,
+  ReviewActivityResult,
+  RunStatus,
+  RunTaskActivityArgs,
+  ShipActivityResult,
+} from "./types.js";
 
 /**
  * Side-effecting activity implementations (ADR-50). These run in the normal
@@ -30,6 +41,12 @@ export interface ActivityDeps {
   budget?: BudgetConfig | undefined;
   /** Optional tamper-proof verifier factory (M2). Default = buildTask's inline verifier. */
   makeVerify?: ((args: { runId: string }) => Verifier) | undefined;
+  /** M4 (ADR-53): durable store for produced files; snapshot after each task. */
+  artifactStore?: ArtifactStore | undefined;
+  /** M4: one-shot LLM for the Reviewer (the OpenRouterClient satisfies this). */
+  reviewLlm?: OneShotLlm | undefined;
+  /** M4 (ADR-54): delivery targets tried in order (archive always; github if linked). */
+  deliveryTargets?: DeliveryTarget[] | undefined;
   /** Injected so the orchestrator stays decoupled from apps/api's SSE impl. */
   publishEvent?:
     | ((
@@ -165,11 +182,18 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
           runId: args.runId,
         });
 
-        return await buildTask(
+        // ADR-55: an escalation redirect is the one sanctioned free-text
+        // input during build — appended to the task description for this
+        // attempt, scoped to this one task.
+        const description = args.redirectInstruction
+          ? `${taskRow.description}\n\n[Operator redirect]: ${args.redirectInstruction}`
+          : taskRow.description;
+
+        const result = await buildTask(
           {
             task: {
               taskId: args.specTaskId,
-              description: taskRow.description,
+              description,
               acceptanceCriteria: taskRow.acceptanceCriteria ?? "",
             },
             verifyCommand: taskRow.verifyCommand ?? "node --test",
@@ -195,6 +219,18 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
               : {}),
           },
         );
+
+        // Snapshot produced files into the durable store BEFORE dispose,
+        // regardless of verified/failed — a partial task's files still belong
+        // in the delivered repo (ADR-33/53). BEST-EFFORT: a snapshot error must
+        // never fail an already-verified task (which would burn budget on a
+        // fruitless re-run).
+        if (deps.artifactStore) {
+          await snapshotSandbox(deps.artifactStore, sandbox, args.runId, result.producedPaths).catch(
+            (error) => console.error(`snapshot failed for run ${args.runId} (non-fatal):`, error),
+          );
+        }
+        return result;
       } finally {
         clearInterval(heartbeat);
         if (sandbox) await sandbox.dispose().catch(() => undefined);
@@ -210,7 +246,152 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
         payload: { specTaskId, reason },
       });
     },
+
+    async reviewActivity({ runId, organizationId, buildSpecId }): Promise<ReviewActivityResult> {
+      // Advisory review over the produced tree (ADR-54). If no LLM/store is
+      // wired, degrade to auto-approve rather than blocking the build.
+      if (!deps.reviewLlm || !deps.artifactStore) return { approved: true, blockerCount: 0 };
+
+      const [specRow] = await deps.db
+        .select({ spec: schema.buildSpecs.spec })
+        .from(schema.buildSpecs)
+        .where(
+          and(eq(schema.buildSpecs.id, buildSpecId), eq(schema.buildSpecs.organizationId, organizationId)),
+        )
+        .limit(1);
+      const parsed = specRow ? buildSpecArtifactSchema.safeParse(specRow.spec) : undefined;
+      const requirementsSummary =
+        parsed?.success && typeof parsed.data.requirements["summary"] === "string"
+          ? (parsed.data.requirements["summary"] as string)
+          : "(no summary)";
+
+      const taskRows = await deps.db
+        .select({
+          specTaskId: schema.tasks.specTaskId,
+          acceptanceCriteria: schema.tasks.acceptanceCriteria,
+          status: schema.tasks.status,
+        })
+        .from(schema.tasks)
+        .where(and(eq(schema.tasks.runId, runId), eq(schema.tasks.organizationId, organizationId)));
+
+      const decisions = await deps.db
+        .select({ actor: schema.decisionLog.actor, decision: schema.decisionLog.decision })
+        .from(schema.decisionLog)
+        .where(
+          and(
+            eq(schema.decisionLog.buildSpecId, buildSpecId),
+            eq(schema.decisionLog.organizationId, organizationId),
+          ),
+        )
+        .limit(50);
+
+      const files = await deps.artifactStore.readTree(runId);
+
+      const verdict = await withBackoff(async () => {
+        const completion = await deps.reviewLlm!.completeChat({
+          role: "reviewer",
+          messages: buildReviewerAgent.buildMessages({
+            requirementsSummary,
+            tasks: taskRows.map((t) => ({
+              taskId: t.specTaskId ?? "?",
+              acceptanceCriteria: t.acceptanceCriteria ?? "",
+              status: t.status,
+            })),
+            decisionLog: decisions.map((d) => ({ actor: d.actor, decision: d.decision })),
+            files,
+          }),
+          costContext: { organizationId, runId },
+        });
+        return buildReviewerAgent.parse(completion.content);
+      });
+
+      // Record the verdict as an append-only decision (actor reviewer) + SSE.
+      await deps.db.insert(schema.decisionLog).values({
+        organizationId,
+        buildSpecId,
+        phase: "build",
+        actor: "reviewer",
+        decision: verdict.approved ? "Build review: approved" : "Build review: concerns raised",
+        rationale: verdict.notes.map((n) => `[${n.severity}] ${n.message}`).join("\n") || null,
+      });
+      if (deps.publishEvent) {
+        await deps.publishEvent(deps.db, {
+          streamId: runId,
+          organizationId,
+          eventType: "review_result",
+          payload: { approved: verdict.approved, notes: verdict.notes },
+        });
+      }
+      return { approved: verdict.approved, blockerCount: verdict.notes.filter((n) => n.severity === "blocker").length };
+    },
+
+    async shipActivity({ runId, organizationId, userId, isPartial, summary }): Promise<ShipActivityResult> {
+      const repo = deps.artifactStore ? await deps.artifactStore.readTree(runId) : [];
+      const repoName = `mullion-build-${runId.slice(0, 8)}`;
+
+      // Idempotency across Temporal retries: a kind already delivered for this
+      // run is skipped, so a retry (e.g. after one target threw) doesn't
+      // duplicate rows or re-create a repo.
+      const existing = await deps.db
+        .select({ kind: schema.deliveries.kind })
+        .from(schema.deliveries)
+        .where(and(eq(schema.deliveries.runId, runId), eq(schema.deliveries.organizationId, organizationId)));
+      const already = new Set(existing.map((r) => r.kind));
+
+      const deliveries: { kind: string; ref: string }[] = [];
+      for (const target of deps.deliveryTargets ?? []) {
+        if (already.has(target.kind)) continue;
+        // Per-target isolation (ADR-54): one target failing must not abort the
+        // others or wedge the run — record what worked, skip what didn't.
+        try {
+          if (!(await target.available(userId))) continue;
+          const result = await target.deliver({ runId, organizationId, userId, repo, repoName, isPartial, summary });
+          await deps.db.insert(schema.deliveries).values({
+            organizationId,
+            runId,
+            kind: result.kind,
+            ref: result.ref,
+            isPartial,
+            summary,
+          });
+          deliveries.push({ kind: result.kind, ref: result.ref });
+        } catch (error) {
+          console.error(`delivery target "${target.kind}" failed for run ${runId}:`, error);
+        }
+      }
+
+      if (deps.publishEvent) {
+        await deps.publishEvent(deps.db, {
+          streamId: runId,
+          organizationId,
+          eventType: "delivery_result",
+          payload: { deliveries, isPartial },
+        });
+      }
+      return { deliveries };
+    },
   };
+}
+
+async function snapshotSandbox(
+  store: ArtifactStore,
+  sandbox: Sandbox,
+  runId: string,
+  producedPaths: string[],
+): Promise<void> {
+  const files = [];
+  for (const path of producedPaths) {
+    // Per-file guard: an unsafe path or an unreadable file is skipped, not
+    // fatal — one bad path must not drop the whole snapshot.
+    try {
+      assertSafeArtifactPath(path);
+    } catch {
+      continue;
+    }
+    const content = await sandbox.readFile(path).catch(() => undefined);
+    if (content !== undefined) files.push({ path, content });
+  }
+  if (files.length > 0) await store.put(runId, files);
 }
 
 async function setRunStatus(

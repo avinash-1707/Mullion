@@ -164,6 +164,7 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
       turns,
       costUsd: totalCost(),
       durationMs: now() - started,
+      producedPaths: [...writtenPaths].slice(0, 2_000),
     });
 
   const messages: ToolChatMessage[] = [
@@ -360,6 +361,7 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
                 turns,
                 costUsd: totalCost(),
                 durationMs: now() - started,
+                producedPaths: [...writtenPaths].slice(0, 2_000),
               });
             }
 

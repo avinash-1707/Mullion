@@ -3,8 +3,8 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { schema } from "@mullion/db";
-import { createBuildBodySchema, type BuildRun } from "@mullion/schemas";
-import { startBuildRun } from "@mullion/orchestrator";
+import { createBuildBodySchema, escalationDecisionBodySchema, type BuildRun } from "@mullion/schemas";
+import { escalationSignal, startBuildRun, workflowIdForRun, type EscalationDecision } from "@mullion/orchestrator";
 import { db } from "../db.js";
 import { requireOrgMember, type RequiredAuthVariables } from "../middleware/session.js";
 import { getTemporalClient } from "../temporal.js";
@@ -155,4 +155,33 @@ export const buildsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
         return Boolean(row);
       },
     });
+  })
+  // ADR-55/07: the human escalation gate. A mutating signal, so it is
+  // OWNER-only (not just org member — the redirect is per-user free-text
+  // fed to the Coder), state-guarded (only a non-terminal run), and the
+  // redirect body is zod-capped (injection/cost guard, ADR-02).
+  .post("/:id/escalate", zValidator("json", escalationDecisionBodySchema), async (c) => {
+    const run = await loadRun(c);
+    if (run.userId !== c.get("user").id) {
+      throw new HTTPException(403, { message: "Only the build owner can escalate" });
+    }
+    if (run.status === "done" || run.status === "failed") {
+      throw new HTTPException(409, { message: `Build is ${run.status}, not awaiting escalation` });
+    }
+    const body = c.req.valid("json");
+    const decision: EscalationDecision =
+      "redirect" in body ? { redirect: body.redirect } : body.decision;
+
+    let client;
+    try {
+      client = await getTemporalClient();
+      await client.workflow.getHandle(workflowIdForRun(run.id)).signal(escalationSignal, decision);
+    } catch (error) {
+      // Workflow already closed / not found → the gate isn't live.
+      throw new HTTPException(409, {
+        message: "Build is not awaiting an escalation decision",
+        cause: error,
+      });
+    }
+    return c.json({ ok: true });
   });

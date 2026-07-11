@@ -57,3 +57,4 @@ export {
   type BudgetConfig,
   type BudgetStatus,
 } from "./budget.js";
+export { buildReviewerAgent, type BuildReviewInput } from "./reviewer/reviewer.js";

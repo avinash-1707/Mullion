@@ -47,7 +47,35 @@ export const apiEnvSchema = z.object({
   // Cloud creds. gRPC frontend address + namespace.
   TEMPORAL_ADDRESS: z.string().min(1).default("localhost:7233"),
   TEMPORAL_NAMESPACE: z.string().min(1).default("default"),
+  // Artifact store (ADR-53): local fs by default; s3 deferred (no creds).
+  ARTIFACT_STORE: z.enum(["local", "s3"]).default("local"),
+  ARTIFACT_DIR: z.string().min(1).default("./.artifacts"),
+  ARTIFACT_S3_BUCKET: z.string().min(1).optional(),
+  // GitHub delivery (ADR-56): optional OAuth app for linkSocial; absence is
+  // SOFT (GitHub push is an optional target, unlike SANDBOX_DRIVER=e2b).
+  GITHUB_CLIENT_ID: z.string().min(1).optional(),
+  GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
+  // Delivery: which GitHub target — `fake` (no creds, local remote) or the
+  // real Octokit push. Archive is always offered alongside.
+  GITHUB_DELIVERY: z.enum(["fake", "github"]).default("fake"),
 }).superRefine((env, ctx) => {
+  if (env.ARTIFACT_STORE === "s3" && !env.ARTIFACT_S3_BUCKET) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["ARTIFACT_S3_BUCKET"],
+      message: "required when ARTIFACT_STORE=s3 — set it or use ARTIFACT_STORE=local",
+    });
+  }
+  if (env.GITHUB_DELIVERY === "github" && !(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET)) {
+    // BOTH are required — auth.ts only registers the provider (so a user can
+    // link) when both are present; ID alone would silently degrade to
+    // archive-only with no way to link.
+    ctx.addIssue({
+      code: "custom",
+      path: ["GITHUB_CLIENT_SECRET"],
+      message: "GITHUB_DELIVERY=github requires BOTH GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET (or use GITHUB_DELIVERY=fake)",
+    });
+  }
   // Fail loud at boot, never mid-run with a half-built task.
   if (env.SANDBOX_DRIVER === "e2b" && !env.E2B_API_KEY) {
     ctx.addIssue({
