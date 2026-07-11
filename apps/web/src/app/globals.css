@@ -51,7 +51,7 @@
   /* Hero h1 only — see layout.tsx for why this face exists at all. Falls
      back to the same serif stack as font-serif if the webfont hasn't
      loaded yet. */
-  --font-hero: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
+  --font-hero: var(--font-cinzel), Georgia, "Times New Roman", serif;
 }
 
 :root {

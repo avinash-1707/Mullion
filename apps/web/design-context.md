@@ -39,7 +39,7 @@ Rules of thumb:
 Four faces, loaded in `src/app/layout.tsx`:
 
 - `font-serif` (Cormorant Garamond): every heading, display number, and the logo wordmark. Weight 500 globally (set on `.font-serif` in globals.css); never bold, never lighter. Italic is available for quotes.
-- `font-hero` (Instrument Serif): the landing hero h1 only, nowhere else. More display presence and higher contrast than Cormorant at hero scale — brought in when the hero heading needed to read louder without turning the rest of the site's headings bold or oversized. One weight (400), one style (normal); don't reach for other cuts. Section headings, chapter marks, etc. all stay on `font-serif`.
+- `font-hero` (Cinzel): the landing hero h1 only, nowhere else. Classical Roman-inscription capitals that speak the statue artwork's museum language and give the hero real display weight. One weight (600, rendered with `font-semibold`), one style (normal); don't reach for other cuts. Section headings, chapter marks, etc. all stay on `font-serif`.
 - `font-display` (Inter, the default body font): paragraphs, UI text.
 - `font-mono` (JetBrains Mono): eyebrows, labels, buttons, small metadata. Always uppercase with wide tracking.
 
@@ -49,7 +49,7 @@ Recurring type recipes (copy these class strings):
 
 - Eyebrow: `font-mono text-[11px] uppercase tracking-[0.3em] text-ember` (use `text-gilt` on dark bands)
 - Section heading: `font-serif text-4xl leading-tight sm:text-5xl` with `text-ember` on cream, `text-cream` on dark. Highlight one phrase with `<span className="text-ember">`
-- Hero h1 (landing only): `font-hero text-[clamp(4rem,8vw,7rem)] leading-[0.95] tracking-[-0.005em]`
+- Hero h1 (landing only): `font-hero text-[clamp(3.5rem,6.5vw,5.75rem)] font-semibold leading-[1.02] tracking-[-0.005em]`
 - Body: `text-base leading-relaxed` in `text-ink-muted` (cream) or `text-parchment` (dark), capped with `max-w-md` or similar
 - Small label / column header: `font-mono text-[10px] uppercase tracking-[0.3em]`
 - Chapter mark: small mono "Chapter" over a `font-serif text-5xl text-ember` number. Component: `src/components/landing/chapter-mark.tsx`

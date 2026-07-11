@@ -7,10 +7,12 @@ export function Hero() {
     <section className="relative overflow-hidden">
       <div className="mx-auto grid w-full max-w-[1320px] grid-cols-1 px-6 sm:px-10 lg:grid-cols-[1.05fr_1fr] lg:gap-12">
         <div className="flex flex-col justify-center pb-16 pt-36 lg:min-h-svh lg:pb-24">
-          <h1 className="animate-reveal font-hero text-[clamp(4rem,8vw,7rem)] leading-[0.95] tracking-[-0.005em] text-ember">
+          <h1 className="animate-reveal font-hero text-[clamp(3.5rem,6.5vw,5.75rem)] font-semibold leading-[1.02] tracking-[-0.005em] text-ink">
             From Idea
             <br />
-            To Shipped.
+            <span className="text-[0.6em]">To</span>
+            <br />
+            <span className="text-[1.3em] text-ember">Shipped.</span>
           </h1>
           <p
             className="animate-reveal mt-6 max-w-[32ch] text-lg leading-[1.6] text-ink-muted"

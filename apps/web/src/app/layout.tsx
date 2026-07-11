@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Instrument_Serif, Inter, JetBrains_Mono } from "next/font/google";
+import { Cinzel, Cormorant_Garamond, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { createMetadata } from "@/config/metadata";
@@ -27,15 +27,15 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 // A fourth face, reserved for the single hero h1 only (`font-hero`):
-// Instrument Serif is a purpose-built display serif — higher contrast and
-// more character than Cormorant at hero scale, still an oldstyle-adjacent
-// museum-catalog voice, not a rounded/geometric departure. It ships in
-// exactly one weight and style, which keeps this a small, deliberate
-// addition rather than a second full type family.
-const instrumentSerif = Instrument_Serif({
-  variable: "--font-instrument-serif",
+// Cinzel is a classical Roman-inscription display face — carved-capital
+// letterforms that speak the same museum language as the statue artwork.
+// Loaded at 600 only (a moderate display cut — carved, not shouting),
+// one style, which keeps this a small, deliberate addition rather than
+// a second full type family.
+const cinzel = Cinzel({
+  variable: "--font-cinzel",
   subsets: ["latin"],
-  weight: "400",
+  weight: "600",
   style: ["normal"],
 });
 
@@ -69,7 +69,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${inter.variable} ${jetbrainsMono.variable} ${cormorant.variable} ${instrumentSerif.variable} h-full`}
+      className={`${inter.variable} ${jetbrainsMono.variable} ${cormorant.variable} ${cinzel.variable} h-full`}
     >
       {/* suppressHydrationWarning: attribute-only, for browser extensions
           (Grammarly et al.) that stamp data-* attributes on <body> before
