@@ -43,3 +43,35 @@ jobs:
       - run: pnpm --filter @mullion/orchestrator test:integration
         env:
           TEMPORAL_INTEGRATION: "1"
+
+  api-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: mullion
+          POSTGRES_PASSWORD: mullion
+          POSTGRES_DB: mullion
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mullion"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply DB schema
+        run: pnpm --filter @mullion/db db:push
+        env:
+          DATABASE_URL: postgres://mullion:mullion@localhost:5432/mullion
+      - run: pnpm --filter @mullion/api test:integration
+        env:
+          API_INTEGRATION: "1"
+          DATABASE_URL: postgres://mullion:mullion@localhost:5432/mullion

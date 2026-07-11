@@ -26,7 +26,9 @@ function clientIp(c: Context<Env>): string {
       }
     }
   }
-  return c.env.incoming.socket.remoteAddress ?? "unknown";
+  // c.env.incoming is populated by @hono/node-server; under app.request()
+  // (route tests) there is no socket, so fall back rather than crash.
+  return c.env?.incoming?.socket?.remoteAddress ?? "unknown";
 }
 
 export const ipRateLimit = rateLimiter<Env>({
