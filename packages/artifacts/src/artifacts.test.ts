@@ -1,10 +1,11 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { assertSafeArtifactPath } from "./port.js";
 import { InMemoryArtifactStore } from "./fake.js";
 import { LocalFsArtifactStore } from "./local-fs.js";
+import { S3ArtifactStore } from "./s3.js";
 import { createArtifactStore } from "./select.js";
 import type { ArtifactStore } from "./port.js";
 
@@ -98,4 +99,68 @@ contract("local-fs", async () => {
     store: new LocalFsArtifactStore(dir),
     cleanup: async () => rm(dir, { recursive: true, force: true }),
   };
+});
+
+describe("sweepStale — in-memory", () => {
+  it("removes trees older than the cutoff, keeps fresh ones, and counts them", async () => {
+    const store = new InMemoryArtifactStore();
+    await store.put("old-run", [{ path: "a.ts", content: "A" }]);
+    await store.put("deliveries-old-run", [{ path: "x.zip", content: "Z" }]);
+    await store.put("fresh-run", [{ path: "b.ts", content: "B" }]);
+    // Backdate the two "old" entries an hour into the past.
+    const hourAgo = Date.now() - 60 * 60_000;
+    store.writtenAt.set("old-run", hourAgo);
+    store.writtenAt.set("deliveries-old-run", hourAgo);
+
+    const removed = await store.sweepStale(30 * 60_000); // 30-min TTL
+    expect(removed).toBe(2);
+    expect(await store.readTree("old-run")).toEqual([]);
+    expect(await store.readTree("deliveries-old-run")).toEqual([]);
+    expect(await store.readTree("fresh-run")).toEqual([{ path: "b.ts", content: "B" }]);
+  });
+
+  it("returns 0 when nothing is stale", async () => {
+    const store = new InMemoryArtifactStore();
+    await store.put("run-1", [{ path: "a.ts", content: "A" }]);
+    expect(await store.sweepStale(60_000)).toBe(0);
+  });
+});
+
+describe("sweepStale — local-fs", () => {
+  let dir: string;
+  let store: LocalFsArtifactStore;
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "mullion-sweep-"));
+    store = new LocalFsArtifactStore(dir);
+  });
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("removes a stale run dir + delivery dir, keeps a fresh one", async () => {
+    await store.put("old-run", [{ path: "a.ts", content: "A" }]);
+    await store.put("deliveries-old-run", [{ path: "x.zip", content: "Z" }]);
+    await store.put("fresh-run", [{ path: "b.ts", content: "B" }]);
+    // Backdate the two old dirs' mtime an hour into the past.
+    const past = new Date(Date.now() - 60 * 60_000);
+    await utimes(join(dir, "old-run"), past, past);
+    await utimes(join(dir, "deliveries-old-run"), past, past);
+
+    const removed = await store.sweepStale(30 * 60_000);
+    expect(removed).toBe(2);
+    expect(await store.readTree("old-run")).toEqual([]);
+    expect(await store.readTree("fresh-run")).toEqual([{ path: "b.ts", content: "B" }]);
+  });
+
+  it("tolerates a missing artifact dir (returns 0, no throw)", async () => {
+    const missing = new LocalFsArtifactStore(join(dir, "does-not-exist"));
+    expect(await missing.sweepStale(1_000)).toBe(0);
+  });
+});
+
+describe("sweepStale — s3 no-op", () => {
+  it("returns 0 (retention is a bucket lifecycle policy)", async () => {
+    const store = new S3ArtifactStore({ bucket: "b" });
+    expect(await store.sweepStale(1_000)).toBe(0);
+  });
 });

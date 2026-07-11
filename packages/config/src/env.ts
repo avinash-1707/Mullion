@@ -56,6 +56,10 @@ export const apiEnvSchema = z.object({
   ARTIFACT_STORE: z.enum(["local", "s3"]).default("local"),
   ARTIFACT_DIR: z.string().min(1).default("./.artifacts"),
   ARTIFACT_S3_BUCKET: z.string().min(1).optional(),
+  // Retention TTL for produced trees + delivery blobs — the worker sweeps
+  // anything older on a timer so local-fs disk can't grow unbounded across
+  // runs (Phase 3 audit). Default 7 days; S3 uses a bucket lifecycle rule.
+  ARTIFACT_RETENTION_MS: z.coerce.number().int().positive().default(7 * 24 * 60 * 60_000),
   // GitHub delivery (ADR-56): optional OAuth app for linkSocial; absence is
   // SOFT (GitHub push is an optional target, unlike SANDBOX_DRIVER=e2b).
   GITHUB_CLIENT_ID: z.string().min(1).optional(),

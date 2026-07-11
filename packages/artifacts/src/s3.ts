@@ -35,4 +35,12 @@ export class S3ArtifactStore implements ArtifactStore {
   async list(_runId: string): Promise<string[]> {
     throw new Error("S3ArtifactStore is not wired yet (no AWS creds in v1) — use ARTIFACT_STORE=local");
   }
+
+  async sweepStale(_olderThanMs: number): Promise<number> {
+    // Retention on S3 is an object-lifecycle policy on the bucket, not an
+    // app-side scan — cheaper, atomic, and no worker walking millions of
+    // keys. Deliberately a no-op here so the port stays total; configure the
+    // bucket lifecycle rule when S3 is wired.
+    return 0;
+  }
 }

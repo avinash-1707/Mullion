@@ -24,6 +24,14 @@ export interface ArtifactStore {
   readTree(runId: string): Promise<ArtifactFile[]>;
   /** Just the paths. */
   list(runId: string): Promise<string[]>;
+  /**
+   * Delete run trees + delivery blobs whose last write is older than
+   * `olderThanMs`, returning the count removed. Mirrors the sandbox reaper
+   * (reapStaleContainers): without it, every run's tree and its base64
+   * delivery zip accumulate on disk forever. Best-effort — a missing store
+   * is 0, and one bad entry never aborts the rest of the sweep.
+   */
+  sweepStale(olderThanMs: number): Promise<number>;
 }
 
 /** Reject a path that would escape the run's tree — same discipline as the sandbox port. */

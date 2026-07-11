@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { assertSafeArtifactPath, type ArtifactFile, type ArtifactStore } from "./port.js";
 
@@ -41,6 +41,33 @@ export class LocalFsArtifactStore implements ArtifactStore {
     const base = this.runDir(runId);
     const paths = await this.walk(base, base);
     return paths.map((p) => p.split(sep).join("/")).sort();
+  }
+
+  async sweepStale(olderThanMs: number): Promise<number> {
+    const cutoff = Date.now() - olderThanMs;
+    let entries;
+    try {
+      entries = await readdir(this.baseDir, { withFileTypes: true });
+    } catch {
+      return 0; // no artifact dir yet — nothing to sweep
+    }
+    let removed = 0;
+    // Top-level entries are per-run trees (<runId>/) and sibling delivery
+    // dirs (deliveries-<runId>/), both written by put(). A directory's mtime
+    // advances when its children change, so it tracks the run's last write.
+    for (const entry of entries) {
+      const full = join(this.baseDir, entry.name);
+      try {
+        const info = await stat(full);
+        if (info.mtimeMs >= cutoff) continue;
+        await rm(full, { recursive: true, force: true });
+        removed += 1;
+      } catch {
+        // A racing writer or a vanished entry must not abort the sweep.
+        continue;
+      }
+    }
+    return removed;
   }
 
   private async walk(dir: string, base: string): Promise<string[]> {

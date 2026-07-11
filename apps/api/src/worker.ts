@@ -67,6 +67,17 @@ async function main(): Promise<void> {
     ...(env.ARTIFACT_S3_BUCKET !== undefined ? { s3Bucket: env.ARTIFACT_S3_BUCKET } : {}),
   });
 
+  // Retention sweep at boot + on the same timer as the container reaper: run
+  // trees and their delivery blobs accrue on disk forever otherwise (Phase 3
+  // audit). S3 no-ops (its retention is a bucket lifecycle rule).
+  const sweepArtifacts = (): void => {
+    void artifactStore.sweepStale(env.ARTIFACT_RETENTION_MS).then((n) => {
+      if (n > 0) console.log(`swept ${n} stale artifact tree(s)`);
+    });
+  };
+  sweepArtifacts();
+  setInterval(sweepArtifacts, SWEEP_INTERVAL_MS).unref?.();
+
   // Archive always; GitHub push per config (real Octokit, or the local fake
   // when no OAuth app is configured — ADR-54/56).
   const archiveTarget = new ArchiveDeliveryTarget(artifactStore, async (runId, name, zip) => {
