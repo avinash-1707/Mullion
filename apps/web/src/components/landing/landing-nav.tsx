@@ -31,12 +31,16 @@ export function LandingNav() {
   }, []);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50">
+    // Entrance rides the outer header (translateY keyframe) so it can't
+    // fight the inner div's scroll-morph transitions.
+    <header className="animate-reveal-down fixed inset-x-0 top-0 z-50">
       <div
-        className={`mx-auto flex items-center justify-between px-6 transition-[max-width,margin-top,height,background-color,border-color,box-shadow,backdrop-filter] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:px-10 ${
+        className={`mx-auto flex items-center justify-between transition-[max-width,margin-top,height,padding,background-color,border-color,box-shadow,backdrop-filter] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
           scrolled
-            ? "mt-3 h-16 max-w-[min(66rem,calc(100%-1.5rem))] border border-hairline-light bg-cream/75 shadow-[0_1px_2px_rgba(8,8,13,0.05),0_12px_32px_-8px_rgba(8,8,13,0.14)] backdrop-blur-xl"
-            : "mt-0 h-20 max-w-[1320px] border border-transparent bg-transparent"
+            ? // px matches the ~13.5px vertical inset around the CTA inside
+              // the h-16 bar, so the floating state reads as one uniform frame.
+              "mt-3 h-16 max-w-[min(66rem,calc(100%-1.5rem))] border border-hairline-light bg-cream/75 px-3.5 shadow-[0_1px_2px_rgba(8,8,13,0.05),0_12px_32px_-8px_rgba(8,8,13,0.14)] backdrop-blur-xl"
+            : "mt-0 h-20 max-w-[1320px] border border-transparent bg-transparent px-6 sm:px-10"
         }`}
       >
         <Link

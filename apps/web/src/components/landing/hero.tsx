@@ -54,7 +54,10 @@ export function Hero() {
             viewport's right edge at full section height (the grid's empty
             second column reserves the space beneath it). Single element =
             single preload and an honest `sizes`. */}
-        <div className="animate-reveal relative -mx-6 aspect-[4/5] sm:-mx-10 lg:absolute lg:inset-y-0 lg:right-0 lg:mx-0 lg:aspect-auto lg:w-[46vw]">
+        <div
+          className="animate-reveal-from-right relative -mx-6 aspect-[4/5] sm:-mx-10 lg:absolute lg:inset-y-0 lg:right-0 lg:mx-0 lg:aspect-auto lg:w-[46vw]"
+          style={{ animationDelay: "120ms" }}
+        >
           <Image
             src="/landing/hero-architect.webp"
             alt="A blue classical statue studying a small golden wireframe cube floating above its palm"

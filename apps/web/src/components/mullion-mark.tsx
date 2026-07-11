@@ -16,6 +16,9 @@ export function MullionMark({ className = "h-6 w-6" }: MullionMarkProps) {
       aria-hidden="true"
       width={48}
       height={48}
+      // Always above the fold (nav/hero) and small enough that eager-loading
+      // is free — lazy-loading it just makes it the LCP straggler.
+      priority
       className={`${className} object-contain`}
     />
   );

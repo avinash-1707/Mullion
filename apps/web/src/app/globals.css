@@ -147,6 +147,44 @@ select:focus-visible,
   animation: reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Directional variants of the same materialize recipe, for the load-in
+   choreography: the nav descends, copy rises (base `reveal`), artwork
+   arrives from the right — three axes converging on the hero. */
+@keyframes reveal-down {
+  from {
+    opacity: 0;
+    transform: translateY(-14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.animate-reveal-down {
+  animation: reveal-down 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes reveal-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+/* Bigger element, longer travel — slightly longer clock than the copy. */
+.animate-reveal-from-right {
+  animation: reveal-from-right 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /*
  * Landing page motion. Scroll reveals use state-driven transitions (not
  * keyframes) so an element re-entering the viewport can retarget smoothly —
