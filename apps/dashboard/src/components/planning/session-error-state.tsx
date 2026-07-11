@@ -18,7 +18,7 @@ export function SessionErrorState({ title, message }: SessionErrorStateProps) {
       </span>
       <h1 className="text-lg font-semibold text-fg">{title}</h1>
       <p className="text-sm text-fg-muted">{message}</p>
-      <Link href="/dashboard" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+      <Link href="/" className={buttonVariants({ variant: "secondary", size: "sm" })}>
         Back to dashboard
       </Link>
     </div>

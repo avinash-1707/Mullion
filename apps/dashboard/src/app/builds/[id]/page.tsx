@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { redirectToSignIn } from "@/lib/auth-redirect";
 import { useBuildRun } from "@/hooks/use-build-run";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { SessionErrorState } from "@/components/planning/session-error-state";
@@ -17,19 +18,21 @@ import { BuildDeliveryPanel } from "@/components/build/build-delivery-panel";
 export default function BuildRunPage() {
   const params = useParams<{ id: string }>();
   const runId = params.id;
-  const router = useRouter();
 
   const { data: authSession, isPending: authPending } = authClient.useSession();
 
   useEffect(() => {
-    if (!authPending && !authSession) router.replace("/sign-in");
-  }, [authPending, authSession, router]);
+    if (!authPending && !authSession) redirectToSignIn();
+  }, [authPending, authSession]);
 
   const build = useBuildRun(runId);
 
+  // A 401 on the page's snapshot fetch (initial load or reload) funnels
+  // through the same sign-in redirect as the initial gate. Mid-session
+  // expiry on the SSE stream alone isn't detected until the next fetch.
   useEffect(() => {
-    if (build.unauthorized) router.replace("/sign-in");
-  }, [build.unauthorized, router]);
+    if (build.unauthorized) redirectToSignIn();
+  }, [build.unauthorized]);
 
   const [activeTab, setActiveTab] = useState<"tasks" | "timeline">("tasks");
   const [tasksView, setTasksView] = useState<"list" | "graph">("list");

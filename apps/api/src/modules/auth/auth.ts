@@ -15,7 +15,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
-  trustedOrigins: [env.WEB_ORIGIN],
+  trustedOrigins: [env.WEB_ORIGIN, env.DASHBOARD_ORIGIN],
   // The linked GitHub token is repo-scoped and never expires — at-rest
   // encryption (AES-256-GCM, keyed off the auth secret) bounds a DB-read
   // exposure (Phase 3 audit M2). Better Auth default is plaintext.

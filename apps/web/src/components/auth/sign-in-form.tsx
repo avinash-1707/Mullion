@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { redirectToApp } from "@/lib/return-to";
 import { useSignInMutation } from "@/hooks/use-auth-mutations";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,15 +11,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 
 export function SignInForm() {
-  const router = useRouter();
   const signIn = useSignInMutation();
+  const { data: session, isPending } = authClient.useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
 
+  // Already signed in (or just signed in): the product lives on the
+  // dashboard app, so this is a full-page cross-origin hand-off honoring a
+  // validated ?returnTo= deep link. redirectToApp latches internally, so
+  // this effect and the mutation's onSuccess can't double-navigate.
+  useEffect(() => {
+    if (!isPending && session) redirectToApp();
+  }, [isPending, session]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    signIn.mutate({ email, password, rememberMe }, { onSuccess: () => router.push("/dashboard") });
+    signIn.mutate({ email, password, rememberMe }, { onSuccess: () => redirectToApp() });
   }
 
   return (

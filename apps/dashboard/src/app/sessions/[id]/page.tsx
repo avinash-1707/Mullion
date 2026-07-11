@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { redirectToSignIn } from "@/lib/auth-redirect";
 import { usePlanningSession } from "@/hooks/use-planning-session";
 import { RequirementsPhase } from "@/components/planning/requirements-phase";
 import { ArchitecturePhase } from "@/components/planning/architecture-phase";
@@ -28,8 +29,8 @@ export default function PlanningSessionPage() {
   const { data: authSession, isPending: authPending } = authClient.useSession();
 
   useEffect(() => {
-    if (!authPending && !authSession) router.replace("/sign-in");
-  }, [authPending, authSession, router]);
+    if (!authPending && !authSession) redirectToSignIn();
+  }, [authPending, authSession]);
 
   const [showResumedNotice] = useState(() => searchParams.get("resumed") === "1");
   // Just a hint from the create-session response (see idea-intake-form.tsx)
@@ -47,9 +48,12 @@ export default function PlanningSessionPage() {
 
   const planning = usePlanningSession(sessionId);
 
+  // A 401 on the page's snapshot fetch (initial load or reload) funnels
+  // through the same sign-in redirect as the initial gate. Mid-session
+  // expiry on the SSE stream alone isn't detected until the next fetch.
   useEffect(() => {
-    if (planning.unauthorized) router.replace("/sign-in");
-  }, [planning.unauthorized, router]);
+    if (planning.unauthorized) redirectToSignIn();
+  }, [planning.unauthorized]);
 
   if (authPending || !authSession) {
     return <DashboardSkeleton />;
@@ -94,7 +98,7 @@ export default function PlanningSessionPage() {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
-          <Link href="/dashboard" className="transition-swift shrink-0 text-sm text-fg-faint hover:text-fg-muted">
+          <Link href="/" className="transition-swift shrink-0 text-sm text-fg-faint hover:text-fg-muted">
             ← Dashboard
           </Link>
           <span className="truncate text-sm text-fg-muted">{state.session.idea}</span>

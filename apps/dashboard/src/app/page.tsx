@@ -1,34 +1,34 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { redirectToMarketing, redirectToSignIn } from "@/lib/auth-redirect";
 import { useSignOutMutation } from "@/hooks/use-auth-mutations";
 import { Button } from "@/components/ui/button";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { IdeaIntakeForm } from "@/components/planning/idea-intake-form";
 
 export default function DashboardPage() {
-  const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const { data: activeOrganization } = authClient.useActiveOrganization();
   const signOut = useSignOutMutation();
 
   // Client-side sign-in wall: no session once loading has settled sends the
-  // user to /sign-in. Hooks all run unconditionally above the early return
-  // below, so this stays compliant with the rules of hooks.
+  // user to the marketing app's /sign-in with a returnTo back here. Hooks
+  // all run unconditionally above the early return below, so this stays
+  // compliant with the rules of hooks.
   useEffect(() => {
     if (!isPending && !session) {
-      router.replace("/sign-in");
+      redirectToSignIn();
     }
-  }, [isPending, session, router]);
+  }, [isPending, session]);
 
   if (isPending || !session) {
     return <DashboardSkeleton />;
   }
 
   function handleSignOut() {
-    signOut.mutate(undefined, { onSuccess: () => router.push("/") });
+    signOut.mutate(undefined, { onSuccess: () => redirectToMarketing() });
   }
 
   return (

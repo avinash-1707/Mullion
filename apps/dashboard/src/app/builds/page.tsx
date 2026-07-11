@@ -2,10 +2,10 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { buildRunListSchema } from "@mullion/schemas";
 import { authClient } from "@/lib/auth-client";
+import { redirectToSignIn } from "@/lib/auth-redirect";
 import { apiFetch } from "@/lib/api";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { BuildListSkeleton } from "@/components/build/build-skeletons";
@@ -15,12 +15,11 @@ import { BuildIcon } from "@/components/planning/icons";
 import { buttonVariants } from "@/components/ui/button";
 
 export default function BuildsPage() {
-  const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
 
   useEffect(() => {
-    if (!isPending && !session) router.replace("/sign-in");
-  }, [isPending, session, router]);
+    if (!isPending && !session) redirectToSignIn();
+  }, [isPending, session]);
 
   const runsQuery = useQuery({
     queryKey: ["builds"],
@@ -49,7 +48,7 @@ export default function BuildsPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-fg">Builds</h1>
           <p className="mt-1.5 text-sm text-fg-muted">Your organization&apos;s 20 most recent automated build runs.</p>
         </div>
-        <Link href="/dashboard" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+        <Link href="/" className={buttonVariants({ variant: "secondary", size: "sm" })}>
           ← Dashboard
         </Link>
       </div>
@@ -63,7 +62,7 @@ export default function BuildsPage() {
           <p className="max-w-sm text-sm text-fg-muted">
             Builds start from a confirmed planning session — freeze an architecture, then choose &ldquo;Build it for us.&rdquo;
           </p>
-          <Link href="/dashboard" className={buttonVariants({ variant: "primary", size: "sm" })}>
+          <Link href="/" className={buttonVariants({ variant: "primary", size: "sm" })}>
             Go to dashboard
           </Link>
         </div>

@@ -1133,3 +1133,54 @@ story); OTel logs-bridge/OTLP logs pipeline (deferred until there is
 real traffic to ship).
 **Doc:** `packages/logger/`, `packages/otel/src/start.ts`,
 `packages/config/src/env.ts`
+
+### ADR-64 — Two-frontend topology: dashboard split to its own app on an app. subdomain
+**Status:** 🔧 Owner-directed after Phase 4 close
+**Context:** apps/web carried two diverging surfaces in one Next.js app:
+the public, SEO-first marketing site (cream/serif editorial, Lenis motion)
+and the private, dark product dashboard. The upcoming product restyle
+would have the two design languages fighting inside one globals.css, one
+layout tree and one deploy. The owner directed a split with the dashboard
+served from an app. subdomain, working identically on localhost.
+**Decision:** Two Next.js apps, one API. `apps/web` keeps marketing plus
+the auth pages (root domain, :3000 dev); new `apps/dashboard` owns the
+signed-in product at its root (`/` = dashboard, `/sessions/[id]`,
+`/builds`, `/builds/[id]`; app. subdomain in prod, :3001 dev). Auth stays
+centralized on the Hono API: the Better Auth session cookie lives on
+API_ORIGIN only, host-only, SameSite=Lax — `crossSubDomainCookies` stays
+OFF because neither frontend reads the cookie, the browser just sends it
+back to the API on credentialed cross-origin calls. This requires all
+three surfaces to share one registrable domain (eTLD+1) in production —
+e.g. mullion.com / app.mullion.com / api.mullion.com — otherwise the
+cookie becomes third-party and dies; deploying the dashboard on a foreign
+domain (e.g. *.vercel.app) is a topology break, not a config tweak. The
+API's three origin allowlists (CORS, CSRF provenance gate, Better Auth
+trustedOrigins) all accept the set {WEB_ORIGIN, DASHBOARD_ORIGIN}; the
+new DASHBOARD_ORIGIN env var is validated (https-only in prod) alongside
+its siblings. Redirect flow: an unauthenticated dashboard visit sends the
+browser to `${NEXT_PUBLIC_WEB_URL}/sign-in?returnTo=<deep link>`;
+sign-in/up success (and an already-authed visit to the auth pages) hands
+off to `resolveReturnTo()` — returnTo is honored only if it resolves to
+the dashboard origin exactly (open-redirect guard, unit-tested);
+sign-out lands on the marketing root. All cross-app URLs come from env
+(`NEXT_PUBLIC_DASHBOARD_URL` on web, `NEXT_PUBLIC_WEB_URL` on dashboard)
+— zero hardcoded domains, so the three-port localhost setup and the
+subdomain prod setup are the same code. Shared client glue (auth-client,
+api fetch wrapper, ui primitives, query provider, CSP proxy, globals.css)
+is COPIED into the dashboard, not extracted into a package — the restyle
+follow-up deliberately diverges the two aesthetics, and factoring a
+design system before that lands would fight it. apps/web keeps temporary
+env-driven redirects from the old /dashboard, /builds/*, /sessions/*
+paths to the dashboard app.
+**Alternatives considered:** `crossSubDomainCookies` with
+`Domain=.mullion.com` plus SSR/middleware gating (zero-flash redirects,
+but broadens the cookie's blast radius across all subdomains, adds
+dev-vs-prod cookie-domain divergence, and is unnecessary while the cookie
+never leaves the API origin — deferred, `03` territory); embedding Better
+Auth into each Next app (breaks the one-auth-server model that makes N
+frontends trivial); a shared `@mullion/ui` package now (premature — see
+restyle note); keeping one app with middleware-based host routing (one
+deploy serving two hosts, but none of the isolation the split is for).
+**Doc:** `apps/dashboard/`, `apps/web/src/lib/return-to.ts`,
+`apps/api/src/app.ts` (browserOrigins), `apps/api/src/modules/auth/auth.ts`,
+`packages/config/src/env.ts` (DASHBOARD_ORIGIN)

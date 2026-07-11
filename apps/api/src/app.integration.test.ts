@@ -15,6 +15,7 @@ import type { Hono } from "hono";
 
 const integration = process.env["API_INTEGRATION"] === "1";
 const WEB_ORIGIN = "http://localhost:3000";
+const DASHBOARD_ORIGIN = "http://localhost:3001";
 
 interface Harness {
   app: Hono;
@@ -26,6 +27,7 @@ async function boot(): Promise<Harness> {
   process.env["BETTER_AUTH_SECRET"] ??= "test-secret-at-least-32-characters-long-000";
   process.env["API_ORIGIN"] ??= "http://localhost:8787";
   process.env["WEB_ORIGIN"] ??= WEB_ORIGIN;
+  process.env["DASHBOARD_ORIGIN"] ??= DASHBOARD_ORIGIN;
   process.env["OPENROUTER_API_KEY"] ??= "test-key";
   // DATABASE_URL is deliberately NOT defaulted — the test needs a real one.
   const [{ createApp }, { pool }, { seedModelRouting }, { db }] = await Promise.all([
@@ -85,6 +87,97 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       body: JSON.stringify({ buildSpecId: randomUUID() }),
     });
     expect(res.status).toBe(403);
+  });
+
+  it("blocks a state change whose only provenance is an evil Referer", async () => {
+    // No Origin header, hostile Referer — the fallback branch of the CSRF
+    // gate must reject exactly like a hostile Origin would be.
+    const res = await harness.app.request("/api/builds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Referer: "https://evil.example/x" },
+      body: JSON.stringify({ buildSpecId: randomUUID() }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("clears the CSRF gate on an allowlisted Referer with no Origin", async () => {
+    const res = await harness.app.request("/api/builds", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Referer: `${DASHBOARD_ORIGIN}/builds` },
+      body: JSON.stringify({ buildSpecId: randomUUID() }),
+    });
+    // Falls through the gate to the session layer; no cookie -> 401, never 403.
+    expect(res.status).toBe(401);
+  });
+
+  it("treats a malformed or absent Referer as no-provenance, never a 500 or 403", async () => {
+    for (const headers of [
+      { "Content-Type": "application/json", Referer: "::::not a url" },
+      { "Content-Type": "application/json" }, // browser-less: no Origin/Referer
+    ]) {
+      const res = await harness.app.request("/api/builds", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ buildSpecId: randomUUID() }),
+      });
+      expect(res.status).not.toBe(500);
+      expect(res.status).not.toBe(403);
+    }
+  });
+
+  it("lets an authenticated dashboard-origin mutation through to a product route", async () => {
+    // The real dashboard path end to end: session cookie + Origin:
+    // DASHBOARD_ORIGIN through CSRF -> session -> org middleware. A 403
+    // here means one of the origin allowlists missed the dashboard.
+    const { cookie } = await signUp(harness.app);
+    const res = await harness.app.request("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie, Origin: DASHBOARD_ORIGIN },
+      body: JSON.stringify({ idea: "An origin-probe project idea for the harness." }),
+    });
+    expect(res.status).not.toBe(403);
+    expect([200, 201]).toContain(res.status);
+  });
+
+  it("accepts state changes from both browser origins (ADR-64)", async () => {
+    // The dashboard is a second first-class client: a mutation carrying its
+    // Origin must clear the CSRF gate and Better Auth's trustedOrigins the
+    // same way the marketing origin does. 403 here means one of the three
+    // allowlists (CORS / CSRF gate / trustedOrigins) missed the update.
+    for (const origin of [WEB_ORIGIN, DASHBOARD_ORIGIN]) {
+      const res = await harness.app.request("/api/auth/sign-up/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: origin },
+        body: JSON.stringify({
+          name: "Origin Probe",
+          email: `origin-${randomUUID()}@mullion.local`,
+          password: "correct-horse-battery-staple",
+        }),
+      });
+      expect(res.status, `sign-up from ${origin}`).toBe(200);
+    }
+  });
+
+  it("echoes each allowlisted origin in CORS preflight, never unknown ones", async () => {
+    for (const origin of [WEB_ORIGIN, DASHBOARD_ORIGIN]) {
+      const res = await harness.app.request("/api/builds", {
+        method: "OPTIONS",
+        headers: {
+          Origin: origin,
+          "Access-Control-Request-Method": "POST",
+        },
+      });
+      expect(res.headers.get("access-control-allow-origin"), `preflight from ${origin}`).toBe(origin);
+      expect(res.headers.get("access-control-allow-credentials")).toBe("true");
+    }
+    const evil = await harness.app.request("/api/builds", {
+      method: "OPTIONS",
+      headers: {
+        Origin: "https://evil.example",
+        "Access-Control-Request-Method": "POST",
+      },
+    });
+    expect(evil.headers.get("access-control-allow-origin")).toBeNull();
   });
 
   it("blocks GitHub as a SIGN-IN method (ADR-35/56)", async () => {

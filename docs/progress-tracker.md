@@ -64,6 +64,49 @@ template.
 
 ---
 
+### [2026-07-11] App split: dashboard moved to its own Next.js app (ADR-64)
+**Phase:** Post-Phase-4 follow-on (marketing/product separation)
+**Type:** Architecture change
+**Summary:** apps/web split in two. apps/web keeps marketing + auth
+(landing, /pricing, /sign-in, /sign-up) on the root domain; new
+apps/dashboard owns the signed-in product at its root (`/`,
+`/sessions/[id]`, `/builds`, `/builds/[id]`) on the app. subdomain in
+prod, :3001 in dev. Auth stays centralized on the Hono API — the session
+cookie lives on API_ORIGIN only (host-only, Lax); no crossSubDomainCookies.
+Both frontends are credentialed cross-origin API clients, so the API's
+three origin allowlists (CORS, CSRF gate, trustedOrigins) now accept
+{WEB_ORIGIN, DASHBOARD_ORIGIN}; DASHBOARD_ORIGIN is validated in
+packages/config (https-only in prod, integration + unit tested). Redirect
+flow: unauthenticated dashboard visit → web /sign-in?returnTo=<deep link>
+(auth-redirect.ts, latched); sign-in/up success or already-authed visit to
+an auth page → validated hand-off to the dashboard (return-to.ts,
+origin-exact open-redirect guard, 9 unit tests); sign-out → marketing
+root; legacy /dashboard, /builds/*, /sessions/* paths on web redirect to
+the dashboard app via next.config. All cross-app URLs are env-driven
+(NEXT_PUBLIC_DASHBOARD_URL on web, NEXT_PUBLIC_WEB_URL on dashboard) — no
+hardcoded domains, dev and prod use the same code. Client glue (auth
+client, api wrapper, ui primitives, providers, CSP proxy, globals.css)
+was copied, not extracted to a package — the dashboard restyle follow-up
+deliberately diverges the two aesthetics. Dead code swept on both sides:
+web dropped build/planning components, product hooks/libs, xyflow/dagre/
+react-icons/schemas/zod deps and orphaned ui primitives; dashboard
+dropped the auth-form primitives and radix/cva/lucide deps it doesn't
+use. `pnpm build && pnpm check-types && pnpm lint && pnpm test` green
+across all workspaces.
+**Files/areas touched:** apps/dashboard (new), apps/web (marketing-only
+trim + hand-off), apps/api/src/app.ts + modules/auth/auth.ts (origin
+allowlists), packages/config (DASHBOARD_ORIGIN), .env.example files,
+apps/*/README.md
+**Related ADR:** New — added ADR-64 to `04` (two-frontend topology,
+cookie-on-API-origin, one-eTLD+1 prod requirement)
+**Follow-ups:**
+- Dashboard UI restyle to the landing aesthetic (dark hybrid: marketing
+  typography + ember/gilt accents on the dark product base) — next task.
+- Prod deploy must keep all three origins under one registrable domain
+  (ADR-64 hard requirement); resolves the Phase 0 "prod cookie topology"
+  open item via same-site subdomains.
+- Add DASHBOARD_ORIGIN to any existing local apps/api/.env files.
+
 ### [2026-07-11] Marketing surface: brand logo, /pricing page, global 404
 **Phase:** Post-Phase 4 maintenance
 **Type:** Progress update

@@ -15,10 +15,19 @@ export const apiEnvSchema = z.object({
   LOG_FORMAT: z.enum(["json", "pretty"]).optional(),
   DATABASE_URL: z.string().url(),
   BETTER_AUTH_SECRET: z.string().min(32),
+  // The three first-party origins. Normalized to `new URL(v).origin`
+  // (lowercased host, default port and trailing slash dropped) because the
+  // CSRF gate and Hono's CORS do exact-string matches against
+  // browser-normalized Origin headers — a stray trailing slash in a deploy
+  // env would otherwise silently 403 every mutation from that app.
   // Origin the API itself is served from (Better Auth baseURL).
-  API_ORIGIN: z.string().url(),
-  // Next.js origin, for CORS + Better Auth trustedOrigins.
-  WEB_ORIGIN: z.string().url(),
+  API_ORIGIN: z.string().url().transform((v) => new URL(v).origin),
+  // Marketing/auth Next.js origin, for CORS + Better Auth trustedOrigins.
+  WEB_ORIGIN: z.string().url().transform((v) => new URL(v).origin),
+  // Dashboard Next.js origin (app. subdomain in prod, :3001 in dev) — a
+  // second browser client of the same API, so it needs the same CORS/CSRF/
+  // trustedOrigins standing as WEB_ORIGIN (ADR-64).
+  DASHBOARD_ORIGIN: z.string().url().transform((v) => new URL(v).origin),
   OPENROUTER_API_KEY: z.string().min(1),
   // Dev/test only: point the LLM client at a local mock server (the full
   // record/replay cache is Phase 3, ADR-11). Restricted to loopback so a
@@ -94,7 +103,7 @@ export const apiEnvSchema = z.object({
     // Better Auth only marks session cookies Secure (and __Secure- prefixed)
     // when its baseURL is https — a production deploy on plain http would
     // silently ship session tokens over cleartext (Phase 3 verification).
-    for (const key of ["API_ORIGIN", "WEB_ORIGIN"] as const) {
+    for (const key of ["API_ORIGIN", "WEB_ORIGIN", "DASHBOARD_ORIGIN"] as const) {
       if (!env[key].startsWith("https://")) {
         ctx.addIssue({
           code: "custom",

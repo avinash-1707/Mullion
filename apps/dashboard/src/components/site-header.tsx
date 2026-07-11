@@ -6,6 +6,9 @@ import { MullionMark } from "./mullion-mark";
 import { Skeleton } from "./ui/skeleton";
 import { buttonVariants } from "./ui/button";
 
+// Signed-in chrome only: every page in this app is auth-gated, so there is
+// no signed-out branch — an unauthenticated visitor is redirected to the
+// marketing app's sign-in before this header matters.
 export function SiteHeader() {
   const { data: session, isPending } = authClient.useSession();
 
@@ -20,9 +23,9 @@ export function SiteHeader() {
           <span className="text-[15px] font-semibold tracking-tight">Mullion</span>
         </Link>
 
-        {isPending ? (
+        {isPending || !session ? (
           <Skeleton className="h-9 w-28" />
-        ) : session ? (
+        ) : (
           <div className="flex items-center gap-3">
             <span className="hidden max-w-[10rem] truncate font-mono text-xs text-fg-muted sm:inline">
               {session.user.email}
@@ -30,17 +33,8 @@ export function SiteHeader() {
             <Link href="/builds" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Builds
             </Link>
-            <Link href="/dashboard" className={buttonVariants({ variant: "secondary", size: "sm" })}>
+            <Link href="/" className={buttonVariants({ variant: "secondary", size: "sm" })}>
               Dashboard
-            </Link>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <Link href="/sign-in" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-              Sign in
-            </Link>
-            <Link href="/sign-up" className={buttonVariants({ variant: "primary", size: "sm" })}>
-              Get started
             </Link>
           </div>
         )}

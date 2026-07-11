@@ -29,13 +29,20 @@ export function createApp(): Hono<{ Bindings: HttpBindings; Variables: AuthVaria
   // completion line carries trace_id (ADR-63).
   app.use("*", requestLogMiddleware());
 
+  // Both browser apps (marketing/auth on WEB_ORIGIN, dashboard on
+  // DASHBOARD_ORIGIN) are first-class clients of this API (ADR-64). Every
+  // provenance check below must accept the same set — updating one and not
+  // the others silently 403s all mutations from the missed app.
+  const browserOrigins = [env.WEB_ORIGIN, env.DASHBOARD_ORIGIN];
+
   // CORS before everything that answers — Better Auth's cookies need
-  // credentials:true from the exact Next.js origin (02 §7.1.1); `*` is
-  // rejected by browsers when credentials are on.
+  // credentials:true from an exact allowlisted Next.js origin (02 §7.1.1);
+  // `*` is rejected by browsers when credentials are on. Hono echoes the
+  // matching origin per request, never the whole list.
   app.use(
     "*",
     cors({
-      origin: env.WEB_ORIGIN,
+      origin: browserOrigins,
       allowHeaders: ["Content-Type", "Authorization", "Last-Event-ID"],
       allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
       exposeHeaders: ["Content-Length"],
@@ -60,7 +67,7 @@ export function createApp(): Hono<{ Bindings: HttpBindings; Variables: AuthVaria
         refererOrigin = undefined;
       }
       const origin = c.req.header("Origin") ?? refererOrigin;
-      if (origin !== undefined && origin !== env.WEB_ORIGIN) {
+      if (origin !== undefined && !browserOrigins.includes(origin)) {
         throw new HTTPException(403, { message: "Cross-origin request rejected" });
       }
     }

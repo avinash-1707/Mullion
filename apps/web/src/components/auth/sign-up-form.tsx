@@ -1,23 +1,31 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
+import { redirectToApp } from "@/lib/return-to";
 import { useSignUpMutation } from "@/hooks/use-auth-mutations";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
 export function SignUpForm() {
-  const router = useRouter();
   const signUp = useSignUpMutation();
+  const { data: session, isPending } = authClient.useSession();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // Already signed in (or just signed up): hand off to the dashboard app —
+  // full-page cross-origin navigation with a validated ?returnTo=.
+  // redirectToApp latches internally against double-navigation.
+  useEffect(() => {
+    if (!isPending && session) redirectToApp();
+  }, [isPending, session]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    signUp.mutate({ name, email, password }, { onSuccess: () => router.push("/dashboard") });
+    signUp.mutate({ name, email, password }, { onSuccess: () => redirectToApp() });
   }
 
   return (
