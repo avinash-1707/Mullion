@@ -35,6 +35,16 @@
   --color-node-datastore-soft: rgba(107, 198, 192, 0.14);
   --color-node-external: #b492ec;
   --color-node-external-soft: rgba(180, 146, 236, 0.14);
+
+  /*
+   * Phase 3 build dashboard — "done" needs a tone distinct from both accent
+   * (in-flight/routine) and danger (failed), which the existing palette
+   * doesn't have. A soft moss green, same low-chroma warm-dark family as the
+   * node hues above rather than a saturated traffic-light green.
+   */
+  --color-success: #9bc47c;
+  --color-success-strong: #b6d99b;
+  --color-success-soft: rgba(155, 196, 124, 0.14);
 }
 
 /*

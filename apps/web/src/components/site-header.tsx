@@ -27,6 +27,9 @@ export function SiteHeader() {
             <span className="hidden max-w-[10rem] truncate font-mono text-xs text-fg-muted sm:inline">
               {session.user.email}
             </span>
+            <Link href="/builds" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              Builds
+            </Link>
             <Link href="/dashboard" className={buttonVariants({ variant: "secondary", size: "sm" })}>
               Dashboard
             </Link>

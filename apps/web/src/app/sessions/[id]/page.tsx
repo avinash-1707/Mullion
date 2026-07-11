@@ -117,6 +117,7 @@ export default function PlanningSessionPage() {
       {isConfirmed && state.buildSpec ? (
         <ConfirmedView
           sessionId={sessionId}
+          buildSpecId={state.buildSpec.id}
           contentHash={state.buildSpec.contentHash}
           frozenAt={state.buildSpec.frozenAt}
           nodes={state.nodes}

@@ -9,6 +9,7 @@ import { CheckIcon, CopyIcon, LockIcon } from "./icons";
 
 interface ConfirmedViewProps {
   sessionId: string;
+  buildSpecId: string;
   contentHash: string;
   frozenAt: string;
   nodes: GraphNode[];
@@ -44,7 +45,7 @@ function CopyHashButton({ hash }: { hash: string }) {
 // Phase 3 freeze (01 §5) — the one mode switch the user must recognize
 // without a tooltip (01 §9 success criterion): a distinct sealed band, plus
 // diagram/log becoming read-only (no edit bar, no confirm panel at all).
-export function ConfirmedView({ sessionId, contentHash, frozenAt, nodes, edges, decisions }: ConfirmedViewProps) {
+export function ConfirmedView({ sessionId, buildSpecId, contentHash, frozenAt, nodes, edges, decisions }: ConfirmedViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-border-strong bg-elevated px-4 py-3.5 sm:px-6">
@@ -76,7 +77,7 @@ export function ConfirmedView({ sessionId, contentHash, frozenAt, nodes, edges, 
       </div>
 
       <div className="border-t border-border p-4 sm:p-6">
-        <ForkChoiceCards sessionId={sessionId} />
+        <ForkChoiceCards sessionId={sessionId} buildSpecId={buildSpecId} />
       </div>
     </div>
   );

@@ -1,20 +1,42 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
+import { createBuildBodySchema, buildRunSchema } from "@mullion/schemas";
 import { Button } from "../ui/button";
 import { BuildIcon, DownloadIcon } from "./icons";
 import { downloadSessionExport } from "../../lib/download-export";
+import { apiFetch } from "../../lib/api";
 
 interface ForkChoiceCardsProps {
   sessionId: string;
+  buildSpecId: string;
 }
 
-// Phase 4 (01 §6) — both forks consume the same frozen Build Spec; Fork A
-// must work completely independently of Fork B ever landing (01 §9), so it's
-// the only live button here — Fork B renders, visibly, as "not yet."
-export function ForkChoiceCards({ sessionId }: ForkChoiceCardsProps) {
+// Phase 4 (01 §6) — both forks consume the same frozen Build Spec. Fork A
+// (export) works completely independently of Fork B (01 §9); Fork B posts
+// the frozen spec to the Build Orchestrator and, on any of the endpoint's
+// 2xx outcomes (created, resumed-existing, or ambiguous-but-queued — see
+// apps/api routes/builds.ts), takes the returned run id straight to its
+// dashboard.
+export function ForkChoiceCards({ sessionId, buildSpecId }: ForkChoiceCardsProps) {
+  const router = useRouter();
+
   const exportMutation = useMutation({
     mutationFn: () => downloadSessionExport(sessionId),
+  });
+
+  const buildMutation = useMutation({
+    mutationFn: async () => {
+      const body = await apiFetch("/api/builds", {
+        method: "POST",
+        body: JSON.stringify(createBuildBodySchema.parse({ buildSpecId })),
+      });
+      return buildRunSchema.parse(body);
+    },
+    onSuccess: (run) => {
+      router.push(`/builds/${run.id}`);
+    },
   });
 
   return (
@@ -41,15 +63,10 @@ export function ForkChoiceCards({ sessionId }: ForkChoiceCardsProps) {
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-border-strong bg-surface p-6 opacity-80">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-fg-muted">
-            <BuildIcon className="h-4 w-4" />
-            <span className="font-mono text-xs uppercase tracking-[0.15em]">Fork B</span>
-          </div>
-          <span className="rounded-full bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-fg-muted">
-            Arrives in Phase 2
-          </span>
+      <div className="flex flex-col gap-4 rounded-2xl border border-border-strong bg-surface p-6">
+        <div className="flex items-center gap-2 text-fg-muted">
+          <BuildIcon className="h-4 w-4" />
+          <span className="font-mono text-xs uppercase tracking-[0.15em]">Fork B</span>
         </div>
         <div>
           <h3 className="text-base font-semibold text-fg">Automated build</h3>
@@ -57,9 +74,19 @@ export function ForkChoiceCards({ sessionId }: ForkChoiceCardsProps) {
             Hand the same task graph to an agent team that codes, tests, reviews, and ships it end to end.
           </p>
         </div>
-        <Button disabled className="mt-auto self-start">
-          Build it for us
+        <Button
+          variant="secondary"
+          onClick={() => buildMutation.mutate()}
+          disabled={buildMutation.isPending}
+          className="mt-auto self-start"
+        >
+          {buildMutation.isPending ? "Starting the build…" : "Build it for us"}
         </Button>
+        {buildMutation.isError ? (
+          <p role="alert" className="text-xs text-danger">
+            {buildMutation.error.message}
+          </p>
+        ) : null}
       </div>
     </div>
   );

@@ -64,6 +64,64 @@ template.
 
 ---
 
+### [2026-07-11] M5 — Build-phase dashboard (structured timeline/log view)
+**Phase:** Phase 2 milestone M5 (02 §14), built during Phase 3
+**Type:** Progress update
+**Summary:** The frontend for Fork B's build runs — deliberately the
+structured timeline/log view called out in M5, not the richer live
+agent-graph (that fast-follow is unchanged/still deferred). New
+`apps/web/src/app/builds/page.tsx` (recent-runs list, GET /api/builds,
+empty state pointing at a confirmed planning session) and
+`apps/web/src/app/builds/[id]/page.tsx` (run header with a per-state status
+badge; task list with dependency chips tinted by the referenced task's live
+status, expandable descriptions, turns/duration/cost and failure reason
+once a task's persisted `TaskResult` parses; chronological event timeline
+of every stream event, auto-scroll-pinned like the Phase 2 decision log;
+delivery panel — copyable `artifact://` refs, linked GitHub refs, identical
+treatment for a partial delivery per ADR-33). Escalation gate
+(ADR-07/ADR-55) built as a top-of-page interruption banner —
+danger-toned, "action needed" framing — deliberately NOT styled like Phase
+2's EditPromptBar, with approve/redirect(≤4000 chars, scoped-to-task)/
+abandon wired to POST /api/builds/:id/escalate; a 409 (gate expired/already
+resolved) dismisses and resyncs rather than leaving a dead banner. All data
+fetching via TanStack Query per the owner's directive; the SSE connection
+(EventSource, full replay via `?lastEventId=0` since there's no REST
+snapshot to hydrate a timeline from first) lives in a `useEffect` that
+feeds a local reducer (timeline/escalation state) plus targeted
+`queryClient` cache updates/invalidations — never bypassing Query as the
+source of truth for run/task data. Three SSE payload shapes without an
+existing schema (`phase`, `escalation_required`, `delivery_result`) got
+local zod schemas in `apps/web/src/lib/build-stream.ts` (reusing
+`buildStreamTaskEventSchema`/`buildReviewVerdictSchema`/`taskResultSchema`
+from `@mullion/schemas` everywhere they already existed, per CODING_STANDARDS
+§8, rather than re-defining them). Fork B wired end to end: fork-choice-cards'
+"Build it for us" now POSTs `/api/builds` and routes to the new dashboard on
+any 2xx outcome (created/resumed/ambiguous-queued all carry a real run id);
+this required threading `buildSpecId` through
+`sessions/[id]/page.tsx` → `ConfirmedView` → `ForkChoiceCards`, which hadn't
+been passed down before. Added a `Builds` link to the persistent site header
+and one new palette token pair (`--color-success`/`-strong`/`-soft`) for a
+"done" tone distinct from the existing accent/danger pair, same low-chroma
+warm-dark family as the existing node-kind hues.
+**Files/areas touched:** apps/web (new: app/builds/{page.tsx,[id]/page.tsx},
+components/build/* (8 files), lib/{build-stream.ts,build-timeline-reducer.ts,
+build-format.ts}, hooks/use-build-run.ts; edited:
+components/planning/{fork-choice-cards.tsx,confirmed-view.tsx},
+app/sessions/[id]/page.tsx, components/site-header.tsx, app/globals.css)
+**Related ADR:** None new — implements ADR-07 (escalation-gate distinctness)
+and ADR-33 (partial delivery parity) at the UI layer; verifies ADR-55's
+escalate endpoint contract end to end from the client for the first time
+**Follow-ups:**
+- Not yet run live against a real build (needs OPENROUTER_API_KEY/E2B/
+  Temporal creds per existing follow-ups) — built and reviewed against the
+  documented API contract, not yet click-tested against a real SSE stream.
+- No apps/web component/route tests exist yet for this surface (matches the
+  rest of apps/web — Phase 3's route-test-harness follow-up is apps/api-side
+  so far; a frontend equivalent is still open).
+- The richer live agent-graph visualization for the build phase (M5's
+  explicitly-deferred fast-follow, distinct from Phase 2's already-live
+  architecture diagram) is still pending, by design.
+
 ### [2026-07-11] Phase 3 D4 — Verification pass (egress, ZDR, auth, ADR cross-check, EXPLAIN)
 **Phase:** Phase 3 — Observability, Evaluation & Hardening
 **Type:** Progress update + Gap found (docs)
