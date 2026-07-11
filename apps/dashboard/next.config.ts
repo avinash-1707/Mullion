@@ -16,6 +16,15 @@ const nextConfig: NextConfig = {
   // import specifiers — transpiling it lets the bundler apply TS extension
   // substitution instead of literally resolving the .js paths.
   transpilePackages: ["@mullion/schemas"],
+  // Avatar hosts for next/image — Google and GitHub profile pictures land in
+  // user.image on social sign-in. Arbitrary user-pasted avatar URLs still go
+  // through plain <img> (see ui/avatar.tsx); this only covers the known hosts.
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+    ],
+  },
   headers: async () => [{ source: "/:path*", headers: securityHeaders }],
 };
 

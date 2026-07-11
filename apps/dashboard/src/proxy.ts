@@ -37,7 +37,11 @@ export function proxy(request: NextRequest): NextResponse {
     // 'unsafe-eval' only in dev — React uses eval for richer error overlays.
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'unsafe-inline'`,
-    `img-src 'self' blob: data:`,
+    // https: because avatars are arbitrary user-set https URLs (ADR-66) —
+    // Google/GitHub picture hosts plus whatever the user pastes in settings.
+    // img-src can't execute script, so the residual risk is an image beacon,
+    // which the avatar owner could already place via their own profile.
+    `img-src 'self' blob: data: https:`,
     `font-src 'self'`,
     `connect-src 'self'${apiOrigin ? ` ${apiOrigin}` : ""}`,
     `object-src 'none'`,

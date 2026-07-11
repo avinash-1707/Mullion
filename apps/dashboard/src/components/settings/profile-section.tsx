@@ -40,7 +40,12 @@ export function ProfileSection() {
           <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden border border-border bg-elevated">
             {trimmedImage && imageLooksValid ? (
               // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-supplied URL, not a static/optimizable asset
-              <img src={trimmedImage} alt="Avatar preview" className="h-full w-full object-cover" />
+              <img
+                src={trimmedImage}
+                alt="Avatar preview"
+                referrerPolicy="no-referrer"
+                className="h-full w-full object-cover"
+              />
             ) : (
               <span className="font-serif text-xl text-fg-muted">{initial(name, user?.email ?? "")}</span>
             )}

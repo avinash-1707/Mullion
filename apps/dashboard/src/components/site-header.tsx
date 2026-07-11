@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { authClient } from "../lib/auth-client";
 import { MullionMark } from "./mullion-mark";
+import { Avatar } from "./ui/avatar";
 import { Skeleton } from "./ui/skeleton";
 import { buttonVariants } from "./ui/button";
 
@@ -38,6 +39,13 @@ export function SiteHeader() {
             </Link>
             <Link href="/" className={buttonVariants({ variant: "secondary", size: "sm" })}>
               Dashboard
+            </Link>
+            <Link href="/settings" aria-label="Account settings" className="transition-swift hover:opacity-80">
+              <Avatar
+                name={session.user.name ?? ""}
+                email={session.user.email}
+                image={session.user.image}
+              />
             </Link>
           </div>
         )}
