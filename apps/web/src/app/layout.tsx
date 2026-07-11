@@ -43,8 +43,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // data-scroll-behavior lets Next disable the CSS smooth-scroll fallback
+    // during route transitions so scroll restoration stays instant.
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${archivo.variable} ${jetbrainsMono.variable} ${fraunces.variable} h-full`}
     >
       {/* suppressHydrationWarning: attribute-only, for browser extensions

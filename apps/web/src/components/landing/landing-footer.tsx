@@ -2,10 +2,10 @@ import Link from "next/link";
 import { MullionMark } from "@/components/mullion-mark";
 
 const EXPLORE_LINKS = [
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#agents", label: "The crew" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/#how-it-works", label: "How it works" },
+  { href: "/#agents", label: "The crew" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/#faq", label: "FAQ" },
 ] as const;
 
 export function LandingFooter() {

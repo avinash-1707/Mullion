@@ -50,27 +50,29 @@ const PRICING_TIERS = [
   },
 ] as const;
 
-export function Pricing() {
+export function Pricing({ hideHeader = false }: { hideHeader?: boolean }) {
   return (
     <section id="pricing" className="scroll-mt-10 bg-ink text-cream">
       <div className="mx-auto w-full max-w-[1200px] px-6 py-28 sm:px-10 lg:py-36">
-        <div className="flex flex-wrap items-end justify-between gap-8">
-          <Reveal>
-            <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-gilt">
-              Pricing
-            </span>
-            <h2 className="mt-6 font-serif text-4xl leading-tight sm:text-5xl">
-              Simple prices. <span className="text-ember">Serious builds.</span>
-            </h2>
-          </Reveal>
-          <Reveal delay={120}>
-            <p className="max-w-xs text-sm leading-relaxed text-parchment-faint">
-              Every tier delivers the whole thing. Pick the pace that fits how you build.
-            </p>
-          </Reveal>
-        </div>
+        {!hideHeader && (
+          <div className="flex flex-wrap items-end justify-between gap-8">
+            <Reveal>
+              <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-gilt">
+                Pricing
+              </span>
+              <h2 className="mt-6 font-serif text-4xl leading-tight sm:text-5xl">
+                Simple prices. <span className="text-ember">Serious builds.</span>
+              </h2>
+            </Reveal>
+            <Reveal delay={120}>
+              <p className="max-w-xs text-sm leading-relaxed text-parchment-faint">
+                Every tier delivers the whole thing. Pick the pace that fits how you build.
+              </p>
+            </Reveal>
+          </div>
+        )}
 
-        <div className="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className={`grid grid-cols-1 gap-6 lg:grid-cols-3 ${hideHeader ? "" : "mt-16"}`}>
           {PRICING_TIERS.map((tier, index) => (
             <Reveal key={tier.name} delay={index * 90}>
               <div

@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 
-interface FaqItem {
+export interface FaqItem {
   question: string;
   answer: string;
 }
@@ -42,19 +42,27 @@ const FAQ_ITEMS: FaqItem[] = [
 
 // One panel open at a time: the reader is comparing answers, not stacking
 // them, and a single focus keeps the rhythm of the page calm.
-export function Faq() {
+export function Faq({
+  items = FAQ_ITEMS,
+  tone = "light",
+}: {
+  items?: FaqItem[];
+  /** "light" for cream bands, "dark" for ink bands. */
+  tone?: "light" | "dark";
+}) {
   const [openIndex, setOpenIndex] = useState<number | null>(0);
   const baseId = useId();
+  const hairline = tone === "light" ? "border-hairline-light" : "border-hairline-dark";
 
   return (
-    <div className="border-t border-hairline-light">
-      {FAQ_ITEMS.map((item, index) => {
+    <div className={`border-t ${hairline}`}>
+      {items.map((item, index) => {
         const isOpen = openIndex === index;
         const panelId = `${baseId}-panel-${index}`;
         const buttonId = `${baseId}-button-${index}`;
 
         return (
-          <div key={item.question} className="border-b border-hairline-light">
+          <div key={item.question} className={`border-b ${hairline}`}>
             <h3>
               <button
                 id={buttonId}
@@ -64,7 +72,11 @@ export function Faq() {
                 onClick={() => setOpenIndex(isOpen ? null : index)}
                 className="group flex w-full items-baseline justify-between gap-6 py-6 text-left transition-colors duration-200 hover:text-ember"
               >
-                <span className="font-serif text-xl text-ink transition-colors duration-200 group-hover:text-ember sm:text-2xl">
+                <span
+                  className={`font-serif text-xl transition-colors duration-200 group-hover:text-ember sm:text-2xl ${
+                    tone === "light" ? "text-ink" : "text-cream"
+                  }`}
+                >
                   {item.question}
                 </span>
                 <span
@@ -85,7 +97,11 @@ export function Faq() {
               data-open={isOpen}
             >
               <div>
-                <p className="max-w-2xl pb-7 text-base leading-relaxed text-ink-muted">
+                <p
+                  className={`max-w-2xl pb-7 text-base leading-relaxed ${
+                    tone === "light" ? "text-ink-muted" : "text-parchment-faint"
+                  }`}
+                >
                   {item.answer}
                 </p>
               </div>

@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { MullionMark } from "@/components/mullion-mark";
 
+// Anchors carry the leading slash so they resolve from any marketing page;
+// on the landing page itself Lenis still intercepts them (same pathname)
+// and scrolls smoothly instead of reloading.
 const NAV_LINKS = [
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#agents", label: "The crew" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#faq", label: "FAQ" },
+  { href: "/#how-it-works", label: "How it works" },
+  { href: "/#agents", label: "The crew" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/#faq", label: "FAQ" },
 ] as const;
 
 // Floating nav: transparent while laid over the hero, then a translucent
