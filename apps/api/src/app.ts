@@ -1,3 +1,4 @@
+import "./lib/undici-clone-guard.js";
 import { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { cors } from "hono/cors";
