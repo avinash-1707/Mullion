@@ -64,6 +64,23 @@ template.
 
 ---
 
+### [2026-07-11] Evals CI no longer commits to main (ADR-61)
+**Phase:** Post-Phase 4 maintenance
+**Type:** Architecture change (process)
+**Summary:** Owner directive: no more `mullion-evals[bot]` commits. The
+evals workflow's "persist history on main" step is removed; each run now
+publishes its trend (committed history + the current run) to the workflow
+job summary and the existing per-run artifact, and the job token drops to
+`contents: read`. `docs/evals/history.jsonl`/`trend.md` remain in the repo
+frozen at their last bot-written state; new records are appended only by a
+deliberate human-run CLI + commit at meaningful model/prompt/policy
+changes.
+**Files/areas touched:** .github/workflows/evals.yml, docs/specs/{04,05}
+**Related ADR:** New — ADR-61 (amends ADR-60's history-commit mechanism;
+suite/modes/metrics unchanged)
+**Follow-ups:** None — first live-mode baseline (pending OPENROUTER_API_KEY)
+should be recorded via the human-curated path.
+
 ### [2026-07-11] Phase 4 — Live agent-graph, backlog sweep, DoD verified (v1 feature-complete)
 **Phase:** Phase 4 — Polish & Fast-Follow (whole phase)
 **Type:** Progress update

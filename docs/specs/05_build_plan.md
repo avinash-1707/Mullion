@@ -368,7 +368,8 @@ alone answers "did we forget anything":
 | 57 | No Redis — Temporal dispatch + Postgres tables ARE the bus | 2 (M4) | ✅ |
 | 58 | Record/replay cache at the client's fetch boundary; replay misses hard-fail | 3 | ✅ |
 | 59 | OTel: no-op-by-default bootstrap, OTel 1.x line, span placement | 3 | ✅ |
-| 60 | Eval suite v1: direct-drive build phase, scripted CI baseline, committed history | 3 | ✅ |
+| 60 | Eval suite v1: direct-drive build phase, scripted CI baseline, committed history | 3 | ✅ (history commit amended by ADR-61) |
+| 61 | Eval history: no CI bot commits — job summary + artifact; human-curated history file | post-4 (owner-directed) | ✅ |
 
 Process conventions (dependency installation, doc verification, per-phase
 security review) apply to every row above but are intentionally not

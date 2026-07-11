@@ -1038,3 +1038,31 @@ the repo, awkward cross-run fetching); scripted mode asserting pass-rate
 thresholds instead of exact expectations (thresholds drift silently).
 **Doc:** `packages/evals/`, `.github/workflows/evals.yml`, `02` §10.2,
 ADR-12
+
+### ADR-61 — Eval history: no CI bot commits; job summary + artifact instead
+**Status:** 🔧 Owner-directed after Phase 4 close
+**Context:** ADR-60 had the evals CI job commit each run's aggregate back
+to `docs/evals/history.jsonl` on main ("the trend is a line, not a
+point"). In practice every substantive push grew a trailing
+`mullion-evals[bot]` commit, which also raced human pushes (the Phase 4
+push required a rebase around one). The owner directed: no more bot
+commits on main.
+**Decision:** The evals workflow no longer commits anything. Each CI run
+still executes the full scripted suite against the committed history file,
+renders the trend (history + current run), and publishes it two ways: the
+workflow job summary (`GITHUB_STEP_SUMMARY`) and the existing per-run
+artifact. The job's token drops back to `contents: read`.
+`docs/evals/history.jsonl` and `trend.md` stay in the repo, frozen at
+their pre-ADR-61 contents; a new record is appended only when a human
+deliberately runs the eval CLI locally and commits the result — expected
+cadence: at meaningful model/prompt/policy changes, in the same commit as
+the change, not per push.
+**Alternatives considered:** dedicated `evals-history` branch for bot
+commits (keeps an auto-updated line without touching main, but still
+grows unattended bot history and adds seed/rebase machinery — rejected as
+over-built for a trend the job summary already shows); GitHub artifacts
+only (already rejected in ADR-60 — no reviewable in-repo trend at all;
+this decision keeps the in-repo file, just human-curated); amending the
+triggering commit (force-push, unacceptable).
+**Doc:** `.github/workflows/evals.yml`, ADR-60 (amends its history-commit
+mechanism; the suite, modes, and metrics are unchanged)

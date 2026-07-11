@@ -1,12 +1,12 @@
 name: Evals
 
-# ADR-12/60: the fixed suite runs on every main push (scripted mode — the
-# deterministic harness path) and records the aggregate to
-# docs/evals/history.jsonl, which a follow-up commit persists so the trend
-# is a line, not a point. Live-mode runs are manual (workflow_dispatch) and
-# only make sense once OPENROUTER_API_KEY exists as a repo secret.
-#
-# paths-ignore keeps the history commit from re-triggering this workflow.
+# ADR-12/60 as amended by ADR-61: the fixed suite runs on every main push
+# (scripted mode — the deterministic harness path) and reports via the job
+# summary + a per-run artifact. It never commits back to the repo — the
+# owner wants zero bot commits on main; docs/evals/history.jsonl is frozen
+# at its pre-ADR-61 contents and grows only when a human records a run
+# deliberately. Live-mode runs are manual (workflow_dispatch) and only make
+# sense once OPENROUTER_API_KEY exists as a repo secret.
 
 on:
   push:
@@ -28,10 +28,8 @@ concurrency:
 jobs:
   evals:
     runs-on: ubuntu-latest
-    # Job-scoped, not workflow-scoped (Phase 3 audit): only this job needs
-    # to push the history commit back.
     permissions:
-      contents: write
+      contents: read
     services:
       postgres:
         image: postgres:17
@@ -47,9 +45,6 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          # Push the history commit back to the branch that triggered us.
-          ref: ${{ github.ref }}
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -67,17 +62,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       - name: Render trend
         run: pnpm --filter @mullion/evals trend -- --out docs/evals/trend.md
-      - name: Persist history on main
-        if: github.ref == 'refs/heads/main'
-        run: |
-          git config user.name "mullion-evals[bot]"
-          git config user.email "evals@mullion.local"
-          git add docs/evals/history.jsonl docs/evals/trend.md
-          git diff --cached --quiet && exit 0
-          git commit -m "chore(evals): record eval run for ${GITHUB_SHA::7}"
-          # A human push racing this commit must rebase, not fail the job.
-          git pull --rebase origin main
-          git push
+      - name: Publish job summary
+        run: cat docs/evals/trend.md >> "$GITHUB_STEP_SUMMARY"
       - name: Upload results artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
