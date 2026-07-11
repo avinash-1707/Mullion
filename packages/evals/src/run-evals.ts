@@ -47,8 +47,11 @@ const evalEnvSchema = z.object({
   // 24h window — default high enough that the breaker trips on real
   // anomalies, not on running the suite twice.
   EVAL_ORG_BUDGET_USD: z.coerce.number().positive().default(50),
-  OPENROUTER_API_KEY: z.string().min(1).optional(),
-  OPENROUTER_BASE_URL: z.string().url().optional(),
+  // CI passes `${{ secrets.X }}` which expands to "" when the secret is
+  // absent — the env var is SET to empty, not unset, so treat "" as absent
+  // (else scripted mode, which needs no key, dies on a min(1) violation).
+  OPENROUTER_API_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(1).optional()),
+  OPENROUTER_BASE_URL: z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional()),
   LLM_CASSETTE_DIR: z.string().min(1).default("./.llm-cassettes"),
   GITHUB_SHA: z.string().optional(),
 });
