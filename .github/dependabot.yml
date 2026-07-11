@@ -1,13 +1,22 @@
 # SHA-pinned actions (Phase 3 audit) still need update PRs — Dependabot
-# tracks the pins so they don't fossilize.
+# tracks the pins so they don't fossilize. Grouped + monthly so a cycle is
+# ~1-2 batched PRs, not one-per-dependency.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: development
+      prod-dependencies:
+        dependency-type: production
