@@ -91,7 +91,7 @@ export function SignInForm() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {step === "password" && resetNotice ? (
         <AuthAlert tone="notice">Password updated. You&apos;ve been signed out everywhere — sign in with your new password.</AuthAlert>
       ) : null}
@@ -100,7 +100,7 @@ export function SignInForm() {
       {step === "password" ? <AuthDivider /> : null}
 
       {step === "password" ? (
-        <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-6" noValidate>
+        <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-5" noValidate>
           <div className="flex flex-col gap-2.5">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -153,7 +153,7 @@ export function SignInForm() {
           <button
             type="submit"
             disabled={signIn.isPending}
-            className="mt-2 w-full bg-ember px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
+            className="mt-2 w-full bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
           >
             {signIn.isPending ? "Signing in…" : "Sign in"}
           </button>
@@ -169,7 +169,7 @@ export function SignInForm() {
       ) : null}
 
       {step === "code-email" ? (
-        <form onSubmit={handleSendCode} className="flex flex-col gap-6" noValidate>
+        <form onSubmit={handleSendCode} className="flex flex-col gap-5" noValidate>
           <p className="text-sm text-ink-muted">
             We&apos;ll email a 6-digit code to sign in — no password needed. This only works for accounts that
             signed up with Google or GitHub and never set a password.
@@ -193,7 +193,7 @@ export function SignInForm() {
           <button
             type="submit"
             disabled={sendOtp.isPending}
-            className="w-full bg-ember px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
+            className="w-full bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
           >
             {sendOtp.isPending ? "Sending…" : "Send code"}
           </button>
@@ -209,7 +209,7 @@ export function SignInForm() {
       ) : null}
 
       {step === "code-otp" ? (
-        <form onSubmit={handleVerifyCode} className="flex flex-col gap-6" noValidate>
+        <form onSubmit={handleVerifyCode} className="flex flex-col gap-5" noValidate>
           <p className="text-sm text-ink-muted">
             Enter the 6-digit code sent to <span className="text-ink">{email}</span>. It expires in 5 minutes and
             allows 3 attempts.
@@ -222,7 +222,7 @@ export function SignInForm() {
           <button
             type="submit"
             disabled={verifyOtp.isPending || otp.length < 6}
-            className="w-full bg-ember px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
+            className="w-full bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
           >
             {verifyOtp.isPending ? "Verifying…" : "Verify and sign in"}
           </button>

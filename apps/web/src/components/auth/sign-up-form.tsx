@@ -43,11 +43,11 @@ export function SignUpForm() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <SocialButtons />
       <AuthDivider />
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
         <div className="flex flex-col gap-2.5">
           <Label htmlFor="name">Name</Label>
           <Input
@@ -95,7 +95,7 @@ export function SignUpForm() {
         <button
           type="submit"
           disabled={signUp.isPending}
-          className="mt-2 w-full bg-ember px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
+          className="mt-2 w-full bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
         >
           {signUp.isPending ? "Creating your account…" : "Start building"}
         </button>

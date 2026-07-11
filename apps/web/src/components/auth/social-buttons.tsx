@@ -5,32 +5,29 @@ import { useSignInSocialMutation, useSignInOAuth2Mutation } from "@/hooks/use-au
 import { AuthAlert } from "./auth-alert";
 
 const BUTTON_CLASS =
-  "flex h-12 w-full items-center justify-center gap-3 border border-hairline-light bg-transparent font-mono text-xs uppercase tracking-[0.2em] text-ink transition-colors duration-200 hover:border-ember hover:text-ember-strong focus-visible:border-ember disabled:pointer-events-none disabled:opacity-50";
+  "flex h-11 w-full items-center justify-center gap-3 border border-hairline-light bg-transparent font-mono text-xs uppercase tracking-[0.2em] text-ink transition-colors duration-200 hover:border-ember hover:text-ember-strong focus-visible:border-ember disabled:pointer-events-none disabled:opacity-50";
 
-// Monochrome brand marks (currentColor), not the full-color official logos
-// — Google's blue/red/yellow and GitHub's octocat would fight the ink/
-// ember/gilt palette. Same restraint as the rest of the marketing surface.
+// Official full-color brand marks: Google's four-color G and GitHub's
+// near-black octocat (#181717) — these buttons only render on the light
+// auth surface, so the fixed colors are safe.
 function GoogleGlyph({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
       <path
         d="M21.6 12.23c0-.76-.07-1.49-.2-2.19H12v4.14h5.4a4.62 4.62 0 0 1-2 3.03v2.5h3.24c1.9-1.75 3-4.32 3-7.48Z"
-        fill="currentColor"
+        fill="#4285F4"
       />
       <path
         d="M12 22c2.7 0 4.97-.9 6.63-2.44l-3.24-2.5c-.9.6-2.05.96-3.39.96-2.6 0-4.8-1.76-5.59-4.12H3.06v2.58A10 10 0 0 0 12 22Z"
-        fill="currentColor"
-        opacity="0.75"
+        fill="#34A853"
       />
       <path
         d="M6.41 13.9a5.99 5.99 0 0 1 0-3.8V7.52H3.06a10 10 0 0 0 0 8.96l3.35-2.58Z"
-        fill="currentColor"
-        opacity="0.5"
+        fill="#FBBC05"
       />
       <path
         d="M12 5.98c1.47 0 2.79.5 3.83 1.5l2.87-2.87C16.96 2.99 14.7 2 12 2a10 10 0 0 0-8.94 5.52l3.35 2.58c.79-2.36 2.98-4.12 5.59-4.12Z"
-        fill="currentColor"
-        opacity="0.9"
+        fill="#EA4335"
       />
     </svg>
   );
@@ -38,7 +35,7 @@ function GoogleGlyph({ className = "" }: { className?: string }) {
 
 function GithubGlyph({ className = "" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="#181717" className={className} aria-hidden="true">
       <path
         fillRule="evenodd"
         clipRule="evenodd"

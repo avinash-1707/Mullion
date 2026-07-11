@@ -42,34 +42,35 @@ export function AuthShell({ eyebrow, title, subtitle, children }: AuthShellProps
         </p>
       </div>
 
-      <div className="flex flex-col px-6 py-8 sm:px-12">
-        {/* Mobile-only wordmark; on desktop the artwork panel carries it. */}
+      <div className="flex flex-col px-6 py-6 sm:px-12">
+        {/* Mobile-only wordmark; on desktop the artwork panel carries it and
+            removing it from the flow keeps the form truly centered. */}
         <Link
           href="/"
-          className="flex items-center gap-2.5 self-start text-ink transition-colors duration-200 hover:text-ember lg:invisible"
+          className="flex items-center gap-2.5 self-start text-ink transition-colors duration-200 hover:text-ember lg:hidden"
         >
           <MullionMark className="h-6 w-6" />
           <span className="font-serif text-2xl tracking-tight">Mullion</span>
         </Link>
 
-        <div className="flex flex-1 items-center justify-center py-12">
+        <div className="flex flex-1 items-center justify-center py-6">
           <div className="w-full max-w-sm">
             <span className="animate-reveal font-mono text-[11px] uppercase tracking-[0.3em] text-ember">
               {eyebrow}
             </span>
             <h1
-              className="animate-reveal mt-6 font-serif text-4xl leading-[1.05] tracking-tight text-ink sm:text-5xl"
+              className="animate-reveal mt-4 font-serif text-3xl leading-[1.05] tracking-tight text-ink sm:text-4xl"
               style={{ animationDelay: "80ms" }}
             >
               {title}
             </h1>
             <p
-              className="animate-reveal mt-5 text-base leading-relaxed text-ink-muted"
+              className="animate-reveal mt-3 text-base leading-relaxed text-ink-muted"
               style={{ animationDelay: "160ms" }}
             >
               {subtitle}
             </p>
-            <div className="animate-reveal mt-10" style={{ animationDelay: "240ms" }}>
+            <div className="animate-reveal mt-7" style={{ animationDelay: "240ms" }}>
               {children}
             </div>
           </div>

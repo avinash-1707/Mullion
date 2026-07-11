@@ -36,7 +36,7 @@ export function VerifyEmailForm({ initialEmail }: VerifyEmailFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5" noValidate>
       <div className="flex flex-col gap-2.5">
         <Label htmlFor="email">Email</Label>
         <Input
@@ -63,7 +63,7 @@ export function VerifyEmailForm({ initialEmail }: VerifyEmailFormProps) {
       <button
         type="submit"
         disabled={verify.isPending || otp.length < 6 || !email}
-        className="mt-2 w-full bg-ember px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
+        className="mt-2 w-full bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
       >
         {verify.isPending ? "Verifying…" : "Verify email"}
       </button>
