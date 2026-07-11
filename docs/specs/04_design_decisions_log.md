@@ -944,3 +944,29 @@ consumer); a DB-polling pseudo-bus separate from Temporal (duplicates what the
 orchestrator already does).
 **Doc:** `packages/orchestrator/` (Temporal dispatch), `packages/db`
 (messages/stream_events)
+
+### ADR-58 — Record/replay cache lives at the client's fetch boundary; replay misses hard-fail
+**Status:** 🔧 Designed by Claude during Phase 3
+**Context:** ADR-11 specified a record/replay cache; the implementation had
+open judgment calls — where it hooks in, what a miss does, what gets stored.
+**Decision:** The cache is a fetch-wrapper injected into `OpenRouterClient`
+(`fetchImpl`), not a proxy server: routing, ZDR enforcement, response
+parsing, and ADR-28 cost capture all execute unchanged under replay — only
+the network hop is substituted. One JSON cassette per request, keyed by
+sha256 of the request body (so model slug, messages, tools, and sampling
+params all participate). Cassettes store the served model/provider/
+generation-id from response metadata alongside the pinned slug (02 §10.1's
+routing-change vs provider-drift distinction) and never store request
+headers — the bearer token cannot leak into a cassette. Modes are explicit
+env config (`LLM_REPLAY_MODE=off|record|replay` + `LLM_CASSETTE_DIR`):
+a replay miss throws a typed `LlmReplayMissError` rather than falling back
+to a live call (determinism over convenience); failure responses (4xx/5xx)
+are never recorded; production boot rejects any mode but `off`. Record mode
+drains streams before returning — capture fidelity over live deltas,
+acceptable for a fixture-capture tool.
+**Alternatives considered:** A standalone loopback mock server via
+`OPENROUTER_BASE_URL` (already exists for hand-written fixtures, but can't
+record and duplicates parsing); replay-with-live-fallback on miss (silently
+reintroduces cost + nondeterminism); recording error responses (replaying a
+transient 429 forever is a trap, not a fixture).
+**Doc:** `packages/llm/src/replay.ts`, `02` §10.1, ADR-11

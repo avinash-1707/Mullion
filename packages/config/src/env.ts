@@ -24,6 +24,11 @@ export const apiEnvSchema = z.object({
     .url()
     .regex(/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?/, "must point at loopback")
     .optional(),
+  // LLM record/replay cache (ADR-11, 02 §10.1). `record` captures every call
+  // to a cassette; `replay` serves only from cassettes and hard-fails on a
+  // miss. Dev/test only — production must always be `off` (superRefine below).
+  LLM_REPLAY_MODE: z.enum(["off", "record", "replay"]).default("off"),
+  LLM_CASSETTE_DIR: z.string().min(1).default("./.llm-cassettes"),
   // Per-org rolling-24h combined (LLM + sandbox) spend ceiling — the org
   // half of ADR-31's circuit breaker (was ADR-43's stopgap; same knob).
   ORG_DAILY_LLM_BUDGET_USD: z.coerce.number().positive().default(10),
@@ -74,6 +79,13 @@ export const apiEnvSchema = z.object({
       code: "custom",
       path: ["GITHUB_CLIENT_SECRET"],
       message: "GITHUB_DELIVERY=github requires BOTH GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET (or use GITHUB_DELIVERY=fake)",
+    });
+  }
+  if (env.NODE_ENV === "production" && env.LLM_REPLAY_MODE !== "off") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["LLM_REPLAY_MODE"],
+      message: "record/replay is a dev/test tool (ADR-11) — production must run with LLM_REPLAY_MODE=off",
     });
   }
   // Fail loud at boot, never mid-run with a half-built task.

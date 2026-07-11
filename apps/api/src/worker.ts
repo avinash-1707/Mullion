@@ -12,6 +12,7 @@ import { createBuildWorker } from "@mullion/orchestrator";
 import { db } from "./db.js";
 import { env } from "./env.js";
 import { getGitHubAccessToken } from "./github/token.js";
+import { llmFetchImpl } from "./llm-fetch.js";
 import { publishStreamEvent } from "./sse.js";
 
 /**
@@ -44,7 +45,10 @@ async function main(): Promise<void> {
     apiKey: env.OPENROUTER_API_KEY,
     db,
     referer: env.API_ORIGIN,
-    ...(env.OPENROUTER_BASE_URL ? { baseUrl: env.OPENROUTER_BASE_URL } : {}),
+    ...(env.NODE_ENV !== "production" && env.OPENROUTER_BASE_URL
+      ? { baseUrl: env.OPENROUTER_BASE_URL }
+      : {}),
+    ...(llmFetchImpl ? { fetchImpl: llmFetchImpl } : {}),
   });
   const driver = createSandboxDriver({
     driver: env.SANDBOX_DRIVER,

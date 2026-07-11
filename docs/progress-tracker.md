@@ -29,7 +29,7 @@ ADR for that.
 | Phase 0 — Foundation & Platform Wiring | Done (1 DoD item pending creds) | 2026-07-10 | Built + verified live; OpenRouter round-trip awaits a real API key; Neon swap-in is a DATABASE_URL change |
 | Phase 1 — Interactive Planning Experience | Done (live-LLM verification pending creds) | 2026-07-11 | Built + verified end to end against a mock OpenRouter; real-model pass needs OPENROUTER_API_KEY |
 | Phase 2 — Automated Build Pipeline | Done (live-cred verification deferred) | 2026-07-11 | M1–M4 built, verified, reviewed; phase-end security review passed (findings fixed). Fork B end-to-end. Real E2B/OpenRouter/Temporal-Cloud/GitHub-OAuth passes await creds |
-| Phase 3 — Observability, Evaluation & Hardening | Not started | 2026-07-10 | Blocked on Phase 2 |
+| Phase 3 — Observability, Evaluation & Hardening | In progress | 2026-07-11 | Started; deliverable-by-deliverable commits |
 | Phase 4 — Polish & Fast-Follow | Not started | 2026-07-10 | Blocked on Phase 3 |
 
 Update this table's **Status** column as work happens: `Not started` →
@@ -63,6 +63,30 @@ template.
 ```
 
 ---
+
+### [2026-07-11] Phase 3 D2 — LLM record/replay cache (ADR-11) operational
+**Phase:** Phase 3 — Observability, Evaluation & Hardening
+**Type:** Progress update
+**Summary:** ADR-11's record/replay cache built as a fetch-wrapper injected
+into `OpenRouterClient` — cassettes keyed by request-body hash, storing
+served model/provider/generation-id alongside the pinned slug, API key never
+persisted. `LLM_REPLAY_MODE=off|record|replay` + `LLM_CASSETTE_DIR` env
+config (production locked to `off` at boot); wired into both the API process
+and the build worker via a shared `llm-fetch.ts`, so both record into and
+replay from one cassette dir. Replay miss = typed hard error, never a silent
+live call. Streams record (buffered) and replay through
+`completeChatStream` unchanged; failure responses aren't recorded. 6 new
+unit tests; full DoD green. Worker's `OPENROUTER_BASE_URL` wiring also
+gained the missing `NODE_ENV !== "production"` guard the API process
+already had.
+**Files/areas touched:** packages/llm (replay.ts, errors, index, tests),
+packages/config (env schema), apps/api (llm.ts, llm-fetch.ts, worker.ts),
+.gitignore
+**Related ADR:** ADR-11 (implements); New — added ADR-58 to `04`
+(fetch-boundary + hard-fail-miss judgment calls)
+**Follow-ups:** D3's eval suite can replay recorded cassettes in CI once a
+real key records them; build-task CLI could grow a convenience flag to
+record a full build's cassettes in one pass.
 
 ### [2026-07-11] Phase 2 phase-end security review — passed, findings fixed
 **Phase:** Phase 2 — Automated Build Pipeline (phase gate)

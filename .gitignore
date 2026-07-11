@@ -11,3 +11,7 @@ dist/
 
 # local agent artifacts
 .claude/
+
+# LLM cassettes record locally by default (ADR-11); fixture cassettes meant
+# for tests live in checked-in __fixtures__ dirs, not here
+.llm-cassettes/

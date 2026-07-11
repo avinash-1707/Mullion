@@ -1,6 +1,7 @@
 import { OpenRouterClient } from "@mullion/llm";
 import { db } from "./db.js";
 import { env } from "./env.js";
+import { llmFetchImpl } from "./llm-fetch.js";
 
 // One client instance — routing cache and cost capture stay in one place.
 export const llm = new OpenRouterClient({
@@ -10,4 +11,5 @@ export const llm = new OpenRouterClient({
   ...(env.NODE_ENV !== "production" && env.OPENROUTER_BASE_URL
     ? { baseUrl: env.OPENROUTER_BASE_URL }
     : {}),
+  ...(llmFetchImpl ? { fetchImpl: llmFetchImpl } : {}),
 });

@@ -43,6 +43,27 @@ export class MalformedLlmResponseError extends Error {
   }
 }
 
+/**
+ * Replay mode found no cassette for this request (ADR-11). A miss is a hard
+ * failure by design — replay must be deterministic, never a silent fallback
+ * to a live (paid, nondeterministic) call.
+ */
+export class LlmReplayMissError extends Error {
+  readonly cassetteKey: string;
+  readonly cassettePath: string;
+
+  constructor(args: { cassetteKey: string; cassettePath: string; requestedModel: string | undefined }) {
+    super(
+      `No LLM cassette for key ${args.cassetteKey}` +
+        (args.requestedModel ? ` (model ${args.requestedModel})` : "") +
+        ` at ${args.cassettePath} — record it first (LLM_REPLAY_MODE=record)`,
+    );
+    this.name = "LlmReplayMissError";
+    this.cassetteKey = args.cassetteKey;
+    this.cassettePath = args.cassettePath;
+  }
+}
+
 export class UnknownRoleError extends Error {
   constructor(role: string) {
     super(`No model_routing row for role "${role}" — seed the routing table first`);
