@@ -38,17 +38,18 @@ async function main(): Promise<void> {
     throw new Error("build-task-cli is a dev harness — refusing to run in production");
   }
 
-  // Startup reaper (ADR-46): a prior crash leaves a run wedged in a
-  // non-terminal status, which ADR-29's unique index would turn into a
-  // permanent 409 — mark it failed and remove any labeled containers.
+  // NOTE (ADR-52): this single-shot CLI (no Temporal) fails any of ITS OWN
+  // prior non-terminal runs so ADR-29's index doesn't wedge the next
+  // invocation. The orchestrated path (M3) does NOT do this — there a
+  // non-terminal run is a resuming Temporal workflow, not a crash, and the
+  // workflow owns run-lifecycle. This block is scoped to the CLI harness
+  // only. It marks the runs failed and reaps orphaned containers.
   const stuck = await db
     .select()
     .from(schema.runs)
     .where(notInArray(schema.runs.status, ["done", "failed"]));
   for (const run of stuck) {
     await db.update(schema.runs).set({ status: "failed" }).where(eq(schema.runs.id, run.id));
-    // Non-terminal task rows would otherwise linger in 'pending'/'running'
-    // forever and mislead later status queries.
     await db
       .update(schema.tasks)
       .set({ status: "failed", result: { status: "failed", reason: "crashed", turns: 0, costUsd: 0, durationMs: 0 } })
@@ -59,7 +60,7 @@ async function main(): Promise<void> {
         ),
       );
     const reaped = await reapContainersForRun(run.id);
-    console.log(`reaped stuck run ${run.id} (status was ${run.status}, ${reaped} containers removed)`);
+    console.log(`reaped stuck CLI run ${run.id} (status was ${run.status}, ${reaped} containers removed)`);
   }
 
   const specRows = await db

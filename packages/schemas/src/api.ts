@@ -28,3 +28,28 @@ export const streamEventSchema = z.object({
 });
 
 export type StreamEvent = z.infer<typeof streamEventSchema>;
+
+// M3: start a build run from a frozen Build Spec (Fork B entry).
+export const createBuildBodySchema = z.object({
+  buildSpecId: z.string().uuid(),
+});
+
+export const buildRunSchema = z.object({
+  id: z.string().uuid(),
+  organizationId: z.string(),
+  userId: z.string(),
+  buildSpecId: z.string().uuid(),
+  status: z.enum([
+    "queued",
+    "building",
+    "testing",
+    "reviewing",
+    "fixing",
+    "shipping",
+    "done",
+    "failed",
+  ]),
+  createdAt: z.string(),
+});
+
+export type BuildRun = z.infer<typeof buildRunSchema>;

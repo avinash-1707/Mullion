@@ -1,0 +1,1 @@
+{ "extends": "@mullion/config/tsconfig/base", "include": ["src"] }

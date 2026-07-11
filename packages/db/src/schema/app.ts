@@ -360,6 +360,9 @@ export const tasks = pgTable(
     })
       .notNull()
       .default("pending"),
+    // M3: workflow-level attempt counter (observability; the authoritative
+    // retry count lives in Temporal history).
+    attempt: integer("attempt").notNull().default(0),
     // TaskResult (turns, costUsd, durationMs, failure reason).
     result: jsonb("result"),
     payload: jsonb("payload"),
@@ -370,6 +373,11 @@ export const tasks = pgTable(
     index("tasks_org_idx").on(t.organizationId),
     // Lets children (messages) pin to this task's org, like runs/build_specs.
     unique("tasks_id_org_uq").on(t.id, t.organizationId),
+    // M3 (ADR-52): idempotent task creation — a Temporal activity retry must
+    // not duplicate the row for a (run, spec task).
+    uniqueIndex("tasks_run_spec_task_uidx")
+      .on(t.runId, t.specTaskId)
+      .where(sql`${t.specTaskId} IS NOT NULL`),
     foreignKey({
       columns: [t.runId, t.organizationId],
       foreignColumns: [runs.id, runs.organizationId],
@@ -473,6 +481,12 @@ export const costEvents = pgTable(
  * reconnect with Last-Event-ID replays exactly what was missed. Per-stream
  * commit ordering is serialized by an advisory lock in publishStreamEvent
  * (ADR-38) — without it a slow commit could be skipped by the poll cursor.
+ *
+ * `stream_id` is intentionally POLYMORPHIC (a planning-session id OR a run
+ * id), so no composite FK to a single parent is possible (ADR-52). Org
+ * consistency is enforced at the write boundary (publishStreamEvent takes
+ * organizationId) and the read boundary (streamEvents filters by org), not
+ * a foreign key.
  */
 export const streamEvents = pgTable(
   "stream_events",

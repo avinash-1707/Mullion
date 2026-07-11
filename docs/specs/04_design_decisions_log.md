@@ -728,3 +728,99 @@ breakers); trust persisted cost_events alone (under-counts best-effort
 sandbox cost); a reservation/ledger system (over-built for v1).
 **Doc:** `packages/agents/src/budget.ts`, `apps/api/src/planning/flows.ts`,
 `packages/config/src/env.ts`
+
+### ADR-50 — Temporal workflow/activity split for the build orchestrator
+**Status:** 🔧 Designed by Claude during Phase 2 M3
+**Context:** M1/M2 proved a single task through `buildTask`; M3 must dispatch
+a whole task_graph in dependency order with a durable state machine that
+survives a worker restart (02 §3, §14). No Temporal Cloud creds exist.
+**Decision:** One Temporal WORKFLOW per run (`buildRunWorkflow`,
+`packages/orchestrator/src/workflows.ts`) owns the state machine, the pure
+topological ordering (`topoSort`), and the per-task retry budget — and does
+ZERO IO. Every side effect is an ACTIVITY (`loadTaskGraph`, `ensureTaskRow`,
+`setRunStatus`, `runTask`, `publishEscalation`). `buildTask` (Postgres +
+Docker + LLM, uses Date.now) MUST be an activity — this is a hard Temporal
+determinism constraint, not a choice: workflow code runs in a V8 isolate
+with Date.now/Math.random/fs/http stubbed, so IO there corrupts replay.
+`runTaskActivity` is a thin wrapper (create sandbox → buildTask → dispose);
+buildTask/verifier/Sandbox port are UNCHANGED. Dispatch is SEQUENTIAL in
+topological order for M3 (parallel-where-deps-allow deferred — it adds
+sandbox-concurrency policy and partial-failure semantics). The workflow
+module imports ONLY @temporalio/workflow + pure ./policy + ./types (never
+@mullion/{agents,db,sandbox,llm}); the package boundary makes the #1
+Temporal footgun a structural rule. No Cloud: local `temporal server
+start-dev` for dev, @temporalio/testing for tests. State machine M3 drives:
+`queued → building → done | failed` only — `testing`/`fixing` happen INSIDE
+buildTask (ADR-48) and aren't run-level phases; `reviewing`/`shipping` are
+M4. The 02 §3 linear diagram no longer maps 1:1 to run-level phases.
+**Alternatives considered:** buildTask as workflow code (breaks determinism);
+one workflow per task (loses the graph-level state machine); self-hosted
+Temporal cluster (ops burden before usage, ADR-10).
+**Doc:** `packages/orchestrator/src/{workflows,activities,worker,client,
+policy,types}.ts`
+
+### ADR-51 — Two-layer retry: Temporal RetryPolicy (infra) vs workflow budget (logical)
+**Status:** 🔧 Designed by Claude during Phase 2 M3
+**Context:** 02 §3.1 wants a per-phase retry budget (default 3) before
+escalation. Temporal also has its own activity RetryPolicy. These must not
+collide or double-count.
+**Decision:** They don't overlap BECAUSE `buildTask` never throws — it
+funnels every logical failure into a returned `TaskResult{failed, reason}`
+(ADR-46). So: (a) Temporal's `runTaskActivity` RetryPolicy
+(`maximumAttempts: 3`) fires ONLY on THROWS = infra faults (sandbox create
+fail, DB down, worker killed mid-activity); (b) the workflow's per-task
+retry budget (`RETRY_BUDGET = 3`) acts on RETURNED `failed{reason}` via a
+disposition table: `budget_exceeded` → terminal (retrying spends more
+against a hit ceiling; the workflow COMPLETES with a failed result, driving
+run.status=failed — it does NOT throw a workflow-level failure, because the
+build failed but the workflow succeeded at orchestrating); everything else
+(`test_failed`/`turn_cap`/`time_cap`/`sandbox_died`/`llm_error`/`protocol`/
+`crashed`) → retry within budget. On budget exhaustion M3 emits an
+`escalation_required` stream event and auto-fails. The `escalationSignal`
+(`approve`/`abandon`/`{redirect}`) is DEFINED but NOT handled — a paused
+workflow with no UI would hang; M4 replaces the auto-fail with the
+`setHandler` + `condition()` human gate (ADR-07). This keeps escalation ≠
+Phase 2 editing honest: M3 lays the mechanism, M4 the human gate.
+**Alternatives considered:** Rely on Temporal RetryPolicy alone (can't
+express "retry on a returned value"); full human gate in M3 (hangs without
+UI); throw ApplicationFailure on budget_exceeded (leaves run.status unwritten).
+**Doc:** `packages/orchestrator/src/{workflows,policy}.ts`
+
+### ADR-52 — Run lifecycle moves to the Temporal workflow; idempotent task creation
+**Status:** 🔧 Designed by Claude during Phase 2 M3
+**Context:** M1's CLI reaper marks EVERY non-terminal run `failed` at
+startup, assuming "non-terminal = crashed." Under Temporal a non-terminal
+run in `building` is an IN-FLIGHT workflow Temporal will resume — a blanket
+reaper would kill a run about to come back. Also, a Temporal activity
+in-flight at a crash is retried, so a blind `INSERT INTO tasks` would
+duplicate rows.
+**Decision:** (1) The orchestrated path does NOT blanket-reap runs — run
+lifecycle is owned by the workflow (only `setRunStatusActivity` or a
+completed workflow moves a run terminal). The M1 CLI keeps its own reaper
+but scoped/documented as CLI-only (it has no Temporal). (2)
+`ensureTaskRowActivity` is idempotent: migration 0005 adds
+`UNIQUE (run_id, spec_task_id)` and the activity does INSERT ... ON CONFLICT
+DO NOTHING then SELECT, so a retried activity returns the same taskRowId
+instead of a duplicate. (3) An in-flight task at crash re-runs from scratch
+(ADR-46 "re-running starts fresh"); its orphaned sandbox is reaped per-run
+inside `runTaskActivity` (`reapContainersForRun`). Crash-resume itself is
+FREE from Temporal event history (a completed activity's result is replayed,
+never re-executed) — proven by the integration test (worker1 completes task
+A, is replaced by worker2, A's activity fires exactly once). (4) The whole
+workflow body is wrapped in a catch: an activity that exhausts its (now
+deep, 20-attempt) infra RetryPolicy — or a deterministic failure the
+activity raises as `ApplicationFailure.nonRetryable` (spec not found/parse,
+task row missing) — moves the run to terminal `failed` (best-effort) and
+COMPLETES the workflow, so a fault can NEVER leave the run stuck `building`
+holding the slot with no reaper. Without this the reaper-removal above would
+be a durability hole. ADR-29's
+one-active-run index is unchanged and CORRECT (a resuming run genuinely is
+the one active run); only M1's compensating reaper is removed from the
+orchestrated path. Schema note: `stream_events.stream_id` is polymorphic
+(session id OR run id) → no composite FK (org consistency enforced at the
+write/read boundaries).
+**Alternatives considered:** Keep the blanket reaper (kills resuming runs);
+mid-task checkpointing (re-implements Temporal one layer too deep);
+composite FK on stream_events (impossible — polymorphic parent).
+**Doc:** `packages/orchestrator/src/activities.ts`,
+`packages/db/drizzle/0005_*.sql`, `apps/api/src/dev/build-task-cli.ts`

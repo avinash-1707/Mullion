@@ -28,7 +28,7 @@ ADR for that.
 |---|---|---|---|
 | Phase 0 — Foundation & Platform Wiring | Done (1 DoD item pending creds) | 2026-07-10 | Built + verified live; OpenRouter round-trip awaits a real API key; Neon swap-in is a DATABASE_URL change |
 | Phase 1 — Interactive Planning Experience | Done (live-LLM verification pending creds) | 2026-07-11 | Built + verified end to end against a mock OpenRouter; real-model pass needs OPENROUTER_API_KEY |
-| Phase 2 — Automated Build Pipeline | In progress (M1–M2 done) | 2026-07-11 | M1 (Coder + sandbox) + M2 (Tester + budget breaker) built, verified, reviewed; M3–M4 next |
+| Phase 2 — Automated Build Pipeline | In progress (M1–M3 done) | 2026-07-11 | M1 (Coder+sandbox) + M2 (Tester+budget) + M3 (Temporal orchestrator, crash-resume proven) built, verified, reviewed; M4 next |
 | Phase 3 — Observability, Evaluation & Hardening | Not started | 2026-07-10 | Blocked on Phase 2 |
 | Phase 4 — Polish & Fast-Follow | Not started | 2026-07-10 | Blocked on Phase 3 |
 
@@ -63,6 +63,80 @@ template.
 ```
 
 ---
+
+### [2026-07-11] Phase 2 M3 — Temporal build orchestrator + durable crash-resume
+**Phase:** Phase 2 — Automated Build Pipeline (milestone M3)
+**Type:** Progress update
+**Summary:** Third milestone: a Temporal workflow orchestrates the frozen
+task_graph with a durable state machine that survives a worker restart. New
+`packages/orchestrator`: `buildRunWorkflow` (isolate-safe — imports only
+@temporalio/workflow + pure policy/types) owns the state machine, pure
+topological ordering (`topoSort`), and the per-task retry budget, doing ZERO
+IO; all side effects are activities (`loadTaskGraph`, `ensureTaskRow`,
+`setRunStatus`, `runTask`, `publishEscalation`). `runTaskActivity` is a thin
+wrapper (create sandbox → M1/M2 `buildTask` → dispose) — buildTask/verifier/
+Sandbox port unchanged. Two-layer retry (ADR-51): Temporal activity
+RetryPolicy handles infra THROWS; the workflow budget (3) acts on returned
+`failed{reason}` via a disposition table (budget_exceeded terminal, rest
+retry). Escalation signal DEFINED but unwired (M3 auto-fails + emits an
+`escalation_required` event; M4 adds the human gate). Run lifecycle moved to
+the workflow (ADR-52): M1's blanket run-reaper removed from the orchestrated
+path (a non-terminal run is now a resuming workflow, not a crash);
+`ensureTaskRow` made idempotent via migration 0005 `UNIQUE(run_id,
+spec_task_id)` + ON CONFLICT DO NOTHING. No Temporal Cloud creds — runs on a
+local `temporal server start-dev` (dev) and @temporalio/testing (CI). HTTP
+surface added: `POST /api/builds` (inserts run, claims ADR-29 slot, starts
+the workflow; dup → existing run), `GET /api/builds/:id`,
+`GET /api/builds/:id/stream` (coarse phase/task SSE over the run's
+stream_events; rich per-turn transcript stays M5). Worker entrypoint
+`apps/api/src/worker.ts` (`pnpm --filter @mullion/api worker`). Migration
+0005 also adds `tasks.attempt`; documents `stream_events.stream_id` as
+intentionally polymorphic (no composite FK).
+**Verified:** full DoD green (`check-types`+`lint`+`build`+`test`, 127 unit
+tests incl. binary-free policy + MockActivityEnvironment activity tests) plus
+the orchestrator integration tier (17 tests): workflow logic (topo order,
+retry budget consumes N then fails, budget_exceeded short-circuits, cycle →
+failed), the HEADLINE crash-resume proof (worker1 completes task A, is
+replaced by worker2, A's activity fires exactly once — completed task NOT
+re-run across the restart), and a full-pipeline test (real LocalDockerSandbox
++ scripted Coder + real buildTask driven through the workflow to done). The
+crash-resume test uses a real local Temporal dev server (time-skipping can't
+model worker handoff).
+**Files/areas touched:** packages/orchestrator (new), packages/{db (migration
+0005 + schema),schemas (api build shapes),config (Temporal + RUN budget env)},
+apps/api (routes/builds, worker, temporal, index, dev/build-task-cli reaper
+note), docs/specs/{04,05}
+**Related ADR:** New — ADR-50 (workflow/activity split), ADR-51 (two-layer
+retry), ADR-52 (run lifecycle → Temporal + idempotent task creation); `05`
+table extended 50–52
+**Follow-ups:**
+- M3 drives `queued→building→done|failed`; `reviewing`/`shipping` + the human
+  escalation gate (setHandler + condition on escalationSignal) are M4.
+- Sequential dispatch only; parallel-where-deps-allow (needs sandbox
+  concurrency policy) deferred.
+- verifyCommand is a harness/default (`node --test`); per-task test authoring
+  from prose acceptance_criteria stays deferred (ADR-48).
+- The live HTTP path (POST /api/builds → worker → done) is wired + typechecked
+  and its orchestration core is proven by the integration tests; a full
+  running-stack smoke (API + worker + `temporal server start-dev` + Docker)
+  needs the Temporal CLI running, like planning needs the OpenRouter mock.
+- Multi-lens review (1 Critical, 1 High, 2 Medium, 2 Low + test gaps) run and
+  fixed before commit: workflow-level catch so an activity failure can't wedge
+  a run in 'building' (Critical); ADR-29 dedup keyed per-user with a
+  non-terminal filter + cross-org 409 without leaking ids (High); ambiguous
+  workflow-start → 202 (not a fabricated 'failed' that could double-start);
+  heartbeat-interval leak on create() throw; deep infra RetryPolicy +
+  non-retryable deterministic failures; tasks.attempt now written. New tests:
+  real-PG ensureTaskRow idempotency (ADR-52 crux), workflow-catch, mixed-retry
+  recover, early-task-fail, escalation assertion, runTaskActivity dispose/
+  no-leak, code-level TEMPORAL_INTEGRATION gate.
+- FOLLOW-UP: apps/api has no HTTP/auth route-test harness (only unit tests);
+  POST /api/builds is covered by inspection + mirrors the proven planning
+  route, but a route-integration harness (seeding org/user/session/auth) is a
+  Phase-3 hardening item that would serve all of apps/api, not just builds.
+- CI note: @temporalio/testing downloads a server binary on first use (cached
+  after) — the orchestrator integration tier needs that binary, so it is
+  gated by TEMPORAL_INTEGRATION=1 alongside SANDBOX_INTEGRATION=1.
 
 ### [2026-07-11] Phase 2 M2 — Tester + pass/fail feedback + ADR-31 budget breaker
 **Phase:** Phase 2 — Automated Build Pipeline (milestone M2)

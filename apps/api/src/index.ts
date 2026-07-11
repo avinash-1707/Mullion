@@ -9,6 +9,7 @@ import { db, pool } from "./db.js";
 import { env } from "./env.js";
 import { ipRateLimit, userRateLimit } from "./middleware/rate-limit.js";
 import { sessionMiddleware, type AuthVariables } from "./middleware/session.js";
+import { buildsRoute } from "./routes/builds.js";
 import { devRoute } from "./routes/dev.js";
 import { planningSessionsRoute } from "./routes/planning-sessions.js";
 
@@ -59,6 +60,7 @@ app.get("/health", (c) => c.json({ ok: true }));
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 app.route("/api/sessions", planningSessionsRoute);
+app.route("/api/builds", buildsRoute);
 if (env.NODE_ENV !== "production") {
   // DoD probe only — spends real OpenRouter credits, never ships to prod.
   app.route("/api/dev", devRoute);

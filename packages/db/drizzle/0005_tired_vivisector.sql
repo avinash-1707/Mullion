@@ -1,0 +1,2 @@
+ALTER TABLE "tasks" ADD COLUMN "attempt" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "tasks_run_spec_task_uidx" ON "tasks" USING btree ("run_id","spec_task_id") WHERE "tasks"."spec_task_id" IS NOT NULL;

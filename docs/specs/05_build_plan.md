@@ -357,6 +357,9 @@ alone answers "did we forget anything":
 | 47 | Hermetic sandbox network (--network none, toolchain baked into image) | 2 (M1) | ✅ |
 | 48 | M2 Tester: deterministic verification in a fresh sandbox vs runner-owned tests | 2 (M2) | ✅ |
 | 49 | ADR-31 combined budget breaker supersedes ADR-43 stopgap | 2 (M2) | ✅ |
+| 50 | Temporal workflow/activity split; buildTask-as-activity; sequential topo | 2 (M3) | ✅ |
+| 51 | Two-layer retry: Temporal RetryPolicy (infra) vs workflow budget (logical) | 2 (M3) | ✅ |
+| 52 | Run lifecycle → Temporal workflow; idempotent task creation; reaper removed | 2 (M3) | ✅ |
 
 Process conventions (dependency installation, doc verification, per-phase
 security review) apply to every row above but are intentionally not

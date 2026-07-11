@@ -43,6 +43,10 @@ export const apiEnvSchema = z.object({
   // $/second modeling the sandbox provider rate (~E2B 2vCPU/512MB), so the
   // combined cost path (ADR-28, §5.1) is exercised even on free local Docker.
   SANDBOX_COST_USD_PER_SEC: z.coerce.number().positive().default(0.000042),
+  // Temporal (ADR-10/50): local `temporal server start-dev` by default; no
+  // Cloud creds. gRPC frontend address + namespace.
+  TEMPORAL_ADDRESS: z.string().min(1).default("localhost:7233"),
+  TEMPORAL_NAMESPACE: z.string().min(1).default("default"),
 }).superRefine((env, ctx) => {
   // Fail loud at boot, never mid-run with a half-built task.
   if (env.SANDBOX_DRIVER === "e2b" && !env.E2B_API_KEY) {
