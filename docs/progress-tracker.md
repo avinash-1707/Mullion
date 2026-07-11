@@ -64,6 +64,28 @@ template.
 
 ---
 
+### [2026-07-11] Marketing surface: brand logo, /pricing page, global 404
+**Phase:** Post-Phase 4 maintenance
+**Type:** Progress update
+**Summary:** Follow-on to the landing revamp. Owner-generated cube logomark
+(gold wireframe half becoming solid ultramarine) now renders through
+`MullionMark` everywhere and as the favicon (`src/app/icon.png`). New
+`/pricing` page in the (marketing) group: header band, reused tier cards,
+feature comparison table (placeholder rows, owner edits), billing FAQ on a
+dark band. Global `not-found.tsx` styled as part of the marketing world
+("This page was never built." with the unbuilt-tower artwork). Final CTA
+became a split layout with new torchbearer artwork. Lenis smooth scrolling
+added to the marketing surface (reduced-motion users get native scroll).
+`Faq` gained items/tone props, `Pricing` a hideHeader prop; nav/footer
+anchors carry a leading slash so they resolve from any page.
+**Files/areas touched:** `apps/web/src/app/(marketing)/pricing/`,
+`apps/web/src/app/not-found.tsx`, `apps/web/src/components/landing/`,
+`apps/web/src/components/mullion-mark.tsx`, `apps/web/src/app/icon.png`,
+`apps/web/public/{logo,logo-mark,cta-torchbearer}.*`
+**Related ADR:** None — marketing surface only
+**Follow-ups:** pricing tiers, comparison rows, and billing FAQ answers are
+placeholders pending real pricing decisions.
+
 ### [2026-07-11] Marketing landing page revamp (editorial redesign)
 **Phase:** Post-Phase 4 maintenance
 **Type:** Progress update
