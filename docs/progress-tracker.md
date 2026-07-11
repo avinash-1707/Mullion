@@ -69,7 +69,7 @@ template.
 **Type:** Progress update
 **Summary:** Phase 4 executed and closed in one pass, per its mandate of
 zero new decisions. (1) The live agent-graph visualization for the build
-phase (M5's deferred fast-follow, commit `2255c79`): task-dependency DAG
+phase (M5's deferred fast-follow, commit `cb42843`): task-dependency DAG
 via React Flow + the existing dagre `layoutGraph`, one node per task
 (spec-id chip, truncated description, status pill, attempt), live status
 treatment (running pulses via a new `pulse-glow` keyframe with a

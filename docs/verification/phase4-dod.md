@@ -33,7 +33,7 @@ driver select; workflow runs on local dev server + `@temporalio/testing`),
 the managed-substrate swap is a credential/config change gated by the
 documented triggers (E2B isolation parity; Temporal Cloud creds).
 
-Phase 4's own scope check: the agent-graph is built (commit `2255c79`);
+Phase 4's own scope check: the agent-graph is built (commit `cb42843`);
 the UX-refinement backlog sweep found zero qualifying items — every open
 follow-up is architecture-gated (ADR-53 Option A hydrate), cred-gated
 (edit-answers `affects` filtering, live-model passes), or a behavior
@@ -42,7 +42,7 @@ no-new-decisions mandate and left to their existing triggers.
 
 ## 3. Phase-end security review (touched surface)
 
-Surface: commit `2255c79` only — frontend-only agent-graph (six files,
+Surface: commit `cb42843` only — frontend-only agent-graph (six files,
 no new API routes, no new inputs, no new dependencies). Reviewed by a
 dedicated security pass (injection/XSS on model-influenced task text and
 spec ids, client-side DoS, data exposure, CSP-nonce compatibility, dep
