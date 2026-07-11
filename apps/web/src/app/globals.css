@@ -48,6 +48,10 @@
   --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", monospace;
   --font-serif: var(--font-cormorant), Georgia, "Times New Roman", serif;
+  /* Hero h1 only — see layout.tsx for why this face exists at all. Falls
+     back to the same serif stack as font-serif if the webfont hasn't
+     loaded yet. */
+  --font-hero: var(--font-instrument-serif), Georgia, "Times New Roman", serif;
 }
 
 :root {
@@ -183,6 +187,32 @@ select:focus-visible,
 /* Bigger element, longer travel — slightly longer clock than the copy. */
 .animate-reveal-from-right {
   animation: reveal-from-right 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/*
+ * One-time attention beat for the hero idea composer: a single warm pass of
+ * ember through the hairline border, once, right after the fade-in
+ * settles. This is a deliberate, user-requested exception to "no
+ * attention-seeking pulses" for the one interactive element on the fold —
+ * it runs once, not in a loop, so it doesn't become one of those. No fill
+ * mode on the second animation is intentional: it must let go of
+ * border-color once it ends, or it would permanently outrank the
+ * `:focus-within` border-color rule the composer also relies on.
+ */
+@keyframes border-invite {
+  0%,
+  100% {
+    border-color: var(--color-hairline-light);
+  }
+  55% {
+    border-color: var(--color-ember);
+  }
+}
+
+.animate-reveal-invite {
+  animation:
+    reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) 180ms both,
+    border-invite 1.2s cubic-bezier(0.22, 1, 0.36, 1) 800ms;
 }
 
 /*

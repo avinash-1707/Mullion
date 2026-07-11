@@ -1,52 +1,25 @@
 import Image from "next/image";
-import Link from "next/link";
+
+import { HeroIdeaForm } from "./hero-idea-form";
 
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
       <div className="mx-auto grid w-full max-w-[1320px] grid-cols-1 px-6 sm:px-10 lg:grid-cols-[1.05fr_1fr] lg:gap-12">
         <div className="flex flex-col justify-center pb-16 pt-36 lg:min-h-svh lg:pb-24">
-          <span className="animate-reveal font-mono text-[11px] uppercase tracking-[0.3em] text-ember">
-            An AI build platform
-          </span>
-          <h1
-            className="animate-reveal mt-7 font-serif text-[clamp(4.5rem,10vw,8.5rem)] leading-[0.92] tracking-[-0.01em] text-ember"
-            style={{ animationDelay: "90ms" }}
-          >
+          <h1 className="animate-reveal font-hero text-[clamp(4rem,8vw,7rem)] leading-[0.95] tracking-[-0.005em] text-ember">
             From Idea
             <br />
             To Shipped.
           </h1>
           <p
-            className="animate-reveal mt-8 max-w-[42ch] text-xl leading-[1.6] text-ink-muted"
-            style={{ animationDelay: "180ms" }}
+            className="animate-reveal mt-6 max-w-[32ch] text-lg leading-[1.6] text-ink-muted"
+            style={{ animationDelay: "90ms" }}
           >
             Describe what you want. Watch the plan take shape. Approve it, and the crew builds and
             delivers.
           </p>
-          <div
-            className="animate-reveal mt-12 flex flex-wrap items-center gap-8"
-            style={{ animationDelay: "270ms" }}
-          >
-            <Link
-              href="/sign-up"
-              className="bg-ink px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember active:scale-[0.97]"
-            >
-              Start building
-            </Link>
-            <a
-              href="#how-it-works"
-              className="group inline-flex items-center gap-2 font-mono text-xs uppercase tracking-[0.2em] text-ink transition-colors duration-200 hover:text-ember"
-            >
-              See how it works
-              <span
-                aria-hidden="true"
-                className="transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-1"
-              >
-                &rarr;
-              </span>
-            </a>
-          </div>
+          <HeroIdeaForm />
         </div>
 
         {/* One artwork element, two layouts: in-flow full-bleed below the
