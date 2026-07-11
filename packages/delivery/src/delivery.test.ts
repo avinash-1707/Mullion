@@ -59,10 +59,17 @@ describe("GitHubDeliveryTarget", () => {
   function fakeOctokit(calls: string[]): OctokitLike {
     return {
       rest: {
+        users: {
+          getAuthenticated: vi.fn(async () => ({ data: { login: "u" } })),
+        },
         repos: {
           createForAuthenticatedUser: vi.fn(async ({ name }) => {
             calls.push(`create:${name}`);
             return { data: { name, owner: { login: "u" }, default_branch: "main", html_url: `https://github.com/u/${name}` } };
+          }),
+          get: vi.fn(async ({ repo }) => {
+            calls.push(`get:${repo}`);
+            return { data: { name: repo, owner: { login: "u" }, default_branch: "main", html_url: `https://github.com/u/${repo}` } };
           }),
         },
         git: {
@@ -106,6 +113,31 @@ describe("GitHubDeliveryTarget", () => {
     expect(calls).toContain("tree:2");
     expect(calls).toContain("commit");
     expect(calls).toContain("ref:refs/heads/main");
+  });
+
+  it("resumes into an existing repo when creation 422s (crash-retry idempotency)", async () => {
+    const calls: string[] = [];
+    const octokit = fakeOctokit(calls);
+    (octokit.rest.repos.createForAuthenticatedUser as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      Object.assign(new Error("name already exists"), { status: 422 }),
+    );
+    const target = new GitHubDeliveryTarget(async () => "tok", () => octokit);
+    const result = await target.deliver(req());
+    expect(result.ref).toBe("https://github.com/u/demo");
+    expect(calls).toContain("get:demo");
+    expect(calls).toContain("ref:refs/heads/main");
+  });
+
+  it("treats an existing ref as already-delivered instead of failing", async () => {
+    const calls: string[] = [];
+    const octokit = fakeOctokit(calls);
+    (octokit.rest.git.createRef as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      Object.assign(new Error("Reference already exists"), { status: 422 }),
+    );
+    const target = new GitHubDeliveryTarget(async () => "tok", () => octokit);
+    const result = await target.deliver(req());
+    expect(result.kind).toBe("github");
+    expect(result.ref).toBe("https://github.com/u/demo");
   });
 
   it("throws when no token is linked", async () => {

@@ -21,9 +21,6 @@ on:
         default: scripted
         options: [scripted, live]
 
-permissions:
-  contents: write
-
 concurrency:
   group: evals-main
   cancel-in-progress: false
@@ -31,6 +28,10 @@ concurrency:
 jobs:
   evals:
     runs-on: ubuntu-latest
+    # Job-scoped, not workflow-scoped (Phase 3 audit): only this job needs
+    # to push the history commit back.
+    permissions:
+      contents: write
     services:
       postgres:
         image: postgres:17
@@ -45,12 +46,12 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           # Push the history commit back to the branch that triggered us.
           ref: ${{ github.ref }}
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: pnpm
@@ -74,9 +75,11 @@ jobs:
           git add docs/evals/history.jsonl docs/evals/trend.md
           git diff --cached --quiet && exit 0
           git commit -m "chore(evals): record eval run for ${GITHUB_SHA::7}"
+          # A human push racing this commit must rebase, not fail the job.
+          git pull --rebase origin main
           git push
       - name: Upload results artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: eval-results-${{ github.sha }}
           path: |

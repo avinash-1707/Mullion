@@ -3,7 +3,13 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { schema } from "@mullion/db";
-import { createBuildBodySchema, escalationDecisionBodySchema, type BuildRun } from "@mullion/schemas";
+import {
+  createBuildBodySchema,
+  escalationDecisionBodySchema,
+  type BuildRun,
+  type BuildTask,
+} from "@mullion/schemas";
+import { z } from "zod";
 import { escalationSignal, startBuildRun, workflowIdForRun, type EscalationDecision } from "@mullion/orchestrator";
 import { db } from "../db.js";
 import { requireOrgMember, type RequiredAuthVariables } from "../middleware/session.js";
@@ -137,22 +143,64 @@ export const buildsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
 
     return c.json(toApiShape(run), 201);
   })
+  // Dashboard entry: the org's recent runs, newest first (02 §7.1).
+  .get("/", async (c) => {
+    const organizationId = c.get("organizationId");
+    const rows = await db
+      .select()
+      .from(schema.runs)
+      .where(eq(schema.runs.organizationId, organizationId))
+      .orderBy(desc(schema.runs.createdAt))
+      .limit(20);
+    return c.json(rows.map(toApiShape));
+  })
   .get("/:id", async (c) => c.json(toApiShape(await loadRun(c))))
+  // Task rows for the timeline — statuses update live via the run stream;
+  // this endpoint is the snapshot a page load starts from.
+  .get("/:id/tasks", async (c) => {
+    const run = await loadRun(c);
+    const rows = await db
+      .select()
+      .from(schema.tasks)
+      .where(
+        and(eq(schema.tasks.runId, run.id), eq(schema.tasks.organizationId, run.organizationId)),
+      )
+      .orderBy(schema.tasks.createdAt);
+    const dependsOn = z.array(z.string());
+    const tasks: BuildTask[] = rows.map((row) => ({
+      id: row.id,
+      specTaskId: row.specTaskId,
+      description: row.description,
+      status: row.status,
+      attempt: row.attempt,
+      dependsOn: dependsOn.catch([]).parse(row.dependsOn),
+      result: row.result ?? null,
+      createdAt: row.createdAt.toISOString(),
+    }));
+    return c.json(tasks);
+  })
   .get("/:id/stream", async (c) => {
     const run = await loadRun(c);
     const organizationId = c.get("organizationId");
+    const userId = c.get("user").id;
     return streamEvents(c, {
       db,
       streamId: run.id,
       organizationId,
-      userId: c.get("user").id,
+      userId,
+      // Re-prove MEMBERSHIP, not run existence — a revoked member must stop
+      // receiving the feed within a minute, matching the planning stream
+      // (Phase 3 audit M1: the run always exists, so checking it was a
+      // recheck that could never fail).
       assertAccess: async () => {
-        const [row] = await db
-          .select({ id: schema.runs.id })
-          .from(schema.runs)
-          .where(and(eq(schema.runs.id, run.id), eq(schema.runs.organizationId, organizationId)))
+        const membership = await db
+          .select({ id: schema.member.id })
+          .from(schema.member)
+          .where(
+            and(eq(schema.member.userId, userId), eq(schema.member.organizationId, organizationId)),
+          )
           .limit(1);
-        return Boolean(row);
+        return membership.length > 0;
       },
     });
   })

@@ -16,9 +16,14 @@ function CopyRefButton({ refValue }: { refValue: string }) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(refValue);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+    try {
+      await navigator.clipboard.writeText(refValue);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Insecure context / permission denied — the ref stays visible for a
+      // manual copy; don't leak an unhandled rejection.
+    }
   }
 
   return (
@@ -37,8 +42,25 @@ function CopyRefButton({ refValue }: { refValue: string }) {
   );
 }
 
+// Only render an agent-authored ref as a clickable link when it's an https
+// URL on an expected delivery host (ADR-04/15: GitHub push only) — a
+// prompt-injected ref to an arbitrary host renders as inert copyable text,
+// not a link, so the trusted Delivery panel can't become a phishing vector
+// (Phase 3 audit).
+const DELIVERY_LINK_HOSTS = new Set(["github.com", "www.github.com"]);
+
+function isTrustedDeliveryLink(ref: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(ref);
+  } catch {
+    return false;
+  }
+  return url.protocol === "https:" && DELIVERY_LINK_HOSTS.has(url.hostname);
+}
+
 function DeliveryRow({ delivery }: { delivery: DeliveryRef }) {
-  const isLink = delivery.ref.startsWith("http");
+  const isLink = isTrustedDeliveryLink(delivery.ref);
   return (
     <div className="flex items-center gap-2.5 rounded-lg border border-border bg-surface px-3.5 py-2.5">
       <span className="shrink-0 rounded-md bg-elevated px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-fg-muted">

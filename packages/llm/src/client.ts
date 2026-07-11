@@ -41,6 +41,43 @@ function setLlmResultAttributes(
   });
 }
 
+/**
+ * Size-bounded body read for the non-streaming paths — the same
+ * memory-exhaustion guard the stream path has had since Phase 1 (finding
+ * #6); a hostile/buggy provider or tampered cassette must not be able to
+ * OOM the process with a fast multi-GB body (Phase 3 audit).
+ */
+async function readBodyCapped(response: Response, context: string): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new OpenRouterError({
+      message: `${context} response had no body`,
+      status: 502,
+      retryable: true,
+    });
+  }
+  const decoder = new TextDecoder();
+  let text = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+      if (text.length > MAX_STREAM_CHARS) {
+        throw new OpenRouterError({
+          message: `${context} response exceeded ${MAX_STREAM_CHARS} chars — aborted`,
+          status: 502,
+          retryable: true,
+        });
+      }
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+  text += decoder.decode();
+  return JSON.parse(text) as unknown;
+}
+
 function toAbortError(error: unknown, message: string): unknown {
   if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
     return new OpenRouterError({ message, status: 408, retryable: true });
@@ -191,7 +228,7 @@ export class OpenRouterClient {
       throw await this.toError(response);
     }
 
-    const parsed = parseChatCompletion(await response.json());
+    const parsed = parseChatCompletion(await readBodyCapped(response, "OpenRouter completion"));
     const choice = parsed.choices[0];
     if (!choice || choice.message.content === null) {
       // An empty completion is a failure, not a valid empty result
@@ -271,7 +308,9 @@ export class OpenRouterClient {
       throw await this.toError(response);
     }
 
-    const parsed = parseToolChatCompletion(await response.json());
+    const parsed = parseToolChatCompletion(
+      await readBodyCapped(response, "OpenRouter tool completion"),
+    );
     const choice = parsed.choices[0];
     if (!choice) {
       throw new OpenRouterError({

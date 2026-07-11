@@ -227,6 +227,9 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
           role: "coder",
           messages,
           tools: CODER_TOOL_DEFINITIONS,
+          // Bounds a single turn's output/cost server-side — without it the
+          // provider default is the only per-turn ceiling (Phase 3 audit).
+          maxTokens: 16_000,
           costContext: input.costContext,
         }),
       );

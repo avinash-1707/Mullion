@@ -281,8 +281,8 @@ describe("shipActivity", () => {
     });
     const env = new MockActivityEnvironment();
     const result = (await env.run(acts.shipActivity, args)) as { deliveries: unknown[] };
-    expect(result.deliveries).toEqual([{ kind: "archive", ref: "fake://archive/mullion-build-run-1.zip" }]);
-    expect(archive.archives.get("mullion-build-run-1")?.some((f) => f.path === "sum.js")).toBe(true);
+    expect(result.deliveries).toEqual([{ kind: "archive", ref: "fake://archive/mullion-build-run1.zip" }]);
+    expect(archive.archives.get("mullion-build-run1")?.some((f) => f.path === "sum.js")).toBe(true);
     expect(inserts.deliveries).toHaveLength(1); // only the archive row
     expect(published[0]?.eventType).toBe("delivery_result");
   });

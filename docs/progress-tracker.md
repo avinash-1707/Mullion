@@ -29,7 +29,7 @@ ADR for that.
 | Phase 0 — Foundation & Platform Wiring | Done (1 DoD item pending creds) | 2026-07-10 | Built + verified live; OpenRouter round-trip awaits a real API key; Neon swap-in is a DATABASE_URL change |
 | Phase 1 — Interactive Planning Experience | Done (live-LLM verification pending creds) | 2026-07-11 | Built + verified end to end against a mock OpenRouter; real-model pass needs OPENROUTER_API_KEY |
 | Phase 2 — Automated Build Pipeline | Done (live-cred verification deferred) | 2026-07-11 | M1–M4 built, verified, reviewed; phase-end security review passed (findings fixed). Fork B end-to-end. Real E2B/OpenRouter/Temporal-Cloud/GitHub-OAuth passes await creds |
-| Phase 3 — Observability, Evaluation & Hardening | In progress | 2026-07-11 | Started; deliverable-by-deliverable commits |
+| Phase 3 — Observability, Evaluation & Hardening | Done (live-cred verification deferred) | 2026-07-11 | All 6 deliverables built + verified; comprehensive 5-lens security audit passed (4 Med + 11 Low fixed). ZDR-live/OTLP-export/live-eval await creds |
 | Phase 4 — Polish & Fast-Follow | Not started | 2026-07-10 | Blocked on Phase 3 |
 
 Update this table's **Status** column as work happens: `Not started` →
@@ -63,6 +63,36 @@ template.
 ```
 
 ---
+
+### [2026-07-11] Phase 3 D6 — Comprehensive phase-end security audit (PASSED)
+**Phase:** Phase 3 — Observability, Evaluation & Hardening (phase gate)
+**Type:** Progress update
+**Summary:** The comprehensive cross-service audit the Phase 0–2 reviews
+built toward — 5 parallel lenses (auth/tenancy/API; LLM/injection/cost;
+sandbox/orchestrator/delivery; secrets/config/CI/otel; web frontend) over
+the entire standing surface, each demanding file:line evidence + an exploit
+scenario. Full report: `docs/verification/phase3-security-audit.md`. No
+Critical, no High. 4 Medium + 11 Low, ALL fixed in this pass: build-SSE
+membership recheck; GitHub OAuth token encryption at rest
+(encryptOAuthTokens); non-streaming LLM body size cap; crash-idempotent
+GitHub delivery (422-resume, +2 regression tests); frontend CSP +
+frame-ancestors + security headers (verified live); negative-cost budget
+floor; coder maxTokens; scoped CLI reaper; reviewer prompt cap; wider
+repoName entropy; SHA-pinned GitHub Actions + dependabot; prod guards for
+OPENROUTER_BASE_URL / DATABASE_URL-TLS / CI permissions; malformed-Referer
+500 fix; delivery-link host allowlist; credential-endpoint rate limit;
+clipboard catch. 6 items deferred with explicit triggers (symlink realpath
+gate, escalation-target tagging, artifact GC, signin-guard test harness,
+budget TOCTOU, full script-src CSP). DoD green incl. gated Temporal (34) +
+sandbox egress (13) integration suites.
+**Files/areas touched:** apps/api (auth, index, middleware, routes, dev),
+apps/web (next.config, delivery panel), packages/{llm,agents,orchestrator,
+delivery,config,schemas}, .github/{workflows,dependabot}, docs/verification
+**Related ADR:** None new — hardening within existing ADRs; ADR-44
+amendment already logged in D4
+**Follow-ups:** the 6 deferred items above, each creds- or
+harness-gated; Phase 3 complete → Phase 4 (polish, live agent-graph)
+unblocked.
 
 ### [2026-07-11] M5 — Build-phase dashboard (structured timeline/log view)
 **Phase:** Phase 2 milestone M5 (02 §14), built during Phase 3

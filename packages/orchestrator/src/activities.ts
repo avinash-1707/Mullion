@@ -155,6 +155,10 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
             ),
           );
 
+        // Task-level feed for the build dashboard (02 §7.1): best-effort —
+        // a publish failure must never fail the task itself.
+        await publishTaskEvent(deps, args, { status: "running", attempt: args.attempt });
+
         // description/acceptanceCriteria/verifyCommand live on the task row —
         // the single source of truth; nothing is threaded through history.
         const rows = await deps.db
@@ -230,6 +234,13 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
             (error) => console.error(`snapshot failed for run ${args.runId} (non-fatal):`, error),
           );
         }
+        await publishTaskEvent(deps, args, {
+          status: result.status === "verified" ? "verified" : "failed",
+          attempt: args.attempt,
+          turns: result.turns,
+          costUsd: result.costUsd,
+          ...(result.status === "failed" ? { reason: result.reason } : {}),
+        });
         return result;
       } finally {
         clearInterval(heartbeat);
@@ -285,7 +296,27 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
         )
         .limit(50);
 
-      const files = await deps.artifactStore.readTree(runId);
+      // Cap what reaches the reviewer prompt — MAX_SNAPSHOT_BYTES bounds
+      // disk, not context/cost (Phase 3 audit). Oversized trees review a
+      // prefix and say so, rather than blowing the window or the budget.
+      const allFiles = await deps.artifactStore.readTree(runId);
+      const files: typeof allFiles = [];
+      let reviewBytes = 0;
+      for (const file of allFiles) {
+        if (files.length >= MAX_REVIEW_FILES || reviewBytes >= MAX_REVIEW_BYTES) {
+          files.push({
+            path: "_review_note.txt",
+            content: `NOTE: ${allFiles.length - files.length} more file(s) omitted from review (size cap)`,
+          });
+          break;
+        }
+        const content =
+          file.content.length > MAX_REVIEW_FILE_CHARS
+            ? `${file.content.slice(0, MAX_REVIEW_FILE_CHARS)}\n…[truncated for review]`
+            : file.content;
+        reviewBytes += content.length;
+        files.push({ path: file.path, content });
+      }
 
       const verdict = await withBackoff(async () => {
         const completion = await deps.reviewLlm!.completeChat({
@@ -327,7 +358,9 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
 
     async shipActivity({ runId, organizationId, userId, isPartial, summary }): Promise<ShipActivityResult> {
       const repo = deps.artifactStore ? await deps.artifactStore.readTree(runId) : [];
-      const repoName = `mullion-build-${runId.slice(0, 8)}`;
+      // 12 hex chars of the uuid (dashes stripped) — 8 raw chars could
+      // include a dash and collide across a user's runs (Phase 3 audit).
+      const repoName = `mullion-build-${runId.replace(/-/g, "").slice(0, 12)}`;
 
       // Idempotency across Temporal retries: a kind already delivered for this
       // run is skipped, so a retry (e.g. after one target threw) doesn't
@@ -377,6 +410,12 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
   };
 }
 
+// Reviewer prompt caps (Phase 3 audit): advisory review reads a bounded
+// slice, never the raw 50MB snapshot ceiling.
+const MAX_REVIEW_FILES = 60;
+const MAX_REVIEW_BYTES = 400_000;
+const MAX_REVIEW_FILE_CHARS = 20_000;
+
 // Per-run total-bytes ceiling for snapshotted artifacts — the in-container
 // caps don't cover host disk (Phase-2 security gate). A produced tree over
 // this is truncated (files past the budget skipped) rather than exhausting
@@ -409,6 +448,24 @@ async function snapshotSandbox(
     files.push({ path, content });
   }
   if (files.length > 0) await store.put(runId, files);
+}
+
+async function publishTaskEvent(
+  deps: ActivityDeps,
+  args: { runId: string; organizationId: string; specTaskId: string },
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (!deps.publishEvent) return;
+  await deps
+    .publishEvent(deps.db, {
+      streamId: args.runId,
+      organizationId: args.organizationId,
+      eventType: "task",
+      payload: { specTaskId: args.specTaskId, ...payload },
+    })
+    .catch((error) =>
+      console.error(`task event publish failed for run ${args.runId} (non-fatal):`, error),
+    );
 }
 
 async function setRunStatus(

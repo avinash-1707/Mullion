@@ -12,10 +12,18 @@ import { deliverySummaryFile, type DeliveryRequest, type DeliveryResult, type De
 /** Resolve the caller's linked GitHub token, or null if not connected. */
 export type GitHubTokenResolver = (userId: string) => Promise<string | null>;
 
+interface RepoData {
+  data: { name: string; owner: { login: string }; default_branch: string; html_url: string };
+}
+
 /** Minimal Octokit surface — a fake satisfies this in tests. */
 export interface OctokitLike {
   rest: {
-    repos: { createForAuthenticatedUser(args: { name: string; private: boolean }): Promise<{ data: { name: string; owner: { login: string }; default_branch: string; html_url: string } }> };
+    users: { getAuthenticated(): Promise<{ data: { login: string } }> };
+    repos: {
+      createForAuthenticatedUser(args: { name: string; private: boolean }): Promise<RepoData>;
+      get(args: { owner: string; repo: string }): Promise<RepoData>;
+    };
     git: {
       createBlob(args: { owner: string; repo: string; content: string; encoding: string }): Promise<{ data: { sha: string } }>;
       createTree(args: { owner: string; repo: string; tree: unknown[] }): Promise<{ data: { sha: string } }>;
@@ -44,10 +52,20 @@ export class GitHubDeliveryTarget implements DeliveryTarget {
     if (!token) throw new Error("no linked GitHub token for user — cannot push");
     const gh = this.makeClient(token);
 
-    const { data: repo } = await gh.rest.repos.createForAuthenticatedUser({
-      name: req.repoName,
-      private: true,
-    });
+    // Idempotent across Temporal activity retries (Phase 3 audit): a crash
+    // after repo creation but before the deliveries row must resume the push
+    // into the existing repo, not lose the delivery to a swallowed 422.
+    let repo: RepoData["data"];
+    try {
+      ({ data: repo } = await gh.rest.repos.createForAuthenticatedUser({
+        name: req.repoName,
+        private: true,
+      }));
+    } catch (error) {
+      if (!isUnprocessable(error)) throw error;
+      const { data: me } = await gh.rest.users.getAuthenticated();
+      ({ data: repo } = await gh.rest.repos.get({ owner: me.login, repo: req.repoName }));
+    }
     const owner = repo.owner.login;
 
     const files = [...req.repo, deliverySummaryFile(req)];
@@ -69,12 +87,28 @@ export class GitHubDeliveryTarget implements DeliveryTarget {
       tree: created.sha,
       parents: [],
     });
-    await gh.rest.git.createRef({
-      owner,
-      repo: repo.name,
-      ref: `refs/heads/${repo.default_branch}`,
-      sha: commit.sha,
-    });
+    try {
+      await gh.rest.git.createRef({
+        owner,
+        repo: repo.name,
+        ref: `refs/heads/${repo.default_branch}`,
+        sha: commit.sha,
+      });
+    } catch (error) {
+      // Ref already exists → a previous attempt completed the push and only
+      // the bookkeeping was lost; the delivery is done.
+      if (!isUnprocessable(error)) throw error;
+    }
     return { kind: "github", ref: repo.html_url };
   }
+}
+
+/** GitHub answers 422 for both "name already exists" and "ref exists". */
+function isUnprocessable(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error as { status: unknown }).status === 422
+  );
 }

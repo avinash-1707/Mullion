@@ -94,6 +94,25 @@ export const apiEnvSchema = z.object({
         });
       }
     }
+    // The loopback mock belongs to dev only; llm.ts already gates the
+    // wiring on NODE_ENV, but a set value in production is a misconfig
+    // worth failing on, not silently ignoring (Phase 3 audit).
+    if (env.OPENROUTER_BASE_URL) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["OPENROUTER_BASE_URL"],
+        message: "dev-only mock override — unset it in production",
+      });
+    }
+    // Neon requires TLS; a plain connection string in production would move
+    // session tokens and specs over cleartext (Phase 3 audit).
+    if (!/sslmode=(require|verify-full|verify-ca)/.test(env.DATABASE_URL)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["DATABASE_URL"],
+        message: "production requires sslmode=require (or verify-full/verify-ca)",
+      });
+    }
   }
   if (env.NODE_ENV === "production" && env.LLM_REPLAY_MODE !== "off") {
     ctx.addIssue({

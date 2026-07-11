@@ -11,7 +11,9 @@ export const openRouterUsageSchema = z
     total_tokens: z.number(),
     // Credits charged for this request — OpenRouter returns this on every
     // response now (the old `usage: { include: true }` opt-in is a no-op).
-    cost: z.number(),
+    // Non-negative floor: a negative cost row would DECREMENT the ADR-31
+    // budget sums, manufacturing headroom (Phase 3 audit).
+    cost: z.number().nonnegative(),
   })
   .loose();
 

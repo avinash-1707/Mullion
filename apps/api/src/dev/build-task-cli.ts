@@ -38,16 +38,40 @@ async function main(): Promise<void> {
     throw new Error("build-task-cli is a dev harness — refusing to run in production");
   }
 
+  const specRows = await db
+    .select()
+    .from(schema.buildSpecs)
+    .orderBy(desc(schema.buildSpecs.frozenAt))
+    .limit(1);
+  const specRow = specRows[0];
+  if (!specRow) {
+    throw new Error("no frozen Build Spec found — run a planning session to completion first");
+  }
+  const artifact = buildSpecArtifactSchema.parse(specRow.spec);
+
+  const sessionRows = await db
+    .select()
+    .from(schema.planningSessions)
+    .where(eq(schema.planningSessions.id, specRow.sessionId))
+    .limit(1);
+  const session = sessionRows[0];
+  if (!session) throw new Error("Build Spec has no parent session");
+
   // NOTE (ADR-52): this single-shot CLI (no Temporal) fails any of ITS OWN
   // prior non-terminal runs so ADR-29's index doesn't wedge the next
   // invocation. The orchestrated path (M3) does NOT do this — there a
   // non-terminal run is a resuming Temporal workflow, not a crash, and the
-  // workflow owns run-lifecycle. This block is scoped to the CLI harness
-  // only. It marks the runs failed and reaps orphaned containers.
+  // workflow owns run-lifecycle. Scoped to THIS user's runs (Phase 3 audit)
+  // so a concurrent orchestrated run for another user is never nuked.
   const stuck = await db
     .select()
     .from(schema.runs)
-    .where(notInArray(schema.runs.status, ["done", "failed"]));
+    .where(
+      and(
+        eq(schema.runs.userId, session.userId),
+        notInArray(schema.runs.status, ["done", "failed"]),
+      ),
+    );
   for (const run of stuck) {
     await db.update(schema.runs).set({ status: "failed" }).where(eq(schema.runs.id, run.id));
     await db
@@ -63,17 +87,6 @@ async function main(): Promise<void> {
     console.log(`reaped stuck CLI run ${run.id} (status was ${run.status}, ${reaped} containers removed)`);
   }
 
-  const specRows = await db
-    .select()
-    .from(schema.buildSpecs)
-    .orderBy(desc(schema.buildSpecs.frozenAt))
-    .limit(1);
-  const specRow = specRows[0];
-  if (!specRow) {
-    throw new Error("no frozen Build Spec found — run a planning session to completion first");
-  }
-  const artifact = buildSpecArtifactSchema.parse(specRow.spec);
-
   const wantedTaskId = argValue("--task");
   const specTask = wantedTaskId
     ? artifact.task_graph.find((t) => t.task_id === wantedTaskId)
@@ -81,14 +94,6 @@ async function main(): Promise<void> {
   if (!specTask) {
     throw new Error(`task "${wantedTaskId ?? "<first>"}" not found in the Build Spec task_graph`);
   }
-
-  const sessionRows = await db
-    .select()
-    .from(schema.planningSessions)
-    .where(eq(schema.planningSessions.id, specRow.sessionId))
-    .limit(1);
-  const session = sessionRows[0];
-  if (!session) throw new Error("Build Spec has no parent session");
 
   const verifyCommand = argValue("--verify") ?? "node --test";
   const llmMode = argValue("--llm") ?? "scripted";

@@ -8,7 +8,7 @@ import { seedModelRouting } from "@mullion/llm";
 import { auth } from "./auth.js";
 import { db, pool } from "./db.js";
 import { env } from "./env.js";
-import { ipRateLimit, userRateLimit } from "./middleware/rate-limit.js";
+import { credentialRateLimit, ipRateLimit, userRateLimit } from "./middleware/rate-limit.js";
 import { sessionMiddleware, type AuthVariables } from "./middleware/session.js";
 import { tracingMiddleware } from "./middleware/tracing.js";
 import { buildsRoute } from "./routes/builds.js";
@@ -47,7 +47,14 @@ app.use(
 app.use("*", async (c, next) => {
   if (!["GET", "HEAD", "OPTIONS"].includes(c.req.method)) {
     const referer = c.req.header("Referer");
-    const origin = c.req.header("Origin") ?? (referer ? new URL(referer).origin : undefined);
+    // A malformed Referer is "no provenance", not a 500 (Phase 3 audit L2).
+    let refererOrigin: string | undefined;
+    try {
+      refererOrigin = referer ? new URL(referer).origin : undefined;
+    } catch {
+      refererOrigin = undefined;
+    }
+    const origin = c.req.header("Origin") ?? refererOrigin;
     if (origin !== undefined && origin !== env.WEB_ORIGIN) {
       throw new HTTPException(403, { message: "Cross-origin request rejected" });
     }
@@ -64,6 +71,9 @@ app.get("/health", (c) => c.json({ ok: true }));
 
 // Better Auth owns /api/auth/* (sign-up, sign-in, org membership,
 // invitations, and later the GitHub linkSocial flow — ADR-22/23/36).
+// Credential endpoints ride a 10/min/IP window on top of the global limits.
+app.use("/api/auth/sign-in/*", credentialRateLimit);
+app.use("/api/auth/sign-up/*", credentialRateLimit);
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
 app.route("/api/sessions", planningSessionsRoute);

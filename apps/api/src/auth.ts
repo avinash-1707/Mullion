@@ -16,6 +16,10 @@ export const auth = betterAuth({
     enabled: true,
   },
   trustedOrigins: [env.WEB_ORIGIN],
+  // The linked GitHub token is repo-scoped and never expires — at-rest
+  // encryption (AES-256-GCM, keyed off the auth secret) bounds a DB-read
+  // exposure (Phase 3 audit M2). Better Auth default is plaintext.
+  account: { encryptOAuthTokens: true },
   // GitHub is a LINK for build delivery (ADR-23/56), NOT a login. It's
   // configured only when an OAuth app is present (soft-optional), and the
   // hook below hard-blocks it as a sign-in method so ADR-35's

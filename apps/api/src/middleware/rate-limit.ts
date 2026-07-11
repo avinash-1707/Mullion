@@ -36,6 +36,15 @@ export const ipRateLimit = rateLimiter<Env>({
   keyGenerator: (c) => `ip:${clientIp(c)}`,
 });
 
+// Credential endpoints get a much tighter per-IP window than the global
+// 300/min — brute-force / credential-stuffing guard (Phase 3 audit L1).
+export const credentialRateLimit = rateLimiter<Env>({
+  windowMs: 60_000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  keyGenerator: (c) => `cred:${clientIp(c)}`,
+});
+
 export const userRateLimit = rateLimiter<Env>({
   windowMs: 60_000,
   limit: 120,

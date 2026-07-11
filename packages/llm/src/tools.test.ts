@@ -171,4 +171,25 @@ describe("completeChatWithTools", () => {
       status: 429,
     });
   });
+
+  it("aborts an oversized non-streaming body instead of buffering it whole (Phase 3 audit)", async () => {
+    // A hostile/buggy provider streams a body past the 2M-char cap; the
+    // capped reader must throw before OOM rather than await response.json().
+    const oversized = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const chunk = new TextEncoder().encode("x".repeat(500_000));
+        for (let i = 0; i < 6; i += 1) controller.enqueue(chunk); // 3M chars
+        controller.close();
+      },
+    });
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(oversized, { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    const client = new OpenRouterClient({
+      apiKey: "k",
+      db: fakeDb([]),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await expect(client.completeChatWithTools(baseArgs)).rejects.toMatchObject({ status: 502 });
+  });
 });
