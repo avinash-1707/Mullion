@@ -108,7 +108,7 @@ export function BuildEscalationGate({
                 <Button
                   type="button"
                   size="sm"
-                  onClick={() => decide("redirect", { redirect: redirectText.trim() })}
+                  onClick={() => decide("redirect", { specTaskId, redirect: redirectText.trim() })}
                   disabled={!canSubmitRedirect || isSubmitting}
                 >
                   {isSubmitting && pendingAction === "redirect" ? "Sending…" : "Send redirect"}
@@ -122,7 +122,7 @@ export function BuildEscalationGate({
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => decide("approve", { decision: "approve" })}
+              onClick={() => decide("approve", { specTaskId, decision: "approve" })}
               disabled={isSubmitting}
             >
               {isSubmitting && pendingAction === "approve" ? "Approving…" : "Approve — continue without this task"}
@@ -134,7 +134,7 @@ export function BuildEscalationGate({
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() => decide("abandon", { decision: "abandon" })}
+              onClick={() => decide("abandon", { specTaskId, decision: "abandon" })}
               disabled={isSubmitting}
               className="border-danger/40 text-danger hover:border-danger hover:text-danger"
             >

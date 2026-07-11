@@ -220,10 +220,30 @@ export const buildsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     const decision: EscalationDecision =
       "redirect" in body ? { redirect: body.redirect } : body.decision;
 
+    // The decision must target a real task of THIS run — reject a stray
+    // specTaskId before signalling (Phase 3 audit: decisions are routed by
+    // task, so a garbage id would just sit unconsumed in the workflow).
+    const [task] = await db
+      .select({ id: schema.tasks.id })
+      .from(schema.tasks)
+      .where(
+        and(
+          eq(schema.tasks.runId, run.id),
+          eq(schema.tasks.organizationId, run.organizationId),
+          eq(schema.tasks.specTaskId, body.specTaskId),
+        ),
+      )
+      .limit(1);
+    if (!task) {
+      throw new HTTPException(404, { message: "No such task in this build" });
+    }
+
     let client;
     try {
       client = await getTemporalClient();
-      await client.workflow.getHandle(workflowIdForRun(run.id)).signal(escalationSignal, decision);
+      await client.workflow
+        .getHandle(workflowIdForRun(run.id))
+        .signal(escalationSignal, { specTaskId: body.specTaskId, decision });
     } catch (error) {
       // Workflow already closed / not found → the gate isn't live.
       throw new HTTPException(409, {

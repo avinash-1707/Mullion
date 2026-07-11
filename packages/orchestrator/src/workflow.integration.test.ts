@@ -270,7 +270,12 @@ describe.skipIf(!temporalOn)("escalation gate (human signal, real-time)", () => 
     });
     const runP = worker.runUntil(handle.result());
     await waitUntil(() => cap.escalations.length > 0);
-    await handle.signal(escalationSignal, decision);
+    // Route the decision to the task actually at the gate (its specTaskId
+    // rides on the escalation the workflow just published).
+    await handle.signal(escalationSignal, {
+      specTaskId: cap.escalations[cap.escalations.length - 1]!.specTaskId,
+      decision,
+    });
     return runP;
   }
 
@@ -313,6 +318,39 @@ describe.skipIf(!temporalOn)("escalation gate (human signal, real-time)", () => 
     expect(cap.redirects).toContain("use a different approach");
   }, 90_000);
 
+  it("ignores a decision tagged for a different task (Phase 3 audit)", async () => {
+    // Only task "a" ever gates. A decision addressed to a non-gated task "z"
+    // must NOT be consumed by a's gate — if it were (the old single-slot
+    // bug), a would abandon. Send the mis-tagged "abandon" first, then the
+    // correctly-tagged "approve"; a must end accepted-incomplete, so b runs.
+    const cap = capture();
+    const acts = mockActivities({
+      graph: [node("a"), node("b", ["a"])],
+      cap,
+      run: (id) => (id === "a" ? failed("test_failed" as never) : verified),
+    });
+    const worker = await Worker.create({
+      connection: localEnv.nativeConnection,
+      taskQueue: "q-mistag",
+      workflowsPath: WORKFLOWS_PATH,
+      activities: acts,
+    });
+    const handle = await localEnv.client.workflow.start(buildRunWorkflow, {
+      workflowId: "wf-q-mistag",
+      taskQueue: "q-mistag",
+      args: [RUN({ runId: "run-mistag" })],
+    });
+    const runP = worker.runUntil(handle.result());
+    await waitUntil(() => cap.escalations.length > 0);
+    // Wrong task id — must be ignored by a's gate.
+    await handle.signal(escalationSignal, { specTaskId: "z", decision: "abandon" });
+    // Correct task id — this is the one a's gate must act on.
+    await handle.signal(escalationSignal, { specTaskId: "a", decision: "approve" });
+    const result = await runP;
+    expect(cap.runCounts.get("b")).toBe(1); // a accepted-incomplete → b ran
+    expect(result.status).toBe("failed"); // a not verified → partial
+  }, 90_000);
+
   it("caps redirects at MAX_REDIRECTS then abandons", async () => {
     const cap = capture();
     const taskQueue = "q-maxredirect";
@@ -338,7 +376,12 @@ describe.skipIf(!temporalOn)("escalation gate (human signal, real-time)", () => 
     while (!done && sent < 5) {
       await waitUntil(() => cap.escalations.length > sent || done);
       if (done) break;
-      await handle.signal(escalationSignal, { redirect: `try ${sent}` }).catch(() => undefined);
+      await handle
+        .signal(escalationSignal, {
+          specTaskId: cap.escalations[cap.escalations.length - 1]!.specTaskId,
+          decision: { redirect: `try ${sent}` },
+        })
+        .catch(() => undefined);
       sent += 1;
     }
     const result = await runP;

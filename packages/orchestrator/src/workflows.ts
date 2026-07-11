@@ -40,7 +40,15 @@ const acts = proxyActivities<
 // workflow pauses and awaits a human decision; a timeout defaults to abandon
 // so an unattended gate can't hang forever holding the ADR-29 slot.
 export type EscalationDecision = "approve" | "abandon" | { redirect: string };
-export const escalationSignal = defineSignal<[EscalationDecision]>("escalate");
+// The signal carries WHICH task the decision is for. A single unkeyed slot
+// let a decision sent while no task was gated (or one meant for task A) be
+// consumed by whichever task next escalated (Phase 3 audit); routing by
+// specTaskId makes each decision apply only to its own task.
+export interface EscalationSignalPayload {
+  specTaskId: string;
+  decision: EscalationDecision;
+}
+export const escalationSignal = defineSignal<[EscalationSignalPayload]>("escalate");
 // Bounded wait for the human gate before defaulting to abandon.
 const ESCALATION_TIMEOUT = "30 minutes";
 // A redirect resets the retry budget once; cap total redirects so it can't loop.
@@ -49,23 +57,26 @@ const MAX_REDIRECTS = 2;
 const DEFAULT_VERIFY_COMMAND = "node --test";
 
 export async function buildRunWorkflow(input: BuildRunInput): Promise<BuildRunResult> {
-  // Escalation state: the signal handler records the human decision; the
-  // task loop waits on it via condition() (ADR-55).
-  let pendingEscalation: EscalationDecision | undefined;
-  setHandler(escalationSignal, (decision) => {
-    pendingEscalation = decision;
+  // Escalation state keyed by task: the signal handler records a decision
+  // under its target specTaskId; each task's gate consumes only its own
+  // (ADR-55, Phase 3 audit). A decision for a task not (yet) at a gate is
+  // simply held under its key and never consumed by a different task.
+  const pendingByTask = new Map<string, EscalationDecision>();
+  setHandler(escalationSignal, ({ specTaskId, decision }) => {
+    pendingByTask.set(specTaskId, decision);
   });
-  const takeEscalation = (): EscalationDecision | undefined => {
-    const d = pendingEscalation;
-    pendingEscalation = undefined;
+  const takeEscalation = (specTaskId: string): EscalationDecision | undefined => {
+    const d = pendingByTask.get(specTaskId);
+    if (d !== undefined) pendingByTask.delete(specTaskId);
     return d;
   };
+  const hasEscalation = (specTaskId: string): boolean => pendingByTask.has(specTaskId);
 
   const setStatus = (status: RunStatus): Promise<void> =>
     acts.setRunStatusActivity({ runId: input.runId, organizationId: input.organizationId, status });
 
   try {
-    return await orchestrate(input, setStatus, takeEscalation, () => pendingEscalation !== undefined);
+    return await orchestrate(input, setStatus, takeEscalation, hasEscalation);
   } catch (error) {
     // CRITICAL (ADR-52): a throw here — an activity that exhausted its infra
     // retry, or a deterministic non-retryable failure (spec parse) — must NOT
@@ -89,8 +100,8 @@ type TaskOutcome = "verified" | "accepted-incomplete" | "abandoned" | "skipped" 
 async function orchestrate(
   input: BuildRunInput,
   setStatus: (status: RunStatus) => Promise<void>,
-  takeEscalation: () => EscalationDecision | undefined,
-  hasEscalation: () => boolean,
+  takeEscalation: (specTaskId: string) => EscalationDecision | undefined,
+  hasEscalation: (specTaskId: string) => boolean,
 ): Promise<BuildRunResult> {
   await setStatus("building");
 
@@ -202,8 +213,8 @@ async function runTaskWithGate(
   input: BuildRunInput,
   specTaskId: string,
   taskRowId: string,
-  takeEscalation: () => EscalationDecision | undefined,
-  hasEscalation: () => boolean,
+  takeEscalation: (specTaskId: string) => EscalationDecision | undefined,
+  hasEscalation: (specTaskId: string) => boolean,
 ): Promise<TaskOutcome> {
   let redirects = 0;
   let redirectInstruction: string | undefined;
@@ -233,8 +244,8 @@ async function runTaskWithGate(
         specTaskId,
         reason: result.reason,
       });
-      const decided = await condition(hasEscalation, ESCALATION_TIMEOUT);
-      const decision: EscalationDecision = decided ? takeEscalation()! : "abandon";
+      const decided = await condition(() => hasEscalation(specTaskId), ESCALATION_TIMEOUT);
+      const decision: EscalationDecision = decided ? takeEscalation(specTaskId)! : "abandon";
 
       if (decision === "approve") return "accepted-incomplete";
       if (decision === "abandon") return "abandoned";

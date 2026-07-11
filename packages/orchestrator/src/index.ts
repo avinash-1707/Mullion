@@ -9,7 +9,12 @@ export {
 export { createActivities, type ActivityDeps } from "./activities.js";
 export { createBuildWorker, WORKFLOWS_PATH } from "./worker.js";
 export { startBuildRun, workflowIdForRun } from "./client.js";
-export { buildRunWorkflow, escalationSignal, type EscalationDecision } from "./workflows.js";
+export {
+  buildRunWorkflow,
+  escalationSignal,
+  type EscalationDecision,
+  type EscalationSignalPayload,
+} from "./workflows.js";
 export type {
   BuildActivities,
   BuildRunInput,

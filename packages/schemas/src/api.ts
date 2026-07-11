@@ -84,9 +84,14 @@ export type BuildStreamTaskEvent = z.infer<typeof buildStreamTaskEventSchema>;
 
 // M4 (ADR-55): the human escalation decision. `redirect` is the ONE
 // free-text-during-build input fed to the Coder — hard-capped as an
-// injection/cost guard (ADR-02/07).
-export const escalationDecisionBodySchema = z.union([
-  z.object({ decision: z.enum(["approve", "abandon"]) }),
-  z.object({ redirect: z.string().min(1).max(4_000) }),
-]);
+// injection/cost guard (ADR-02/07). `specTaskId` targets the decision at the
+// task actually at the gate (Phase 3 audit) — the escalation_required event
+// carries it, so the client always has it.
+export const escalationDecisionBodySchema = z.intersection(
+  z.object({ specTaskId: z.string().min(1).max(200) }),
+  z.union([
+    z.object({ decision: z.enum(["approve", "abandon"]) }),
+    z.object({ redirect: z.string().min(1).max(4_000) }),
+  ]),
+);
 export type EscalationDecisionBody = z.infer<typeof escalationDecisionBodySchema>;
