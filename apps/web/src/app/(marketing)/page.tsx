@@ -24,7 +24,7 @@ const JSON_LD = {
       "@type": "Organization",
       name: siteConfig.name,
       url: siteConfig.url,
-      logo: `${siteConfig.url}/logo-mark.png`,
+      logo: `${siteConfig.url}/brand/logo-mark.png`,
     },
     {
       "@type": "WebSite",

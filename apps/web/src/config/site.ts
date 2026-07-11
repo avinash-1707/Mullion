@@ -9,7 +9,7 @@ export const siteConfig = {
   // Set NEXT_PUBLIC_SITE_URL in production; the fallback keeps absolute
   // URLs valid in local dev.
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  ogImage: "/og.png",
+  ogImage: "/brand/og.png",
   keywords: [
     "AI build platform",
     "AI agents",

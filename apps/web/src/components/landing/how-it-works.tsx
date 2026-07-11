@@ -63,7 +63,7 @@ export function HowItWorks() {
             <div className="mx-auto max-w-[360px] border border-hairline-light p-3">
               <div className="relative aspect-square overflow-hidden">
                 <Image
-                  src="/chapter-02-orrery.webp"
+                  src="/landing/chapter-02-orrery.webp"
                   alt="A brass orrery floating in storm clouds, one ring turning into a technical blueprint drawing"
                   fill
                   sizes="(min-width: 1024px) 360px, 80vw"

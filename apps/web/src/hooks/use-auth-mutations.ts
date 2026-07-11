@@ -6,6 +6,8 @@ import { authClient } from "../lib/auth-client";
 interface SignInInput {
   email: string;
   password: string;
+  /** When false the session ends when the browser closes (Better Auth). */
+  rememberMe?: boolean;
 }
 
 interface SignUpInput {

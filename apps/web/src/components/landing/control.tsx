@@ -24,7 +24,7 @@ export function Control() {
         <Reveal variant="art" className="lg:col-span-5">
           <div className="relative mx-auto aspect-[4/5] max-w-[440px]">
             <Image
-              src="/chapter-04-winged-victory.webp"
+              src="/landing/chapter-04-winged-victory.webp"
               alt="A blue winged statue releasing a small golden shape into the air"
               fill
               sizes="(min-width: 1024px) 440px, 90vw"

@@ -31,7 +31,7 @@ export function FinalCta() {
         <Reveal variant="art" delay={140} className="lg:col-span-5">
           <div className="relative mx-auto aspect-[4/5] w-full max-w-[340px] lg:max-w-[420px] [mask-image:radial-gradient(ellipse_70%_70%_at_center,black_60%,transparent_98%)]">
             <Image
-              src="/cta-torchbearer.webp"
+              src="/landing/cta-torchbearer.webp"
               alt="A blue sculpted hand raising a small brilliant golden star of light"
               fill
               sizes="(min-width: 1024px) 420px, 340px"

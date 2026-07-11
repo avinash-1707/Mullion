@@ -13,7 +13,7 @@ export function Manifesto() {
           <div className="mx-auto max-w-[320px] rounded-t-[999px] border border-hairline-dark p-3">
             <div className="relative aspect-[4/5] overflow-hidden rounded-t-[999px]">
               <Image
-                src="/chapter-01-unbuilt-tower.webp"
+                src="/landing/chapter-01-unbuilt-tower.webp"
                 alt="A moonlit painting of an unfinished stone tower wrapped in scaffolding beneath a bright star"
                 fill
                 sizes="(min-width: 1024px) 320px, 80vw"

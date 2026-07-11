@@ -6,22 +6,22 @@ const CREW = [
   {
     name: "Architect",
     role: "Plans the system and writes the decisions down.",
-    image: "/agent-architect.webp",
+    image: "/landing/agent-architect.webp",
   },
   {
     name: "Coder",
     role: "Turns the plan into working code, piece by piece.",
-    image: "/agent-coder.webp",
+    image: "/landing/agent-coder.webp",
   },
   {
     name: "Tester",
     role: "Proves every piece works before it moves on.",
-    image: "/agent-tester.webp",
+    image: "/landing/agent-tester.webp",
   },
   {
     name: "Reviewer",
     role: "Checks the work, packages it, and hands it over.",
-    image: "/agent-reviewer.webp",
+    image: "/landing/agent-reviewer.webp",
   },
 ] as const;
 
