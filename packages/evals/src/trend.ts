@@ -6,10 +6,15 @@
  *   pnpm trend                 # print to stdout
  *   pnpm trend -- --out docs/evals/trend.md
  */
-import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+
+// Repo root, not the CWD — `pnpm --filter` runs scripts with CWD at the
+// package dir, so a relative --out/--history is anchored here to mean the
+// same path regardless of where the script was invoked from.
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 const recordSchema = z.object({
   version: z.string(),
@@ -78,11 +83,14 @@ export function parseHistory(raw: string): TrendRecord[] {
     .map((line) => recordSchema.parse(JSON.parse(line)));
 }
 
+/** Anchor a relative path to the repo root; leave an absolute one as-is. */
+function anchor(path: string): string {
+  return isAbsolute(path) ? path : resolve(REPO_ROOT, path);
+}
+
 async function main(): Promise<void> {
-  const historyPath = resolve(
-    argValue("--history") ??
-      fileURLToPath(new URL("../../../docs/evals/history.jsonl", import.meta.url)),
-  );
+  const historyArg = argValue("--history");
+  const historyPath = historyArg ? anchor(historyArg) : resolve(REPO_ROOT, "docs/evals/history.jsonl");
   let raw = "";
   try {
     raw = await readFile(historyPath, "utf8");
@@ -92,8 +100,11 @@ async function main(): Promise<void> {
   const markdown = renderTrend(parseHistory(raw));
   const out = argValue("--out");
   if (out) {
-    await writeFile(resolve(out), markdown, "utf8");
-    console.log(`wrote ${out}`);
+    const outPath = anchor(out);
+    // The dir may not exist on a fresh checkout — create it, don't ENOENT.
+    await mkdir(dirname(outPath), { recursive: true });
+    await writeFile(outPath, markdown, "utf8");
+    console.log(`wrote ${outPath}`);
   } else {
     console.log(markdown);
   }
