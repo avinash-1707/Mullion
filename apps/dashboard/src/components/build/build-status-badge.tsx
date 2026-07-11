@@ -50,8 +50,8 @@ function StatusPill({ label, tone, size }: StatusPillProps) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-1.5 rounded-full border font-medium",
-        size === "md" ? "px-3 py-1 text-xs" : "px-2 py-0.5 text-[11px]",
+        "inline-flex items-center gap-1.5 border font-mono uppercase tracking-[0.15em]",
+        size === "md" ? "px-3 py-1 text-[11px]" : "px-2 py-0.5 text-[10px]",
         TONE_CLASSES[tone],
       ].join(" ")}
     >
@@ -60,7 +60,7 @@ function StatusPill({ label, tone, size }: StatusPillProps) {
       ) : tone === "danger" ? (
         <WarningIcon className={iconSize} />
       ) : (
-        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${DOT_CLASSES[tone]}`} aria-hidden="true" />
+        <span className={`h-1.5 w-1.5 shrink-0 ${DOT_CLASSES[tone]}`} aria-hidden="true" />
       )}
       {label}
     </span>

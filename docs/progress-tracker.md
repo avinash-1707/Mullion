@@ -64,6 +64,34 @@ template.
 
 ---
 
+### [2026-07-11] Dashboard restyled to the brand (dark hybrid)
+**Phase:** Post-Phase-4 follow-on (marketing/product separation)
+**Type:** Progress update
+**Summary:** apps/dashboard brought onto the marketing brand as a dark
+hybrid: base darks shifted to the brand inks (#08080d/#10101a), the
+accent family repointed from amber to ember (#c4552a/#d96b3d), gilt
+eyebrows/tags, hairline structural rules, Cormorant serif headings +
+JetBrains Mono uppercase labels, square corners throughout. Functional
+colors (danger/success/diagram node hues) and all motion (single brand
+curve, flash-once/pulse-glow exceptions) kept. Three className-only
+passes: foundation (tokens, ui primitives, header, home, 404, new
+apps/dashboard/design-context.md), planning surface (17 components +
+session page chrome; MCQ option cards, editorial fork-choice cards,
+hairline decision log), build surface (13 files; editorial run header,
+squared status tags, hairline timeline spine, escalation gate kept
+visually distinct per ADR-07). Zero logic/prop/aria changes verified by
+diff audit; full DoD green. Also: landing nav scrolled state is now a
+detached floating bar (20% narrower, blurred cream glass, one-curve
+morph) — committed separately.
+**Files/areas touched:** apps/dashboard/src (globals.css, ui/*,
+components/*, app pages), apps/dashboard/design-context.md,
+apps/web/src/components/landing/landing-nav.tsx
+**Related ADR:** ADR-64 (the split this restyle was staged behind)
+**Follow-ups:**
+- Visual smoke pass in a browser (three dev ports) for the restyled
+  flows; static checks are green but nobody has eyeballed live SSE
+  surfaces yet.
+
 ### [2026-07-11] App split: dashboard moved to its own Next.js app (ADR-64)
 **Phase:** Post-Phase-4 follow-on (marketing/product separation)
 **Type:** Architecture change

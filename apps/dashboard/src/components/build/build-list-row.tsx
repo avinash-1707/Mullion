@@ -12,13 +12,11 @@ export function BuildListRow({ run }: BuildListRowProps) {
   return (
     <Link
       href={`/builds/${run.id}`}
-      className="transition-swift group flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3.5 hover:border-border-strong hover:bg-elevated"
+      className="transition-swift group flex items-center justify-between gap-3 border border-border bg-surface px-4 py-3.5 hover:-translate-y-[2px] hover:border-ember"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <span className="shrink-0 rounded-md bg-elevated px-2 py-0.5 font-mono text-xs text-fg-muted group-hover:bg-bg">
-          {shortId(run.id)}
-        </span>
-        <span className="truncate text-xs text-fg-faint">{formatDateTime(run.createdAt)}</span>
+        <span className="shrink-0 font-mono text-sm text-fg">{shortId(run.id)}</span>
+        <span className="truncate font-mono text-xs text-fg-faint">{formatDateTime(run.createdAt)}</span>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
         <BuildStatusBadge status={run.status} />

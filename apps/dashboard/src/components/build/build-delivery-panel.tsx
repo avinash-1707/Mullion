@@ -30,7 +30,7 @@ function CopyRefButton({ refValue }: { refValue: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="transition-swift inline-flex shrink-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 text-fg-muted hover:bg-elevated hover:text-fg"
+      className="transition-swift inline-flex shrink-0 items-center gap-1.5 px-1.5 py-0.5 text-fg-muted hover:bg-elevated hover:text-fg"
       aria-label="Copy reference"
     >
       {copied ? (
@@ -62,8 +62,8 @@ function isTrustedDeliveryLink(ref: string): boolean {
 function DeliveryRow({ delivery }: { delivery: DeliveryRef }) {
   const isLink = isTrustedDeliveryLink(delivery.ref);
   return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-border bg-surface px-3.5 py-2.5">
-      <span className="shrink-0 rounded-md bg-elevated px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-fg-muted">
+    <div className="flex items-center gap-2.5 border border-border bg-surface px-3.5 py-2.5">
+      <span className="shrink-0 bg-elevated px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-fg-muted">
         {delivery.kind}
       </span>
       {isLink ? (
@@ -90,14 +90,14 @@ function DeliveryRow({ delivery }: { delivery: DeliveryRef }) {
 // degraded or hidden alternative.
 export function BuildDeliveryPanel({ deliveries, isPartial }: BuildDeliveryPanelProps) {
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 sm:p-6">
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-3 border border-border bg-surface p-5 sm:p-6">
+      <div className="flex items-center gap-2.5">
         <DownloadIcon className="h-4 w-4 text-accent-strong" />
-        <h2 className="text-sm font-semibold text-fg">Delivery</h2>
+        <h2 className="font-serif text-xl leading-tight text-fg">Delivered</h2>
       </div>
 
       {isPartial ? (
-        <div className="flex items-start gap-2 rounded-lg border border-accent/30 bg-accent-soft px-3.5 py-2.5 text-xs text-accent-strong">
+        <div className="flex items-start gap-2 border border-accent/30 bg-accent-soft px-3.5 py-2.5 text-xs text-accent-strong">
           <WarningIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <p>Partial delivery — the build ended before every task completed. What was built ships anyway.</p>
         </div>

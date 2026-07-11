@@ -13,18 +13,26 @@ interface BuildRunHeaderProps {
 // different product.
 export function BuildRunHeader({ run }: BuildRunHeaderProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
-      <div className="flex min-w-0 items-center gap-3">
-        <Link href="/builds" className="transition-swift shrink-0 text-sm text-fg-faint hover:text-fg-muted">
-          ← Builds
-        </Link>
-        <span className="flex shrink-0 items-center gap-1.5 text-fg-muted">
-          <BuildIcon className="h-4 w-4 shrink-0" />
-          <span className="font-mono text-xs">{shortId(run.id)}</span>
-        </span>
-        <span className="hidden truncate text-xs text-fg-faint sm:inline">Started {formatDateTime(run.createdAt)}</span>
+    <div className="border-b border-hairline px-4 py-4 sm:px-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/builds"
+              className="transition-swift shrink-0 font-mono text-[11px] uppercase tracking-[0.2em] text-fg-faint hover:text-fg-muted"
+            >
+              ← Builds
+            </Link>
+            <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-gilt">{shortId(run.id)}</span>
+          </div>
+          <h1 className="mt-1.5 flex items-center gap-2 font-serif text-2xl leading-tight text-fg">
+            <BuildIcon className="h-4 w-4 shrink-0 text-fg-muted" />
+            Build run
+          </h1>
+          <p className="mt-1 font-mono text-xs text-fg-faint">Started {formatDateTime(run.createdAt)}</p>
+        </div>
+        <BuildStatusBadge status={run.status} />
       </div>
-      <BuildStatusBadge status={run.status} />
     </div>
   );
 }

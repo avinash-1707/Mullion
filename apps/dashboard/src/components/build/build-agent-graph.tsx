@@ -113,7 +113,7 @@ export function BuildAgentGraph({ tasks, escalatedSpecTaskId = null, refitToken 
   const signature = `${flowNodes.map((n) => n.id).sort().join(",")}::${refitToken}`;
 
   return (
-    <div className="mullion-flow relative h-full min-h-[20rem] w-full overflow-hidden rounded-2xl border border-border bg-bg">
+    <div className="mullion-flow relative h-full min-h-[20rem] w-full overflow-hidden border border-border bg-bg">
       <ReactFlowProvider>
         <ReactFlow
           nodes={flowNodes}
@@ -132,7 +132,7 @@ export function BuildAgentGraph({ tasks, escalatedSpecTaskId = null, refitToken 
       </ReactFlowProvider>
       {tasks.length === 0 ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="text-sm text-fg-faint">Waiting for tasks…</p>
+          <p className="text-xs text-fg-faint">Waiting for tasks…</p>
         </div>
       ) : null}
     </div>

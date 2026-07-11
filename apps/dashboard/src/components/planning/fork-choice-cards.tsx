@@ -41,13 +41,13 @@ export function ForkChoiceCards({ sessionId, buildSpecId }: ForkChoiceCardsProps
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div className="flex flex-col gap-4 rounded-2xl border border-accent/40 bg-accent-soft p-6">
-        <div className="flex items-center gap-2 text-accent-strong">
+      <div className="flex flex-col gap-4 border border-hairline bg-accent-soft p-6 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1">
+        <div className="flex items-center gap-2 text-gilt">
           <DownloadIcon className="h-4 w-4" />
-          <span className="font-mono text-xs uppercase tracking-[0.15em]">Fork A</span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em]">Fork A</span>
         </div>
         <div>
-          <h3 className="text-base font-semibold text-fg">Export spec documents</h3>
+          <h3 className="font-serif text-xl leading-snug text-fg">Export spec documents</h3>
           <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">
             Requirements, architecture diagram, task graph, API contracts, and the full decision log — bundled as a
             downloadable archive. No build compute spent.
@@ -63,13 +63,13 @@ export function ForkChoiceCards({ sessionId, buildSpecId }: ForkChoiceCardsProps
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-4 rounded-2xl border border-border-strong bg-surface p-6">
-        <div className="flex items-center gap-2 text-fg-muted">
+      <div className="flex flex-col gap-4 border border-hairline bg-surface p-6 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1">
+        <div className="flex items-center gap-2 text-gilt">
           <BuildIcon className="h-4 w-4" />
-          <span className="font-mono text-xs uppercase tracking-[0.15em]">Fork B</span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em]">Fork B</span>
         </div>
         <div>
-          <h3 className="text-base font-semibold text-fg">Automated build</h3>
+          <h3 className="font-serif text-xl leading-snug text-fg">Automated build</h3>
           <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">
             Hand the same task graph to an agent team that codes, tests, reviews, and ships it end to end.
           </p>

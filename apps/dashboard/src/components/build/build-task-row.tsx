@@ -40,13 +40,15 @@ export function BuildTaskRow({ task, dependencyStatus }: BuildTaskRowProps) {
   const failureDetail = result && result.status === "failed" ? (result.detail ?? describeFailureReason(result.reason)) : null;
 
   return (
-    <div className="animate-reveal flex flex-col gap-2.5 rounded-xl border border-border bg-surface p-4">
+    <div className="animate-reveal flex flex-col gap-2.5 px-4 py-3.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 rounded-md bg-elevated px-2 py-0.5 font-mono text-[11px] text-fg-muted">
+          <span className="shrink-0 bg-elevated px-2 py-0.5 font-mono text-[11px] text-fg-muted">
             {task.specTaskId ?? task.id.slice(0, 8)}
           </span>
-          {task.attempt > 1 ? <span className="shrink-0 text-[11px] text-fg-faint">attempt {task.attempt}</span> : null}
+          {task.attempt > 1 ? (
+            <span className="shrink-0 font-mono text-[11px] text-fg-faint">attempt {task.attempt}</span>
+          ) : null}
         </div>
         <TaskStatusPill status={task.status} />
       </div>
@@ -67,15 +69,12 @@ export function BuildTaskRow({ task, dependencyStatus }: BuildTaskRowProps) {
 
       {task.dependsOn.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-fg-faint">depends on</span>
+          <span className="font-mono text-[11px] text-fg-faint">depends on</span>
           {task.dependsOn.map((depId) => {
             const depStatus = dependencyStatus(depId);
             const tone = depStatus ? toneForTaskStatus(depStatus) : "unknown";
             return (
-              <span
-                key={depId}
-                className={`rounded-full border px-2 py-0.5 font-mono text-[10px] ${DEP_CHIP_TONE_CLASS[tone]}`}
-              >
+              <span key={depId} className={`border px-2 py-0.5 font-mono text-[10px] ${DEP_CHIP_TONE_CLASS[tone]}`}>
                 {depId}
               </span>
             );
@@ -84,7 +83,7 @@ export function BuildTaskRow({ task, dependencyStatus }: BuildTaskRowProps) {
       ) : null}
 
       {failureDetail ? (
-        <p className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-danger">{failureDetail}</p>
+        <p className="border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-danger">{failureDetail}</p>
       ) : null}
 
       {result ? (

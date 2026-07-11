@@ -31,14 +31,14 @@ export function EditPromptBar({ disabled, disabledMessage, isSubmitting, onSubmi
 
   if (disabled && disabledMessage) {
     return (
-      <div className="flex items-center justify-center rounded-xl border border-dashed border-border-strong bg-surface px-4 py-3.5 text-xs text-fg-faint">
+      <div className="flex items-center justify-center border border-dashed border-border-strong bg-surface px-4 py-3.5 text-xs text-fg-faint">
         {disabledMessage}
       </div>
     );
   }
 
   return (
-    <div className="flex items-end gap-2.5 rounded-xl border border-border-strong bg-surface p-2.5">
+    <div className="flex items-end gap-2.5 border border-border-strong bg-surface p-2.5">
       <textarea
         rows={1}
         value={prompt}

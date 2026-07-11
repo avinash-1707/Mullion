@@ -7,24 +7,41 @@
  * approach called out in the brief — simpler and safer than a light
  * palette nobody has designed or tested yet.
  *
- * The marketing palette (cream/ink/ember/gilt) lives in apps/web only —
- * the app split (ADR-64) is what lets each surface carry just its own
- * tokens.
+ * Restyle pass 1 (dark hybrid, see ../../design-context.md): the base darks
+ * and accent family now match apps/web's brand instead of a parallel warm-
+ * amber palette. Dense data UI stays dark for legibility; what changed is
+ * which dark and which accent. fg/border/danger/success/node-* stay put —
+ * they're functional, not brand-decorative.
  */
 @theme {
-  --color-bg: #0a0b0d;
-  --color-surface: #141519;
-  --color-elevated: #1a1c22;
+  --color-bg: #08080d;
+  --color-surface: #10101a;
+  --color-elevated: #191927;
   --color-border: rgba(232, 230, 224, 0.1);
   --color-border-strong: rgba(232, 230, 224, 0.2);
   --color-fg: #edece7;
   --color-fg-muted: #9a9ca5;
   --color-fg-faint: #83858e;
-  --color-accent: #f2a65a;
-  --color-accent-strong: #ffc287;
-  --color-accent-soft: rgba(242, 166, 90, 0.14);
+  --color-accent: #c4552a;
+  --color-accent-strong: #d96b3d;
+  --color-accent-soft: rgba(196, 85, 42, 0.14);
   --color-danger: #ef6461;
   --color-danger-soft: rgba(239, 100, 97, 0.14);
+
+  /*
+   * Marketing-derived tokens, dark-side values only (see apps/web's
+   * design-context.md for the light-band counterparts, which the product
+   * never renders). `--color-accent*` above already equals ember — kept as
+   * its own named token too so components can say "this is ember" when the
+   * brand color is the point, distinct from "this is the accent" when it's
+   * incidentally themeable.
+   */
+  --color-ember: #c4552a;
+  --color-ember-strong: #d96b3d;
+  --color-gilt: #c99b2e;
+  --color-parchment: rgba(242, 236, 221, 0.72);
+  --color-parchment-faint: rgba(242, 236, 221, 0.44);
+  --color-hairline: rgba(201, 155, 46, 0.18);
 
   /*
    * Phase 1 architecture diagram — one hue per node kind so "what is this"

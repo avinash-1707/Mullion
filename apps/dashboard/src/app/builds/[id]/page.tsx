@@ -107,7 +107,7 @@ export default function BuildRunPage() {
               if (tab === "tasks" && tasksView === "graph") setGraphRefitToken((token) => token + 1);
             }}
             className={[
-              "transition-swift flex-1 border-b-2 px-4 py-2.5 text-sm font-medium",
+              "transition-swift flex-1 border-b-2 px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.15em]",
               activeTab === tab ? "border-accent text-fg" : "border-transparent text-fg-faint hover:text-fg-muted",
             ].join(" ")}
           >
@@ -119,7 +119,7 @@ export default function BuildRunPage() {
       <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 sm:p-6 lg:flex-row">
         <div className={`flex min-h-[20rem] flex-1 flex-col gap-3 ${activeTab === "tasks" ? "" : "hidden lg:flex"}`}>
           <div className="flex shrink-0 justify-end">
-            <div className="inline-flex items-center gap-0.5 rounded-full border border-border bg-surface p-0.5" aria-label="Task view">
+            <div className="inline-flex items-center border border-border bg-surface" aria-label="Task view">
               {(["list", "graph"] as const).map((view) => (
                 <button
                   key={view}
@@ -130,8 +130,8 @@ export default function BuildRunPage() {
                     if (view === "graph") setGraphRefitToken((token) => token + 1);
                   }}
                   className={[
-                    "transition-swift rounded-full px-3 py-1 text-xs font-medium",
-                    tasksView === view ? "bg-elevated text-fg" : "text-fg-faint hover:text-fg-muted",
+                    "transition-swift border-b-2 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.15em]",
+                    tasksView === view ? "border-accent text-fg" : "border-transparent text-fg-faint hover:text-fg-muted",
                   ].join(" ")}
                 >
                   {view === "list" ? "List" : "Graph"}

@@ -32,7 +32,7 @@ export function BuildTaskNodeCard({ data, selected }: NodeProps<BuildGraphFlowNo
   return (
     <div
       className={[
-        "animate-reveal w-[224px] rounded-xl border bg-surface px-4 py-3 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.55)]",
+        "animate-reveal w-[224px] border bg-surface px-4 py-3 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.55)]",
         isEscalated ? "border-danger bg-danger-soft" : status === "failed" ? "border-danger/40" : "border-border-strong",
         // 75 not lower: the description is text-fg-muted over the graph bg,
         // and whole-card opacity below ~75 drops it under WCAG AA contrast.
@@ -47,8 +47,8 @@ export function BuildTaskNodeCard({ data, selected }: NodeProps<BuildGraphFlowNo
 
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="shrink-0 rounded-md bg-elevated px-2 py-0.5 font-mono text-[11px] text-fg-muted">{displayId}</span>
-          {attempt > 1 ? <span className="shrink-0 text-[10px] text-fg-faint">attempt {attempt}</span> : null}
+          <span className="shrink-0 bg-elevated px-2 py-0.5 font-mono text-[11px] text-fg-muted">{displayId}</span>
+          {attempt > 1 ? <span className="shrink-0 font-mono text-[10px] text-fg-faint">attempt {attempt}</span> : null}
         </div>
         {isEscalated ? (
           <WarningIcon className="h-3.5 w-3.5 shrink-0 text-danger" />
@@ -60,7 +60,7 @@ export function BuildTaskNodeCard({ data, selected }: NodeProps<BuildGraphFlowNo
       <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-fg-muted">{description}</p>
 
       {isEscalated ? (
-        <p className="mt-1.5 text-[10px] font-semibold uppercase tracking-wide text-danger">Needs decision</p>
+        <p className="mt-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-danger">Needs decision</p>
       ) : null}
     </div>
   );

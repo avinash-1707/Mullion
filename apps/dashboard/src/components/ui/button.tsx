@@ -10,13 +10,15 @@ interface ButtonVariantsOptions {
 }
 
 const SIZES: Record<ButtonSize, string> = {
-  md: "h-11 px-5 text-sm",
-  sm: "h-9 px-4 text-[13px]",
+  md: "h-11 px-5 text-xs",
+  sm: "h-9 px-4 text-[11px]",
 };
 
+// Brand buttons read as mono uppercase labels (marketing recipe), square
+// corners throughout — see design-context.md "Buttons".
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-bg hover:bg-accent-strong",
-  secondary: "border border-border-strong text-fg hover:border-accent/50 hover:text-accent-strong",
+  primary: "bg-accent text-fg hover:bg-accent-strong",
+  secondary: "border border-border-strong bg-transparent text-fg hover:border-accent hover:text-accent-strong",
   ghost: "text-fg-muted hover:text-fg",
 };
 
@@ -25,7 +27,7 @@ const VARIANTS: Record<ButtonVariant, string> = {
 export function buttonVariants(options: ButtonVariantsOptions = {}): string {
   const { variant = "primary", size = "md", className = "" } = options;
   return [
-    "transition-swift inline-flex items-center justify-center gap-2 rounded-lg font-medium",
+    "transition-swift inline-flex items-center justify-center gap-2 font-mono uppercase tracking-[0.2em]",
     "active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45",
     SIZES[size],
     VARIANTS[variant],

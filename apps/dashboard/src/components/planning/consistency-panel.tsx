@@ -54,7 +54,7 @@ export function ConsistencyPanel({
   const showIssues = consistency && failing && !stale;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border-strong bg-surface px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 border border-border-strong bg-surface px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex items-center gap-2">
           {canConfirm ? (
@@ -78,12 +78,12 @@ export function ConsistencyPanel({
             {issuesOpen ? (
               <ul className="mt-2 flex flex-col gap-1.5">
                 {consistency.issues.map((issue, index) => (
-                  <li key={`${issue.code}-${index}`} className="rounded-lg border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-fg">
+                  <li key={`${issue.code}-${index}`} className="border border-danger/25 bg-danger-soft px-3 py-2 text-xs text-fg">
                     <p>{issue.message}</p>
                     {issue.nodeKeys.length > 0 ? (
                       <div className="mt-1 flex flex-wrap gap-1">
                         {issue.nodeKeys.map((key) => (
-                          <span key={key} className="rounded bg-bg/40 px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">
+                          <span key={key} className="bg-bg/40 px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">
                             {key}
                           </span>
                         ))}
@@ -97,7 +97,7 @@ export function ConsistencyPanel({
         ) : null}
 
         {confirmConflict ? (
-          <div className="rounded-lg border border-danger/30 bg-danger-soft px-3 py-2 text-xs text-danger">
+          <div className="border border-danger/30 bg-danger-soft px-3 py-2 text-xs text-danger">
             <div className="flex items-start justify-between gap-2">
               <p>{confirmConflict.message}</p>
               <button type="button" onClick={onDismissConflict} className="shrink-0 text-danger/70 hover:text-danger">

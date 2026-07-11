@@ -31,10 +31,10 @@ function isDraftValid(question: McqQuestion, draft: QuestionDraft): boolean {
 
 function chipClass(selected: boolean): string {
   return [
-    "transition-swift rounded-full border px-4 py-2 text-left text-sm font-medium",
+    "transition-swift border px-4 py-2 text-left text-sm font-medium",
     "active:scale-[0.97] focus-visible:outline-none",
     selected
-      ? "border-accent bg-accent-soft text-accent-strong"
+      ? "border-ember bg-accent-soft text-accent-strong"
       : "border-border-strong text-fg-muted hover:border-fg-faint hover:text-fg",
   ].join(" ");
 }
@@ -72,7 +72,7 @@ function QuestionEditor({ question, draft, disabled, onChange }: QuestionEditorP
     <fieldset disabled={disabled} className="flex flex-col gap-3">
       <legend className="text-[15px] font-medium leading-snug text-fg">{question.text}</legend>
       <div className="flex flex-wrap gap-2" role={question.type === "single_select" ? "radiogroup" : "group"}>
-        {question.options.map((option) => (
+        {question.options.map((option, index) => (
           <button
             key={option}
             type="button"
@@ -82,6 +82,9 @@ function QuestionEditor({ question, draft, disabled, onChange }: QuestionEditorP
             onClick={() => selectOption(option)}
             className={chipClass(draft.selected.has(option))}
           >
+            <span className="mr-2 font-mono text-[10px] text-fg-faint" aria-hidden="true">
+              {String.fromCharCode(65 + index)}
+            </span>
             {draft.selected.has(option) ? <CheckIcon className="mr-1.5 -mt-0.5 inline h-3.5 w-3.5" /> : null}
             {option}
           </button>
@@ -114,10 +117,10 @@ interface QuestionRoundRecapProps {
 // for non-creators viewing someone else's session.
 export function QuestionRoundRecap({ round }: QuestionRoundRecapProps) {
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-6">
+    <div className="flex flex-col gap-4 border border-border bg-surface p-6">
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs uppercase tracking-[0.15em] text-fg-faint">Round {round.round}</span>
-        <span className="rounded-full bg-elevated px-2.5 py-0.5 text-[11px] font-medium text-fg-muted">
+        <span className="border border-border-strong px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.15em] text-fg-muted">
           {round.answers === null ? "Awaiting answer" : "Answered"}
         </span>
       </div>
@@ -176,7 +179,7 @@ export function QuestionRoundCard({ round, disabled, isSubmitting, submitLabel =
   }
 
   return (
-    <div className="animate-reveal flex flex-col gap-6 rounded-2xl border border-border bg-surface p-6">
+    <div className="animate-reveal flex flex-col gap-6 border border-border bg-surface p-6">
       <span className="font-mono text-xs uppercase tracking-[0.15em] text-fg-faint">
         Round {round.round} of 2
       </span>

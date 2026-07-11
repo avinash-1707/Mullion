@@ -27,7 +27,7 @@ export function AgentStatusStrip({ agentState, agentError, actor, isCreator, onR
   if (agentState === "working") {
     return (
       <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-2.5 sm:px-6">
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
+        <span className="h-1.5 w-1.5 shrink-0 bg-accent" aria-hidden="true" />
         <p className="text-xs text-fg-muted">{actorLabel(actor)} is working…</p>
       </div>
     );

@@ -48,18 +48,19 @@ export function BuildEscalationGate({
   const canSubmitRedirect = redirectText.trim().length > 0 && redirectText.length <= REDIRECT_MAX_LENGTH;
 
   return (
-    <div className="animate-reveal border-b-2 border-danger/50 bg-danger-soft px-4 py-4 sm:px-6">
+    <div className="animate-reveal border-y-2 border-danger bg-danger-soft px-4 py-5 sm:px-6">
       <div className="mx-auto flex max-w-4xl flex-col gap-3">
-        <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-danger/15 text-danger">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-danger/40 bg-danger/15 text-danger">
             <WarningIcon className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-danger">
-              Action needed on <span className="font-mono text-xs">{specTaskId}</span>
-            </p>
-            <p className="mt-1 text-sm leading-relaxed text-fg">{reason}</p>
-            <p className="mt-1.5 text-[11px] text-danger/75">
+            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-danger">Escalation — action needed</p>
+            <h2 className="mt-1 font-serif text-xl leading-snug text-fg">
+              Task <span className="font-mono text-base text-danger">{specTaskId}</span> needs a decision
+            </h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-fg">{reason}</p>
+            <p className="mt-1.5 font-mono text-[11px] text-danger/75">
               This gate expires automatically after 30 minutes — an unanswered gate abandons this task and the build
               continues with what exists.
             </p>
@@ -67,7 +68,7 @@ export function BuildEscalationGate({
         </div>
 
         {error ? (
-          <div className="flex items-start justify-between gap-2 rounded-lg border border-danger/30 bg-bg/40 px-3 py-2 text-xs text-danger">
+          <div className="flex items-start justify-between gap-2 border border-danger/30 bg-bg/40 px-3 py-2 text-xs text-danger">
             <p>{error}</p>
             <button type="button" onClick={onDismissError} className="shrink-0 text-danger/70 hover:text-danger">
               ✕
@@ -76,8 +77,8 @@ export function BuildEscalationGate({
         ) : null}
 
         {redirectOpen ? (
-          <div className="flex flex-col gap-2.5 rounded-xl border border-danger/30 bg-bg/40 p-3">
-            <p className="text-[11px] font-medium uppercase tracking-wide text-danger/80">
+          <div className="flex flex-col gap-2.5 border border-danger/30 bg-bg/40 p-3">
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-danger/80">
               Redirect — scoped to this task only
             </p>
             <Textarea

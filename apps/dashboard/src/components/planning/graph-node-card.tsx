@@ -57,7 +57,7 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphFlowNode>) {
     <div
       onAnimationEnd={() => setFlashing(false)}
       className={[
-        "animate-reveal rounded-xl border bg-surface px-4 py-3 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.55)]",
+        "animate-reveal border bg-surface px-4 py-3 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.55)]",
         isTask ? "w-[180px]" : "w-[240px]",
         isRemoved
           ? "border-dashed border-border opacity-45"
@@ -75,7 +75,7 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphFlowNode>) {
 
       <div className="flex items-start justify-between gap-2">
         <div
-          className="flex items-center gap-1.5 rounded-full px-2 py-0.5"
+          className="flex items-center gap-1.5 px-2 py-0.5"
           style={{
             color: isRemoved ? "var(--color-fg-faint)" : config.color,
             backgroundColor: isRemoved || isTask ? "transparent" : config.tint,
@@ -87,7 +87,7 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphFlowNode>) {
         <div className="flex items-center gap-1">
           {data.flagged && !isRemoved ? <WarningIcon className="h-3.5 w-3.5 text-danger" /> : null}
           {data.revision > 1 ? (
-            <span className="rounded-full bg-elevated px-1.5 py-0.5 text-[10px] font-medium text-fg-muted">
+            <span className="bg-elevated px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">
               rev {data.revision}
             </span>
           ) : null}
@@ -102,7 +102,9 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphFlowNode>) {
           {data.description}
         </p>
       ) : null}
-      {isRemoved ? <p className="mt-1.5 text-[10px] uppercase tracking-wide text-fg-faint">Removed — kept for history</p> : null}
+      {isRemoved ? (
+        <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-fg-faint">Removed — kept for history</p>
+      ) : null}
     </div>
   );
 }

@@ -46,12 +46,12 @@ export function IdeaIntakeForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-4">
-      <div className="rounded-2xl border border-border bg-surface p-6 sm:p-8">
-        <div className="flex items-center gap-2 text-accent">
+      <div className="border border-border bg-surface p-6 sm:p-8">
+        <div className="flex items-center gap-2 text-gilt">
           <SparkIcon className="h-4 w-4" />
-          <span className="font-mono text-xs uppercase tracking-[0.2em]">New session</span>
+          <span className="font-mono text-[11px] uppercase tracking-[0.3em]">New session</span>
         </div>
-        <label htmlFor="idea" className="mt-4 block text-lg font-semibold tracking-tight text-fg">
+        <label htmlFor="idea" className="mt-4 block font-serif text-2xl leading-snug tracking-tight text-fg">
           What do you want to build?
         </label>
         <p className="mt-1.5 text-sm text-fg-muted">
@@ -67,7 +67,7 @@ export function IdeaIntakeForm() {
           onBlur={() => setTouched(true)}
           placeholder={EXAMPLES[0]}
           maxLength={MAX_LENGTH + 500}
-          className="transition-swift mt-5 w-full resize-none rounded-xl border border-border-strong bg-elevated px-4 py-3.5 text-[15px] leading-relaxed text-fg placeholder:text-fg-faint hover:border-fg-faint focus:border-accent"
+          className="transition-swift mt-5 w-full resize-none border border-border-strong bg-elevated px-4 py-3.5 text-[15px] leading-relaxed text-fg placeholder:text-fg-faint hover:border-fg-faint focus:border-ember focus:outline-none focus:ring-3 focus:ring-ember/20"
         />
 
         <div className="mt-2 flex items-center justify-between">
@@ -86,7 +86,7 @@ export function IdeaIntakeForm() {
         ) : null}
 
         {createSession.isError ? (
-          <p role="alert" className="mt-3 rounded-lg border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">
+          <p role="alert" className="mt-3 border-l-2 border-danger bg-danger-soft px-3.5 py-2.5 text-sm text-danger">
             {createSession.error.message}
           </p>
         ) : null}

@@ -91,7 +91,7 @@ export function ArchitecturePhase({
             type="button"
             onClick={() => selectTab(tab)}
             className={[
-              "transition-swift flex-1 border-b-2 px-4 py-2.5 text-sm font-medium",
+              "transition-swift flex-1 border-b-2 px-4 py-2.5 font-mono text-xs uppercase tracking-[0.15em]",
               activeTab === tab ? "border-accent text-fg" : "border-transparent text-fg-faint hover:text-fg-muted",
             ].join(" ")}
           >

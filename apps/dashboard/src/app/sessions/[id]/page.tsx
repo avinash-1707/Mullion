@@ -96,7 +96,7 @@ export default function PlanningSessionPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <Link href="/" className="transition-swift shrink-0 text-sm text-fg-faint hover:text-fg-muted">
             ← Dashboard
@@ -104,7 +104,7 @@ export default function PlanningSessionPage() {
           <span className="truncate text-sm text-fg-muted">{state.session.idea}</span>
         </div>
         {!isConfirmed ? (
-          <span className="shrink-0 rounded-full border border-border-strong px-3 py-1 font-mono text-xs text-fg-muted">
+          <span className="shrink-0 border border-border-strong px-3 py-1 font-mono text-[11px] uppercase tracking-[0.15em] text-fg-muted">
             {PHASE_LABEL[state.session.phase] ?? state.session.phase}
           </span>
         ) : null}

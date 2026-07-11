@@ -45,8 +45,9 @@ export default function BuildsPage() {
     <div className="mx-auto w-full max-w-4xl px-6 py-14">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-fg">Builds</h1>
-          <p className="mt-1.5 text-sm text-fg-muted">Your organization&apos;s 20 most recent automated build runs.</p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gilt">Builds</p>
+          <h1 className="mt-3 font-serif text-4xl leading-tight tracking-tight text-fg">Build runs</h1>
+          <p className="mt-2 text-sm text-fg-muted">Your organization&apos;s 20 most recent automated build runs.</p>
         </div>
         <Link href="/" className={buttonVariants({ variant: "secondary", size: "sm" })}>
           ← Dashboard
@@ -54,11 +55,11 @@ export default function BuildsPage() {
       </div>
 
       {runs.length === 0 ? (
-        <div className="mt-10 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border-strong bg-surface px-6 py-16 text-center">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent-strong">
+        <div className="mt-10 flex flex-col items-center gap-3 border border-hairline bg-surface px-6 py-16 text-center">
+          <span className="flex h-11 w-11 items-center justify-center bg-accent-soft text-accent-strong">
             <BuildIcon className="h-5 w-5" />
           </span>
-          <h2 className="text-base font-semibold text-fg">No builds yet</h2>
+          <h2 className="font-serif text-xl text-fg">No builds yet</h2>
           <p className="max-w-sm text-sm text-fg-muted">
             Builds start from a confirmed planning session — freeze an architecture, then choose &ldquo;Build it for us.&rdquo;
           </p>

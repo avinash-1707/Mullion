@@ -30,7 +30,7 @@ function CopyHashButton({ hash }: { hash: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="transition-swift inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-fg-muted hover:bg-elevated hover:text-fg"
+      className="transition-swift inline-flex items-center gap-1.5 px-1.5 py-0.5 text-fg-muted hover:bg-elevated hover:text-fg"
       aria-label="Copy content hash"
     >
       {copied ? (
@@ -76,7 +76,7 @@ export function ConfirmedView({ sessionId, buildSpecId, contentHash, frozenAt, n
         </div>
       </div>
 
-      <div className="border-t border-border p-4 sm:p-6">
+      <div className="border-t border-hairline p-4 sm:p-6">
         <ForkChoiceCards sessionId={sessionId} buildSpecId={buildSpecId} />
       </div>
     </div>

@@ -23,8 +23,8 @@ function ActorChip({ actor }: { actor: string }) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-        isUser ? "bg-accent-soft text-accent-strong" : "bg-elevated text-fg-muted",
+        "inline-flex items-center gap-1 border px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.15em]",
+        isUser ? "border-accent/40 text-accent-strong" : "border-border-strong text-fg-muted",
       ].join(" ")}
     >
       {isUser ? <PersonIcon className="h-3 w-3" /> : <SparkIcon className="h-3 w-3" />}
@@ -43,7 +43,7 @@ function timeLabel(iso: string): string {
 
 function DecisionRow({ entry }: { entry: DecisionEntry }) {
   return (
-    <div className="animate-reveal flex flex-col gap-1.5 rounded-xl border border-border bg-surface p-4">
+    <div className="animate-reveal flex flex-col gap-1.5 border-b border-hairline pb-4 last:border-b-0">
       <div className="flex items-center justify-between gap-2">
         <ActorChip actor={entry.actor} />
         <span className="font-mono text-[11px] text-fg-faint">{timeLabel(entry.createdAt)}</span>
@@ -52,7 +52,7 @@ function DecisionRow({ entry }: { entry: DecisionEntry }) {
       {entry.rationale ? <p className="text-xs leading-relaxed text-fg-muted">{entry.rationale}</p> : null}
       {entry.alternativesConsidered ? (
         <details className="group mt-0.5">
-          <summary className="transition-swift cursor-pointer list-none text-[11px] font-medium text-fg-faint hover:text-fg-muted">
+          <summary className="transition-swift cursor-pointer list-none font-mono text-[11px] uppercase tracking-[0.2em] text-fg-faint hover:text-fg-muted">
             <span className="mr-1 inline-block transition-transform group-open:rotate-90">›</span>
             Alternatives considered
           </summary>
@@ -75,7 +75,7 @@ function ClarificationRow({
   onChoose: (option: string) => void;
 }) {
   return (
-    <div className="animate-reveal flex flex-col gap-2 rounded-xl border border-accent/30 bg-accent-soft p-4">
+    <div className="animate-reveal flex flex-col gap-2 border border-accent/30 bg-accent-soft p-4">
       <div className="flex items-center justify-between gap-2">
         <ActorChip actor="planner" />
         <span className="font-mono text-[11px] text-fg-faint">{timeLabel(entry.createdAt)}</span>
@@ -89,7 +89,7 @@ function ClarificationRow({
             type="button"
             disabled={!isCreator || agentBusy || entry.answered}
             onClick={() => onChoose(option)}
-            className="transition-swift rounded-full border border-accent/40 bg-bg/40 px-3 py-1.5 text-xs font-medium text-fg hover:border-accent hover:text-accent-strong disabled:pointer-events-none disabled:opacity-50"
+            className="transition-swift border border-accent/40 bg-bg/40 px-3 py-1.5 text-xs font-medium text-fg hover:border-accent hover:text-accent-strong disabled:pointer-events-none disabled:opacity-50"
           >
             {option}
           </button>
@@ -130,9 +130,9 @@ export function DecisionLogPanel({ decisions, clarifications, isCreator, agentBu
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-2xl border border-border bg-bg">
+    <div className="flex h-full min-h-0 flex-col border border-border bg-bg">
       <div className="shrink-0 border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold text-fg">Decision log</h2>
+        <h2 className="font-serif text-lg text-fg">Decision log</h2>
         <p className="text-xs text-fg-faint">Every choice, with why — never silent.</p>
       </div>
       <div ref={scrollRef} onScroll={handleScroll} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
