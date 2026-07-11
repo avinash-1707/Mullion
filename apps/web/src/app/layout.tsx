@@ -1,7 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Archivo, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { createMetadata } from "@/config/metadata";
+import { siteConfig } from "@/config/site";
 
 const archivo = Archivo({
   variable: "--font-archivo",
@@ -29,12 +31,16 @@ const fraunces = Fraunces({
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteConfig.url),
+  ...createMetadata(),
   title: {
-    default: "Mullion",
-    template: "%s · Mullion",
+    default: siteConfig.name,
+    template: `%s · ${siteConfig.name}`,
   },
-  description:
-    "Mullion turns an idea into a live architecture plan — agents clarify scope, plan the system in front of you, then export specs or build it end to end.",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#08080d",
 };
 
 export default function RootLayout({

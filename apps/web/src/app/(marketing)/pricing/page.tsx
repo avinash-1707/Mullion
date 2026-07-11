@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { createMetadata } from "@/config/metadata";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { Pricing } from "@/components/landing/pricing";
 import { Faq } from "@/components/landing/faq";
@@ -6,11 +7,12 @@ import { Reveal } from "@/components/landing/reveal";
 import { FinalCta } from "@/components/landing/final-cta";
 import { LandingFooter } from "@/components/landing/landing-footer";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = createMetadata({
   title: "Pricing",
   description:
     "Simple prices for serious builds. Every Mullion tier plans in the open, asks before big calls, and delivers the whole project.",
-};
+  path: "/pricing",
+});
 
 // Placeholder comparison, like the tiers themselves: to be edited by hand.
 // `true` renders an ember plus, `false` a faint dash, a string prints as-is.
