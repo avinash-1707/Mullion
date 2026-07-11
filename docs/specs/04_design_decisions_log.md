@@ -1000,3 +1000,34 @@ over http auto-instr for one more dep); OTel 2.x with a type-cast at the
 Temporal boundary (1.x-shaped spans mis-serialize in a 2.x exporter);
 stamping trace ids into stream_events (schema churn, no consumer yet).
 **Doc:** `packages/otel/`, `02` §9
+
+### ADR-60 — Eval suite v1: direct-drive build phase, scripted CI baseline, repo-committed history
+**Status:** 🔧 Designed by Claude during Phase 3
+**Context:** ADR-12 fixed the metrics (pass rate, retries, escalation
+frequency, cost/task per version) over 15–20 fixed tasks "end-to-end
+through both services". With no live OpenRouter key yet, a literal
+end-to-end live run can't produce numbers, and CI needs something
+deterministic to guard the harness itself.
+**Decision:** v1 is 16 fixed tasks (difficulty 1–5, incl. one designed
+verify→fix cycle and one designed retry-exhaustion/escalation) executed by
+a direct-drive harness: the REAL buildTask loop, REAL sandboxes, REAL
+retry policy (RETRY_BUDGET/dispositionFor) and REAL persistence
+(runs/tasks/messages/cost_events under a dedicated eval org), but no
+Temporal in the loop — workflow orchestration is covered by the gated
+integration suite, and eval metrics are task-level. Three modes: `scripted`
+(fixture transcripts; CI default; outcome≠expected fails the run),
+`live` (real client; numbers become model-quality data), `replay` (ADR-11
+cassettes). Planning-phase (Fork A) evals are deferred until live creds
+exist — the fixtures already carry the `idea` field they'll consume.
+History is one JSONL record per full-suite run, committed to
+`docs/evals/history.jsonl` by the CI job on main (paths-ignore prevents
+retrigger); `trend.md` renders the table. Partial (`--only`) runs never
+record. The 16 tasks are FIXED — changing them without superseding ADR-12
+corrupts the trend, and a CI test freezes their shape.
+**Alternatives considered:** HTTP-driven full-stack eval (API+worker+
+Temporal+auth in CI — the honest "both services", deferred to live-creds
+time, not discarded); GitHub artifacts for history (no reviewable trend in
+the repo, awkward cross-run fetching); scripted mode asserting pass-rate
+thresholds instead of exact expectations (thresholds drift silently).
+**Doc:** `packages/evals/`, `.github/workflows/evals.yml`, `02` §10.2,
+ADR-12

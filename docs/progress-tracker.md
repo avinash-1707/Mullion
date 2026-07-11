@@ -64,6 +64,32 @@ template.
 
 ---
 
+### [2026-07-11] Phase 3 D3 — Fixed eval suite + CI trend line (ADR-12)
+**Phase:** Phase 3 — Observability, Evaluation & Hardening
+**Type:** Progress update
+**Summary:** New `packages/evals`: 16 fixed tasks (difficulty 1–5; two-
+and three-node dependency chains; a designed verify→fix cycle; a designed
+retry-exhaustion escalation) run by a direct-drive harness through the real
+buildTask loop, real Docker sandboxes, the real RETRY_BUDGET/dispositionFor
+policy, and real DB persistence under a dedicated eval org. Modes:
+scripted (CI baseline, expectation-checked), live, replay (ADR-11
+cassettes). Metrics per ADR-12: pass rate, retries, escalations,
+cost/task — appended per run to `docs/evals/history.jsonl`, rendered to
+`docs/evals/trend.md`. First recorded run: 15/16 pass, 2 retries,
+1 escalation (both from the designed-failure fixtures), $0.044 modeled
+cost, 43 turns. CI created (none existed): `ci.yml` (types/lint/build/test
++ gated Temporal integration job) and `evals.yml` (main-push scripted run
+against a Postgres service, history committed back, live mode via manual
+dispatch once a key secret exists). 9 new unit tests freeze the suite's
+shape. Full DoD green.
+**Files/areas touched:** packages/evals (new), .github/workflows (new),
+docs/evals (new)
+**Related ADR:** ADR-12 (implements); New — added ADR-60 to `04`
+**Follow-ups:** record live-mode baseline once OPENROUTER_API_KEY exists
+(repo secret + local); Fork-A planning-phase eval deferred until then
+(fixtures already carry `idea`); GH workflows unverified against a real
+runner until first push to a GitHub remote.
+
 ### [2026-07-11] Phase 3 D1 — OpenTelemetry tracing end to end, both services
 **Phase:** Phase 3 — Observability, Evaluation & Hardening
 **Type:** Progress update

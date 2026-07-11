@@ -1,0 +1,84 @@
+name: Evals
+
+# ADR-12/60: the fixed suite runs on every main push (scripted mode — the
+# deterministic harness path) and records the aggregate to
+# docs/evals/history.jsonl, which a follow-up commit persists so the trend
+# is a line, not a point. Live-mode runs are manual (workflow_dispatch) and
+# only make sense once OPENROUTER_API_KEY exists as a repo secret.
+#
+# paths-ignore keeps the history commit from re-triggering this workflow.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Eval mode"
+        type: choice
+        default: scripted
+        options: [scripted, live]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: evals-main
+  cancel-in-progress: false
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: mullion
+          POSTGRES_PASSWORD: mullion
+          POSTGRES_DB: mullion
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mullion"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Push the history commit back to the branch that triggered us.
+          ref: ${{ github.ref }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply DB schema
+        run: pnpm --filter @mullion/db db:push
+        env:
+          DATABASE_URL: postgres://mullion:mullion@localhost:5432/mullion
+      - name: Run eval suite
+        run: pnpm --filter @mullion/evals evals:ci -- --mode "${{ inputs.mode || 'scripted' }}"
+        env:
+          DATABASE_URL: postgres://mullion:mullion@localhost:5432/mullion
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      - name: Render trend
+        run: pnpm --filter @mullion/evals trend -- --out docs/evals/trend.md
+      - name: Persist history on main
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "mullion-evals[bot]"
+          git config user.email "evals@mullion.local"
+          git add docs/evals/history.jsonl docs/evals/trend.md
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(evals): record eval run for ${GITHUB_SHA::7}"
+          git push
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.sha }}
+          path: |
+            docs/evals/history.jsonl
+            docs/evals/trend.md
