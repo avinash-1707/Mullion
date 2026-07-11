@@ -94,9 +94,11 @@ in `02_system_architecture_spec.md` and `04_design_decisions_log.md`.
 
 ## Current status
 
-Planning and specification complete. No code has been written yet — see
-`docs/progress-tracker.md` for the live phase-by-phase status and a running log of what
-changes as building actually starts.
+v1 is feature-complete: all five build phases are done and verified, with a
+security review at the end of each phase. Verification against live
+credentials (real OpenRouter key, E2B, Temporal Cloud, GitHub OAuth) is
+still pending. See `docs/progress-tracker.md` for the phase-by-phase status
+and the running execution log.
 
 ## Where to go next
 
