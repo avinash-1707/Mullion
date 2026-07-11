@@ -4,6 +4,7 @@ import type {
   CostContext,
   ToolChatMessage,
 } from "@mullion/llm";
+import { withSpan } from "@mullion/otel";
 import { SandboxError, type Sandbox } from "@mullion/sandbox";
 import type { Db } from "@mullion/db";
 import type {
@@ -299,22 +300,34 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
         switch (parsed.name) {
           case "writeFile": {
             const args = parsed.args as WriteFileArgs;
-            await deps.sandbox.writeFile(args.path, args.content);
+            await withSpan("tool.writeFile", { "mullion.tool.path": args.path }, () =>
+              deps.sandbox.writeFile(args.path, args.content),
+            );
             writtenPaths.add(args.path);
             await pushToolResult(call.id, parsed.name, true, `wrote ${args.path} (${args.content.length} bytes)`);
             break;
           }
           case "readFile": {
             const args = parsed.args as ReadFileArgs;
-            const content = await deps.sandbox.readFile(args.path);
+            const content = await withSpan("tool.readFile", { "mullion.tool.path": args.path }, () =>
+              deps.sandbox.readFile(args.path),
+            );
             await pushToolResult(call.id, parsed.name, true, content);
             break;
           }
           case "runCommand": {
             const args = parsed.args as RunCommandArgs;
-            const result = await deps.sandbox.runCommand(args.cmd, {
-              timeoutMs: caps.commandTimeoutMs,
-            });
+            const result = await withSpan(
+              "tool.runCommand",
+              { "mullion.tool.cmd": args.cmd.slice(0, 200) },
+              async (span) => {
+                const r = await deps.sandbox.runCommand(args.cmd, {
+                  timeoutMs: caps.commandTimeoutMs,
+                });
+                span.setAttribute("mullion.tool.exit_code", r.exitCode);
+                return r;
+              },
+            );
             await pushToolResult(
               call.id,
               parsed.name,
@@ -331,12 +344,19 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
             const preVerifyBudget = await budgetTripped();
             if (preVerifyBudget) return fail(preVerifyBudget, "budget tripped before verification");
 
-            const outcome = await verify({
-              buildSandbox: deps.sandbox,
-              writtenPaths,
-              verifyCommand: input.verifyCommand,
-              commandTimeoutMs: caps.commandTimeoutMs,
-              costContext: input.costContext,
+            const outcome = await withSpan("tool.submit.verify", {}, async (span) => {
+              const o = await verify({
+                buildSandbox: deps.sandbox,
+                writtenPaths,
+                verifyCommand: input.verifyCommand,
+                commandTimeoutMs: caps.commandTimeoutMs,
+                costContext: input.costContext,
+              });
+              span.setAttributes({
+                "mullion.verify.passed": o.passed,
+                "mullion.verify.exit_code": o.exitCode,
+              });
+              return o;
             });
             llmCostUsd += outcome.costUsd; // Tester-agent cost counts toward the task
 

@@ -12,12 +12,16 @@
   },
   "dependencies": {
     "@mullion/db": "workspace:*",
+    "@mullion/otel": "workspace:*",
     "@mullion/schemas": "workspace:*",
+    "@opentelemetry/api": "^1.9.1",
     "drizzle-orm": "^0.45.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@mullion/config": "workspace:*",
+    "@opentelemetry/context-async-hooks": "^1.30.1",
+    "@opentelemetry/sdk-trace-base": "^1.30.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }

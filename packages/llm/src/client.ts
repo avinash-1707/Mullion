@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { withSpan, type Span } from "@mullion/otel";
 import { schema, type Db } from "@mullion/db";
 import type { AgentRole } from "@mullion/schemas";
 import { NoZdrProviderAvailableError, OpenRouterError, UnknownRoleError } from "./errors.js";
@@ -19,6 +20,26 @@ const STREAM_TIMEOUT_MS = 300_000;
 const STREAM_IDLE_TIMEOUT_MS = 45_000;
 // ~4x a 16k-token completion — anything past this is a runaway provider.
 const MAX_STREAM_CHARS = 2_000_000;
+
+// Every LLM span carries who called (role) and what actually answered —
+// served model + generation id + spend (02 §9's cost meter, per-span).
+function setLlmResultAttributes(
+  span: Span,
+  result: {
+    model: string;
+    generationId: string;
+    cost: number;
+    usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+  },
+): void {
+  span.setAttributes({
+    "mullion.llm.served_model": result.model,
+    "mullion.llm.generation_id": result.generationId,
+    "mullion.llm.cost_usd": result.cost,
+    "mullion.llm.prompt_tokens": result.usage.promptTokens,
+    "mullion.llm.completion_tokens": result.usage.completionTokens,
+  });
+}
 
 function toAbortError(error: unknown, message: string): unknown {
   if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
@@ -144,6 +165,14 @@ export class OpenRouterClient {
   }
 
   async completeChat(args: CompleteChatArgs): Promise<CompleteChatResult> {
+    return withSpan("llm.completeChat", { "mullion.agent_role": args.role }, async (span) => {
+      const result = await this.completeChatImpl(args);
+      setLlmResultAttributes(span, result);
+      return result;
+    });
+  }
+
+  private async completeChatImpl(args: CompleteChatArgs): Promise<CompleteChatResult> {
     const modelSlug = await this.resolveModel(args.role);
 
     let response: Response;
@@ -198,6 +227,17 @@ export class OpenRouterClient {
    * sidesteps reassembling fragmented tool_calls deltas across SSE chunks.
    */
   async completeChatWithTools(args: CompleteChatWithToolsArgs): Promise<CompleteChatWithToolsResult> {
+    return withSpan("llm.completeChatWithTools", { "mullion.agent_role": args.role }, async (span) => {
+      const result = await this.completeChatWithToolsImpl(args);
+      setLlmResultAttributes(span, result);
+      span.setAttribute("mullion.llm.tool_calls", result.toolCalls.length);
+      return result;
+    });
+  }
+
+  private async completeChatWithToolsImpl(
+    args: CompleteChatWithToolsArgs,
+  ): Promise<CompleteChatWithToolsResult> {
     const modelSlug = await this.resolveModel(args.role);
 
     let response: Response;
@@ -280,6 +320,16 @@ export class OpenRouterClient {
    * with a top-level `error` key, which we surface as a typed error.
    */
   async completeChatStream(
+    args: CompleteChatArgs & { onDelta: (text: string) => void | Promise<void> },
+  ): Promise<CompleteChatResult> {
+    return withSpan("llm.completeChatStream", { "mullion.agent_role": args.role }, async (span) => {
+      const result = await this.completeChatStreamImpl(args);
+      setLlmResultAttributes(span, result);
+      return result;
+    });
+  }
+
+  private async completeChatStreamImpl(
     args: CompleteChatArgs & { onDelta: (text: string) => void | Promise<void> },
   ): Promise<CompleteChatResult> {
     const modelSlug = await this.resolveModel(args.role);

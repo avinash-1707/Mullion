@@ -970,3 +970,33 @@ record and duplicates parsing); replay-with-live-fallback on miss (silently
 reintroduces cost + nondeterminism); recording error responses (replaying a
 transient 429 forever is a trap, not a fixture).
 **Doc:** `packages/llm/src/replay.ts`, `02` §10.1, ADR-11
+
+### ADR-59 — OTel tracing: no-op-by-default bootstrap, OTel 1.x line, span placement
+**Status:** 🔧 Designed by Claude during Phase 3
+**Context:** 02 §9 requires one trace from idea through delivery across both
+services. Implementation had judgment calls: SDK version line, how tracing
+turns on, and where spans are created.
+**Decision:** A `packages/otel` package owns the bootstrap: tracing is a
+hard no-op unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set (`OTEL_SDK_DISABLED`
+as override), so dev/test/CI pay nothing and need no collector — heavy SDK
+packages load via dynamic import only when enabled. Pinned to the OTel 1.x
+SDK line because `@temporalio/interceptors-opentelemetry` (the only way to
+carry context across the workflow sandbox) depends on it; upgrading to
+OTel 2.x waits on Temporal. Auto-instrumentation is undici-only
+(diagnostics_channel-based, reliable under tsx's ESM loader); the Hono
+request span is a hand-rolled middleware (~40 lines) that extracts
+W3C traceparent and names spans by route pattern, instead of adding
+`@hono/otel`. Trace continuity: client interceptor (API) → workflow
+interceptor module (bundled) → activity interceptors (Node) → manual spans
+at the two seams that matter — every LLM call (`llm.*` spans carrying role,
+served model, generation id, tokens, cost) and every coder tool invocation
+(`tool.*` spans carrying path/cmd/exit code). Workflow-sandbox spans exit
+via Temporal's exporter sink (separate BatchSpanProcessor, same endpoint).
+`stream_events` rows are NOT stamped with trace ids in v1 — events already
+key to runs/sessions; revisit only if trace↔UI-event correlation is needed.
+**Alternatives considered:** `getNodeAutoInstrumentations()` (unreliable
+module patching under tsx ESM, large dep surface); `@hono/otel` (thin value
+over http auto-instr for one more dep); OTel 2.x with a type-cast at the
+Temporal boundary (1.x-shaped spans mis-serialize in a 2.x exporter);
+stamping trace ids into stream_events (schema churn, no consumer yet).
+**Doc:** `packages/otel/`, `02` §9

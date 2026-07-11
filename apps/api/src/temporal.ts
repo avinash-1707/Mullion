@@ -1,4 +1,5 @@
 import { Client, Connection } from "@temporalio/client";
+import { OpenTelemetryWorkflowClientInterceptor } from "@temporalio/interceptors-opentelemetry";
 import { env } from "./env.js";
 
 /**
@@ -13,7 +14,13 @@ export function getTemporalClient(): Promise<Client> {
   if (!clientPromise) {
     clientPromise = (async () => {
       const connection = await Connection.connect({ address: env.TEMPORAL_ADDRESS });
-      return new Client({ connection, namespace: env.TEMPORAL_NAMESPACE });
+      return new Client({
+        connection,
+        namespace: env.TEMPORAL_NAMESPACE,
+        // Carries the API request's trace context into the workflow (02 §9)
+        // — no-op spans unless the process started OTel.
+        interceptors: { workflow: [new OpenTelemetryWorkflowClientInterceptor()] },
+      });
     })().catch((error) => {
       // Reset so a later request retries the connection instead of caching
       // a rejected promise forever.

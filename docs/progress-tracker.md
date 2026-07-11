@@ -64,6 +64,33 @@ template.
 
 ---
 
+### [2026-07-11] Phase 3 D1 — OpenTelemetry tracing end to end, both services
+**Phase:** Phase 3 — Observability, Evaluation & Hardening
+**Type:** Progress update
+**Summary:** 02 §9 tracing built: new `packages/otel` (no-op unless
+`OTEL_EXPORTER_OTLP_ENDPOINT` set; dynamic-imported NodeSDK + undici
+instrumentation; `withSpan`/`currentTraceId` helpers). One trace spans the
+whole path: Hono middleware (traceparent extract, route-pattern span names)
+→ Temporal workflow-client interceptor → bundled workflow interceptor →
+activity interceptors → `llm.*` spans on all three OpenRouterClient methods
+(role, served model, generation id, tokens, cost) → `tool.*` spans on every
+coder tool invocation (writeFile/readFile/runCommand/verify, with exit
+codes). Workflow-sandbox spans exit via Temporal's exporter sink. Pinned to
+OTel 1.x line (Temporal interceptor compatibility — see ADR-59); resolving
+that surfaced and fixed a pnpm dual-instance drizzle-orm type split.
+Verified: 5 new tests (span helpers, LLM span attributes, error status) +
+gated integration test proving the worker bundles the workflow interceptor
+module; API smoke-booted with tracing middleware live; full DoD green
+(197 tests).
+**Files/areas touched:** packages/otel (new), packages/llm (client spans),
+packages/agents (tool spans), packages/orchestrator (worker interceptors +
+sink), apps/api (index, worker, temporal, middleware/tracing)
+**Related ADR:** New — added ADR-59 to `04`
+**Follow-ups:** live OTLP export against a real collector still unverified
+(no collector locally) — fold into D4's verification pass if one is
+available, else note as pending-creds like other live integrations;
+stream_events trace-id stamping deliberately skipped (ADR-59).
+
 ### [2026-07-11] Phase 3 D2 — LLM record/replay cache (ADR-11) operational
 **Phase:** Phase 3 — Observability, Evaluation & Hardening
 **Type:** Progress update

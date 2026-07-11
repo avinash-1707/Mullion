@@ -1,4 +1,5 @@
 import { NativeConnection } from "@temporalio/worker";
+import { createWorkerOtelParts, startOtel } from "@mullion/otel";
 import { OpenRouterClient } from "@mullion/llm";
 import { createSandboxDriver, reapStaleContainers } from "@mullion/sandbox";
 import { createArtifactStore } from "@mullion/artifacts";
@@ -26,6 +27,11 @@ const STALE_CONTAINER_MS = 60 * 60_000; // 1h — well past the per-task TTL
 const SWEEP_INTERVAL_MS = 15 * 60_000;
 
 async function main(): Promise<void> {
+  // Activity/Node spans go through the NodeSDK; workflow-sandbox spans exit
+  // via the exporter sink below. Both no-op without an OTLP endpoint (02 §9).
+  await startOtel({ serviceName: "mullion-build-worker" });
+  const otel = await createWorkerOtelParts({ serviceName: "mullion-build-worker" });
+
   // Global orphan sweep at boot + periodically (Phase-2 gate): the per-run
   // reaper only fires on a retry of the same run, so a SIGKILLed or
   // abandoned run would otherwise leak its container forever.
@@ -79,6 +85,7 @@ async function main(): Promise<void> {
   const worker = await createBuildWorker({
     connection,
     namespace: env.TEMPORAL_NAMESPACE,
+    ...(otel ? { otel } : {}),
     deps: {
       db,
       llm,

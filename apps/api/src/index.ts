@@ -3,20 +3,26 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
+import { startOtel } from "@mullion/otel";
 import { seedModelRouting } from "@mullion/llm";
 import { auth } from "./auth.js";
 import { db, pool } from "./db.js";
 import { env } from "./env.js";
 import { ipRateLimit, userRateLimit } from "./middleware/rate-limit.js";
 import { sessionMiddleware, type AuthVariables } from "./middleware/session.js";
+import { tracingMiddleware } from "./middleware/tracing.js";
 import { buildsRoute } from "./routes/builds.js";
 import { devRoute } from "./routes/dev.js";
 import { githubRoute } from "./routes/github.js";
 import { planningSessionsRoute } from "./routes/planning-sessions.js";
 
+// No-op without OTEL_EXPORTER_OTLP_ENDPOINT (02 §9) — before any traffic.
+await startOtel({ serviceName: "mullion-api" });
+
 const app = new Hono<{ Bindings: HttpBindings; Variables: AuthVariables }>();
 
 app.use(logger());
+app.use("*", tracingMiddleware);
 
 // CORS before everything that answers — Better Auth's cookies need
 // credentials:true from the exact Next.js origin (02 §7.1.1); `*` is
