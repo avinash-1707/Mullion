@@ -2,10 +2,11 @@ import { Hono } from "hono";
 import type { HttpBindings } from "@hono/node-server";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
-import { logger } from "hono/logger";
+import { childLogger } from "@mullion/logger";
 import { auth } from "./modules/auth/auth.js";
 import { env } from "./config/env.js";
 import { credentialRateLimit, ipRateLimit, userRateLimit } from "./middleware/rate-limit.js";
+import { requestLogMiddleware } from "./middleware/request-log.js";
 import { sessionMiddleware, type AuthVariables } from "./middleware/session.js";
 import { tracingMiddleware } from "./middleware/tracing.js";
 import { buildsRoute } from "./modules/builds/routes.js";
@@ -23,8 +24,10 @@ import { planningSessionsRoute } from "./modules/planning/routes.js";
 export function createApp(): Hono<{ Bindings: HttpBindings; Variables: AuthVariables }> {
   const app = new Hono<{ Bindings: HttpBindings; Variables: AuthVariables }>();
 
-  app.use(logger());
   app.use("*", tracingMiddleware);
+  // After tracingMiddleware: the request span must be active so the
+  // completion line carries trace_id (ADR-63).
+  app.use("*", requestLogMiddleware());
 
   // CORS before everything that answers — Better Auth's cookies need
   // credentials:true from the exact Next.js origin (02 §7.1.1); `*` is
@@ -90,7 +93,7 @@ export function createApp(): Hono<{ Bindings: HttpBindings; Variables: AuthVaria
     if (error instanceof HTTPException) {
       return error.getResponse();
     }
-    console.error(error);
+    childLogger({ module: "http" }).error({ err: error }, "unhandled request error");
     return c.json({ error: "Internal server error" }, 500);
   });
 

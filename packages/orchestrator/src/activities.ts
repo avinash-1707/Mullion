@@ -2,6 +2,7 @@ import { Context } from "@temporalio/activity";
 import { ApplicationFailure } from "@temporalio/common";
 import { and, eq } from "drizzle-orm";
 import { schema, type Db } from "@mullion/db";
+import { childLogger, type Logger } from "@mullion/logger";
 import {
   DEFAULT_TASK_CAPS,
   buildReviewerAgent,
@@ -47,6 +48,8 @@ export interface ActivityDeps {
   reviewLlm?: OneShotLlm | undefined;
   /** M4 (ADR-54): delivery targets tried in order (archive always; github if linked). */
   deliveryTargets?: DeliveryTarget[] | undefined;
+  /** Structured logger (ADR-63); defaults to the process root's child. */
+  log?: Logger | undefined;
   /** Injected so the orchestrator stays decoupled from apps/api's SSE impl. */
   publishEvent?:
     | ((
@@ -54,6 +57,10 @@ export interface ActivityDeps {
         args: { streamId: string; organizationId: string; eventType: string; payload: unknown },
       ) => Promise<void>)
     | undefined;
+}
+
+function logOf(deps: ActivityDeps): Logger {
+  return deps.log ?? childLogger({ module: "orchestrator" });
 }
 
 export function createActivities(deps: ActivityDeps): BuildActivities {
@@ -124,6 +131,15 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
     },
 
     async runTaskActivity(args: RunTaskActivityArgs): Promise<TaskResult> {
+      // Run-scoped bindings (ADR-63): every line from this task attempt
+      // carries the ids a debugging session filters by.
+      const taskLog = logOf(deps).child({
+        run_id: args.runId,
+        org_id: args.organizationId,
+        task_id: args.specTaskId,
+        attempt: args.attempt,
+      });
+      taskLog.info("task attempt started");
       // Reap any sandbox orphaned by a prior crashed attempt of this run
       // (ADR-52) before spinning a fresh one. Safe: returns 0 if Docker is
       // unreachable (e.g. E2B driver), never throws.
@@ -230,8 +246,8 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
         // never fail an already-verified task (which would burn budget on a
         // fruitless re-run).
         if (deps.artifactStore) {
-          await snapshotSandbox(deps.artifactStore, sandbox, args.runId, result.producedPaths).catch(
-            (error) => console.error(`snapshot failed for run ${args.runId} (non-fatal):`, error),
+          await snapshotSandbox(deps.artifactStore, sandbox, args.runId, result.producedPaths, taskLog).catch(
+            (error: unknown) => taskLog.warn({ err: error }, "snapshot failed (non-fatal)"),
           );
         }
         await publishTaskEvent(deps, args, {
@@ -241,6 +257,15 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
           costUsd: result.costUsd,
           ...(result.status === "failed" ? { reason: result.reason } : {}),
         });
+        taskLog.info(
+          {
+            status: result.status,
+            turns: result.turns,
+            cost_usd: result.costUsd,
+            ...(result.status === "failed" ? { reason: result.reason } : {}),
+          },
+          "task attempt finished",
+        );
         return result;
       } finally {
         clearInterval(heartbeat);
@@ -393,7 +418,10 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
           // credential-bearing client (Phase-2 gate).
           const detail =
             error instanceof Error ? error.message : typeof error === "string" ? error : "unknown error";
-          console.error(`delivery target "${target.kind}" failed for run ${runId}: ${detail}`);
+          logOf(deps).error(
+            { run_id: runId, org_id: organizationId, target: target.kind, reason: detail },
+            "delivery target failed",
+          );
         }
       }
 
@@ -427,6 +455,7 @@ async function snapshotSandbox(
   sandbox: Sandbox,
   runId: string,
   producedPaths: string[],
+  log: Logger,
 ): Promise<void> {
   const files = [];
   let totalBytes = 0;
@@ -442,7 +471,10 @@ async function snapshotSandbox(
     if (content === undefined) continue;
     totalBytes += Buffer.byteLength(content, "utf8");
     if (totalBytes > MAX_SNAPSHOT_BYTES) {
-      console.error(`snapshot for run ${runId} exceeded ${MAX_SNAPSHOT_BYTES} bytes — remaining files skipped`);
+      log.warn(
+        { max_bytes: MAX_SNAPSHOT_BYTES },
+        "snapshot exceeded byte ceiling — remaining files skipped",
+      );
       break;
     }
     files.push({ path, content });
@@ -463,8 +495,11 @@ async function publishTaskEvent(
       eventType: "task",
       payload: { specTaskId: args.specTaskId, ...payload },
     })
-    .catch((error) =>
-      console.error(`task event publish failed for run ${args.runId} (non-fatal):`, error),
+    .catch((error: unknown) =>
+      logOf(deps).warn(
+        { err: error, run_id: args.runId, org_id: args.organizationId },
+        "task event publish failed (non-fatal)",
+      ),
     );
 }
 

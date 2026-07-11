@@ -21,6 +21,7 @@
     "@mullion/db": "workspace:*",
     "@mullion/delivery": "workspace:*",
     "@mullion/llm": "workspace:*",
+    "@mullion/logger": "workspace:*",
     "@mullion/orchestrator": "workspace:*",
     "@mullion/otel": "workspace:*",
     "@mullion/sandbox": "workspace:*",

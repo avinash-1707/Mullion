@@ -64,6 +64,32 @@ template.
 
 ---
 
+### [2026-07-11] Shared structured logging via new packages/logger (ADR-63)
+**Phase:** Post-Phase 4 maintenance
+**Type:** Architecture change
+**Summary:** Replaced all ad-hoc `console.*` logging with a shared
+pino-based structured logger. New `@mullion/logger` (depends only on
+`@opentelemetry/api` — no cycle with `@mullion/otel`) stamps
+`trace_id`/`span_id` on every line via a mixin reading the active span,
+redacts secret-bearing paths, and serializes errors to
+type/message/stack only (an Octokit error's embedded auth header can't
+leak). `LOG_LEVEL`/`LOG_FORMAT` added to the validated env schema
+(pretty in development, JSON elsewhere). `startOtel()` now registers an
+exporterless tracer provider + context manager even without an OTLP
+endpoint so trace correlation works in local dev. `hono/logger` replaced
+by a structured request-completion middleware after `tracingMiddleware`;
+orchestrator activities take an injected `log` dep with run-scoped
+bindings (`run_id`/`org_id`/`task_id`); Temporal workflow code stays
+logger-free (zero-IO isolate). LLM prompt/completion bodies are never
+logged (metadata only) — stdout sits outside the ZDR guarantee.
+**Files/areas touched:** `packages/logger/` (new), `packages/otel/src/start.ts`,
+`packages/config/src/env.ts`, `apps/api/src/{index,worker,app}.ts`,
+`apps/api/src/middleware/request-log.ts` (new), `apps/api/src/lib/sse.ts`,
+`packages/orchestrator/src/activities.ts`, `docs/CODING_STANDARDS.md` §12
+**Related ADR:** New — added ADR-63 to `04`
+**Follow-ups:** OTLP logs export + log shipping deferred (03 territory);
+audit-log product feature stays a Postgres concern, not log lines.
+
 ### [2026-07-11] apps/api restructured to module-based layout (ADR-62)
 **Phase:** Post-Phase 4 maintenance
 **Type:** Architecture change (code organization only, no behavior change)

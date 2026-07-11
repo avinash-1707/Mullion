@@ -1087,3 +1087,49 @@ routes-vs-domain split already caused navigation friction); a `core/`
 folder holding config+lib+middleware together (one less top-level name,
 but hides the config/infra distinction the owner asked for explicitly).
 **Doc:** `apps/api/README.md` (layout table), `apps/api/src/`
+
+### ADR-63 — Structured logging: pino in a new `packages/logger`
+**Status:** 🔧 Designed by Claude after Phase 4 close
+**Context:** No structured logger exists — eight ad-hoc `console.*` call
+sites across the API entry point, build worker, Hono error handler, SSE,
+and the otel package itself, plus the plain-text `hono/logger`
+middleware. Spec `02` §9 requires a `trace_id` threaded through every
+agent call across both services; nothing correlates logs with the
+existing OTel traces today. Real domain logic lives in `packages/*`
+(agents, llm, sandbox, orchestrator, delivery), so an api-local logger
+cannot cover the interesting events.
+**Decision:** New `packages/logger` wrapping pino, depending only on
+`@opentelemetry/api` (never `@mullion/otel`), so `@mullion/otel` can
+itself depend on the logger with no cycle. A pino `mixin()` reads the
+active span per line and stamps `trace_id`/`span_id`. Entry points
+(`index.ts`, `worker.ts`) call `initLogger()` before `startOtel()` and
+own transport and level via new validated env (`LOG_LEVEL`,
+`LOG_FORMAT` json|pretty, defaulted from `NODE_ENV`) in
+`packages/config`; `pino-pretty` is a devDependency wired only in
+pretty mode, prod writes raw JSON to stdout. Library packages consume a
+hybrid model: module-level `childLogger({ module })` singleton imports
+for ad-hoc logs, run-scoped bindings (`org_id`, `build_id`, `run_id`,
+`task_id`) injected through the existing activity-deps objects. To make
+`trace_id` appear in local dev, `@mullion/otel` always registers a
+ContextManager plus bare tracer provider even when
+`OTEL_EXPORTER_OTLP_ENDPOINT` is unset (exporterless — the no-op stays
+only for the export layer). Day-one `redact` paths cover authorization
+and cookie headers, tokens, API keys, passwords, and prompt/completion
+bodies; LLM prompt/completion bodies are never logged at all (metadata
+only: model, role, token counts, latency) — stdout sits outside the ZDR
+guarantee (ADR-27), so redaction is backstop, not policy. `hono/logger`
+is replaced by a small pino middleware placed after `tracingMiddleware`
+so request-completion lines carry the trace id. Temporal workflow code
+(`workflows.ts`, zero-IO isolate) never imports the logger; all logging
+happens in activities and normal Node code. Explicitly out of scope:
+OTLP logs export, audit-log product feature (Postgres, later), cost
+metering, browser/web logging, log shipping infra.
+**Alternatives considered:** folding pino into `packages/otel`
+(couples concerns and breaks that package's dynamic-import discipline);
+app-local logger in `apps/api` (packages can't log); full DI of the
+logger through every signature (max testability, too noisy); truncated
+prompt/completion logging (still leaks user content, weakens the ZDR
+story); OTel logs-bridge/OTLP logs pipeline (deferred until there is
+real traffic to ship).
+**Doc:** `packages/logger/`, `packages/otel/src/start.ts`,
+`packages/config/src/env.ts`

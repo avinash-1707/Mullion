@@ -215,3 +215,26 @@ whatever direction the design skill lands on for a given surface:
   Whatever it surfaces gets fixed before moving to the next phase — never
   queued as later cleanup that compounds with whatever the next phase
   builds on top of it.
+
+## 12. Logging (ADR-63)
+
+- **All logging goes through `@mullion/logger`** (pino). Never `console.*`
+  in product code; never a direct pino import outside that package.
+- **Entry points configure, everything else consumes.** `index.ts` and
+  `worker.ts` call `initLogger()` once, before `startOtel()`. Library
+  code uses `childLogger({ module })` or an injected logger. Create child
+  loggers inside functions and factories, not at module top level, or
+  they bind to the fallback root before `initLogger()` runs.
+- **Standard fields:** `module` on every child; `org_id`, `build_id`,
+  `run_id`, `task_id` bound where those ids first exist (see the
+  run-scoped child in `packages/orchestrator/src/activities.ts`).
+  `trace_id`/`span_id` arrive automatically from the active span.
+- **Never log LLM prompt or completion bodies.** Log metadata only:
+  model, role, token counts, cost, latency. Stdout is outside the ZDR
+  guarantee (ADR-27); the redact list is a backstop, not the policy.
+- **Log errors as `{ err }`**, not string interpolation. The serializer
+  keeps type/message/stack only, so SDK errors (for example an Octokit
+  error carrying its request auth header) cannot leak credentials.
+- **Temporal workflow code never imports the logger.**
+  `packages/orchestrator/src/workflows.ts` is a zero-IO isolate; logging
+  belongs in activities.

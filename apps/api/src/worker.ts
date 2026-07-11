@@ -1,4 +1,5 @@
 import { NativeConnection } from "@temporalio/worker";
+import { childLogger, getLogger, initLogger, type Logger } from "@mullion/logger";
 import { createWorkerOtelParts, startOtel } from "@mullion/otel";
 import { OpenRouterClient } from "@mullion/llm";
 import { createSandboxDriver, reapStaleContainers } from "@mullion/sandbox";
@@ -27,6 +28,13 @@ const STALE_CONTAINER_MS = 60 * 60_000; // 1h — well past the per-task TTL
 const SWEEP_INTERVAL_MS = 15 * 60_000;
 
 async function main(): Promise<void> {
+  // Logger first (ADR-63), then OTel — startOtel registers the context
+  // manager the trace_id mixin reads.
+  const log: Logger = initLogger({
+    service: "mullion-build-worker",
+    level: env.LOG_LEVEL,
+    pretty: env.LOG_FORMAT === "pretty",
+  });
   // Activity/Node spans go through the NodeSDK; workflow-sandbox spans exit
   // via the exporter sink below. Both no-op without an OTLP endpoint (02 §9).
   await startOtel({ serviceName: "mullion-build-worker" });
@@ -38,7 +46,7 @@ async function main(): Promise<void> {
   if (env.SANDBOX_DRIVER === "local") {
     const sweep = (): void => {
       void reapStaleContainers(STALE_CONTAINER_MS).then((n) => {
-        if (n > 0) console.log(`swept ${n} stale sandbox container(s)`);
+        if (n > 0) log.info({ count: n }, "swept stale sandbox containers");
       });
     };
     sweep();
@@ -72,7 +80,7 @@ async function main(): Promise<void> {
   // audit). S3 no-ops (its retention is a bucket lifecycle rule).
   const sweepArtifacts = (): void => {
     void artifactStore.sweepStale(env.ARTIFACT_RETENTION_MS).then((n) => {
-      if (n > 0) console.log(`swept ${n} stale artifact tree(s)`);
+      if (n > 0) log.info({ count: n }, "swept stale artifact trees");
     });
   };
   sweepArtifacts();
@@ -100,6 +108,7 @@ async function main(): Promise<void> {
     deps: {
       db,
       llm,
+      log: childLogger({ module: "orchestrator" }),
       driver,
       sandboxCostPerSec: env.SANDBOX_COST_USD_PER_SEC,
       image: env.SANDBOX_IMAGE,
@@ -111,11 +120,13 @@ async function main(): Promise<void> {
     },
   });
 
-  console.log(`build worker connected to Temporal at ${env.TEMPORAL_ADDRESS}`);
+  log.info({ address: env.TEMPORAL_ADDRESS }, "build worker connected to Temporal");
   await worker.run();
 }
 
-main().catch((error) => {
-  console.error(error);
+main().catch((error: unknown) => {
+  // getLogger(): main() may have died before initLogger() ran.
+  getLogger().fatal({ err: error }, "build worker crashed");
+  getLogger().flush();
   process.exitCode = 1;
 });

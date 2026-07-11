@@ -2,6 +2,7 @@ import { and, asc, eq, gt, sql } from "drizzle-orm";
 import type { Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { streamSSE } from "hono/streaming";
+import { childLogger } from "@mullion/logger";
 import { schema, type Db, type Tx } from "@mullion/db";
 
 const POLL_INTERVAL_MS = 1_000;
@@ -121,7 +122,7 @@ export function streamEvents(c: Context, args: StreamArgs): Response {
       }
     },
     async (error, stream) => {
-      console.error(`SSE stream ${args.streamId} errored:`, error);
+      childLogger({ module: "sse" }).error({ err: error, streamId: args.streamId }, "SSE stream errored");
       await stream.close();
     },
   );

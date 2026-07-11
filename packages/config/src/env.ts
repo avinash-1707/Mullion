@@ -8,6 +8,11 @@ import { z } from "zod";
 export const apiEnvSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(8787),
+  // Structured logging (ADR-63). LOG_FORMAT defaults by NODE_ENV in the
+  // transform below: pretty for development, JSON everywhere else (test
+  // included — pino-pretty's worker thread has no place in a test run).
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+  LOG_FORMAT: z.enum(["json", "pretty"]).optional(),
   DATABASE_URL: z.string().url(),
   BETTER_AUTH_SECRET: z.string().min(32),
   // Origin the API itself is served from (Better Auth baseURL).
@@ -133,7 +138,10 @@ export const apiEnvSchema = z.object({
       message: "required when SANDBOX_DRIVER=e2b — set it or use SANDBOX_DRIVER=local",
     });
   }
-});
+}).transform((env) => ({
+  ...env,
+  LOG_FORMAT: env.LOG_FORMAT ?? (env.NODE_ENV === "development" ? ("pretty" as const) : ("json" as const)),
+}));
 
 export type ApiEnv = z.infer<typeof apiEnvSchema>;
 
