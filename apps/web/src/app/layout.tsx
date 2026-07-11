@@ -14,6 +14,12 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
 });
 
+// Nonce-based CSP (src/proxy.ts) applies the per-request nonce during SSR;
+// a statically-generated page would ship with no nonce and have its own
+// scripts blocked. Force dynamic rendering app-wide so every route renders
+// per-request and picks up its nonce (the documented CSP-nonce tradeoff).
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: {
     default: "Mullion",
