@@ -84,6 +84,23 @@ bypass, no sandbox escape, no committed secret, no XSS sink. Findings were
 - **Clipboard write had no catch** (Lens 5) — wrapped; an insecure-context
   rejection no longer surfaces as an unhandled rejection.
 
+## Post-audit debt-clearing pass (2026-07-11)
+
+Four of the deferred items below were cleared in a follow-up pass (commits
+after the audit), leaving only the creds/kernel-gated ones:
+
+- **Escalation wrong-gate** → FIXED — decisions now routed by target
+  `specTaskId` through a per-task map; API validates the id belongs to the
+  run; integration test proves a mis-tagged decision is ignored.
+- **No artifact-store GC** → FIXED — `ArtifactStore.sweepStale(ttl)` +
+  worker timer + `ARTIFACT_RETENTION_MS` (7d default).
+- **Sign-in guard untested** → FIXED — apps/api route-test harness built
+  (`app.ts`/`app.integration.test.ts`, gated `API_INTEGRATION=1`, CI job
+  added); the GitHub-sign-in-blocked 403 and callback-mints-no-user cases
+  are now covered end to end.
+- **Full script-src CSP** → FIXED — per-request nonce CSP via Next 16's
+  `proxy.ts`; `script-src 'self' 'nonce-…' 'strict-dynamic'`, verified live.
+
 ## Deferred (with trigger)
 
 These were surfaced, judged acceptable for v1, and left with an explicit
@@ -95,24 +112,9 @@ condition that flips them:
   to the public base image only. **Trigger:** hard-gate on ever passing
   `envs`/mounts to `create()` — add an in-container `realpath` check under
   `/workspace` before that lands (already committed to in the port comment).
-- **Escalation decision can be consumed at the wrong gate** (Lens 3) — a
-  redirect sent while no task is at a gate is stored and later consumed by
-  whichever task next escalates. Correctness/UX foot-gun, not containment
-  (redirect is capped + sandbox-confined). **Trigger:** tag the signal with
-  its target `specTaskId`, or gate the endpoint on an awaiting-escalation
-  state.
-- **No artifact-store GC** (Lens 3) — disk grows unbounded across runs.
-  **Trigger:** operational; add a retention sweep mirroring
-  `reapStaleContainers` before a long-lived deployment.
-- **GitHub sign-in guard has no integration test** (Lens 1) — the link-only
-  boundary (ADR-35) is asserted from Better Auth internals with no test.
-  **Trigger:** the apps/api HTTP/auth route-test harness, open since M3.
 - **Budget is a lagging soft ceiling** (Lens 2) — an in-flight turn's cost
   isn't counted until recorded; concurrent same-org users have a TOCTOU
   window. Bounded by per-task caps; consistent with ADR-31's design.
-- **Full script-src CSP** (Lens 5) — only `frame-ancestors`/`object-src`/
-  `base-uri` shipped; a script-src policy needs Next nonce plumbing.
-  **Trigger:** when inline-script nonce support is wired.
 
 ## Residual accepted risk (documented, not a finding)
 
