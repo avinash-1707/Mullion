@@ -11,7 +11,7 @@ const EXPLORE_LINKS = [
 export function LandingFooter() {
   return (
     <footer className="overflow-hidden border-t border-hairline-dark bg-ink text-cream">
-      <div className="mx-auto w-full max-w-[1200px] px-6 pt-20 sm:px-10 lg:pt-24">
+      <div className="mx-auto w-full max-w-[1320px] px-6 pt-20 sm:px-10 lg:pt-24">
         <div className="grid grid-cols-1 gap-14 md:grid-cols-12 md:gap-10">
           <div className="md:col-span-5">
             <div className="flex items-center gap-2.5">
@@ -84,7 +84,7 @@ export function LandingFooter() {
       </div>
 
       <div className="border-t border-hairline-dark">
-        <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-3 px-6 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-10">
+        <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-3 px-6 py-7 sm:flex-row sm:items-center sm:justify-between sm:px-10">
           <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-parchment-faint">
             &copy; 2026 Mullion
           </p>

@@ -38,15 +38,17 @@ Rules of thumb:
 
 Three faces, loaded in `src/app/layout.tsx`:
 
-- `font-serif` (Fraunces, with optical sizing): every heading and display number. Headings are weight normal, never bold.
-- `font-display` (Archivo, the default body font): paragraphs, UI text.
+- `font-serif` (Cormorant Garamond): every heading, display number, and the logo wordmark. Weight 500 globally (set on `.font-serif` in globals.css); never bold, never lighter. Italic is available for quotes.
+- `font-display` (Inter, the default body font): paragraphs, UI text.
 - `font-mono` (JetBrains Mono): eyebrows, labels, buttons, small metadata. Always uppercase with wide tracking.
+
+Display headings use Title Case ("From Idea To Shipped."); section headings are sentence case statements.
 
 Recurring type recipes (copy these class strings):
 
 - Eyebrow: `font-mono text-[11px] uppercase tracking-[0.3em] text-ember` (use `text-gilt` on dark bands)
 - Section heading: `font-serif text-4xl leading-tight sm:text-5xl` with `text-ember` on cream, `text-cream` on dark. Highlight one phrase with `<span className="text-ember">`
-- Hero-scale heading: `font-serif text-[clamp(4rem,9vw,7.5rem)] leading-[0.95] tracking-tight`
+- Hero-scale heading: `font-serif text-[clamp(4.5rem,10vw,8.5rem)] leading-[0.92] tracking-[-0.01em]`
 - Body: `text-base leading-relaxed` in `text-ink-muted` (cream) or `text-parchment` (dark), capped with `max-w-md` or similar
 - Small label / column header: `font-mono text-[10px] uppercase tracking-[0.3em]`
 - Chapter mark: small mono "Chapter" over a `font-serif text-5xl text-ember` number. Component: `src/components/landing/chapter-mark.tsx`

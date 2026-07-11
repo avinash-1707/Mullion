@@ -4,21 +4,21 @@ import Link from "next/link";
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-      <div className="mx-auto grid w-full max-w-[1200px] grid-cols-1 px-6 sm:px-10 lg:grid-cols-[1.05fr_1fr] lg:gap-12">
+      <div className="mx-auto grid w-full max-w-[1320px] grid-cols-1 px-6 sm:px-10 lg:grid-cols-[1.05fr_1fr] lg:gap-12">
         <div className="flex flex-col justify-center pb-16 pt-36 lg:min-h-svh lg:pb-24">
           <span className="animate-reveal font-mono text-[11px] uppercase tracking-[0.3em] text-ember">
             An AI build platform
           </span>
           <h1
-            className="animate-reveal mt-8 font-serif text-[clamp(4rem,9vw,7.5rem)] leading-[0.95] tracking-tight text-ember"
+            className="animate-reveal mt-7 font-serif text-[clamp(4.5rem,10vw,8.5rem)] leading-[0.92] tracking-[-0.01em] text-ember"
             style={{ animationDelay: "90ms" }}
           >
-            From idea
+            From Idea
             <br />
-            to shipped.
+            To Shipped.
           </h1>
           <p
-            className="animate-reveal mt-9 max-w-md text-lg leading-relaxed text-ink-muted"
+            className="animate-reveal mt-8 max-w-[42ch] text-xl leading-[1.6] text-ink-muted"
             style={{ animationDelay: "180ms" }}
           >
             Describe what you want. Watch the plan take shape. Approve it, and the crew builds and

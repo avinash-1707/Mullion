@@ -20,7 +20,7 @@ const CONTROLS = [
 export function Control() {
   return (
     <section>
-      <div className="mx-auto grid w-full max-w-[1200px] grid-cols-1 gap-14 px-6 py-28 sm:px-10 lg:grid-cols-12 lg:items-center lg:gap-10 lg:py-36">
+      <div className="mx-auto grid w-full max-w-[1320px] grid-cols-1 gap-14 px-6 py-28 sm:px-10 lg:grid-cols-12 lg:items-center lg:gap-10 lg:py-36">
         <Reveal variant="art" className="lg:col-span-5">
           <div className="relative mx-auto aspect-[4/5] max-w-[440px]">
             <Image

@@ -35,13 +35,13 @@ export function LandingNav() {
           : "border-transparent bg-transparent"
       }`}
     >
-      <div className="mx-auto flex h-20 w-full max-w-[1200px] items-center justify-between px-6 sm:px-10">
+      <div className="mx-auto flex h-20 w-full max-w-[1320px] items-center justify-between px-6 sm:px-10">
         <Link
           href="/"
           className="flex items-center gap-2.5 text-ink transition-colors duration-200 hover:text-ember"
         >
           <MullionMark className="h-6 w-6" />
-          <span className="font-serif text-xl tracking-tight">Mullion</span>
+          <span className="font-serif text-2xl tracking-tight">Mullion</span>
         </Link>
 
         <nav className="hidden items-center gap-9 md:flex" aria-label="Landing sections">

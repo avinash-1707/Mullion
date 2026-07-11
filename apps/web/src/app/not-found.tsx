@@ -8,17 +8,17 @@ import { MullionMark } from "@/components/mullion-mark";
 export default function NotFound() {
   return (
     <main className="flex min-h-svh flex-col bg-ink text-cream" style={{ colorScheme: "dark" }}>
-      <div className="mx-auto flex h-24 w-full max-w-[1200px] items-center px-6 sm:px-10">
+      <div className="mx-auto flex h-24 w-full max-w-[1320px] items-center px-6 sm:px-10">
         <Link
           href="/"
           className="flex items-center gap-2.5 text-cream transition-colors duration-200 hover:text-ember"
         >
           <MullionMark className="h-6 w-6" />
-          <span className="font-serif text-xl tracking-tight">Mullion</span>
+          <span className="font-serif text-2xl tracking-tight">Mullion</span>
         </Link>
       </div>
 
-      <div className="mx-auto grid w-full max-w-[1200px] flex-1 grid-cols-1 items-center gap-14 px-6 pb-24 pt-8 sm:px-10 lg:grid-cols-12 lg:gap-10">
+      <div className="mx-auto grid w-full max-w-[1320px] flex-1 grid-cols-1 items-center gap-14 px-6 pb-24 pt-8 sm:px-10 lg:grid-cols-12 lg:gap-10">
         <div className="animate-reveal mx-auto w-full max-w-[300px] lg:col-span-4">
           <div className="rounded-t-[999px] border border-hairline-dark p-3">
             <div className="relative aspect-[4/5] overflow-hidden rounded-t-[999px]">

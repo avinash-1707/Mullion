@@ -28,7 +28,7 @@ const CREW = [
 export function Crew() {
   return (
     <section id="agents" className="scroll-mt-10 bg-ink text-cream">
-      <div className="mx-auto w-full max-w-[1200px] px-6 py-28 sm:px-10 lg:py-36">
+      <div className="mx-auto w-full max-w-[1320px] px-6 py-28 sm:px-10 lg:py-36">
         <div className="flex flex-wrap items-end justify-between gap-8">
           <Reveal>
             <ChapterMark number="03" tone="dark" />

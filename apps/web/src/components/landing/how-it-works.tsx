@@ -54,7 +54,7 @@ const PHASES = [
 export function HowItWorks() {
   return (
     <section id="how-it-works" className="scroll-mt-10">
-      <div className="mx-auto w-full max-w-[1200px] px-6 py-28 sm:px-10 lg:py-36">
+      <div className="mx-auto w-full max-w-[1320px] px-6 py-28 sm:px-10 lg:py-36">
         <div className="grid grid-cols-1 gap-14 lg:grid-cols-12 lg:items-center lg:gap-10">
           <Reveal className="lg:col-span-2">
             <ChapterMark number="02" tone="light" />

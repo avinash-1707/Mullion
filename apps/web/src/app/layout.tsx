@@ -1,27 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, Fraunces, JetBrains_Mono } from "next/font/google";
+import { Cormorant_Garamond, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { createMetadata } from "@/config/metadata";
 import { siteConfig } from "@/config/site";
 
-const archivo = Archivo({
-  variable: "--font-archivo",
+// Old-style Garamond serif for display type (bracketed serifs, moderate
+// contrast — the editorial reference look) and a neutral grotesque for
+// body/UI text. Headings use size and the 500 weight for hierarchy,
+// never bold.
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+});
+
+const cormorant = Cormorant_Garamond({
+  variable: "--font-cormorant",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
-});
-
-// Editorial serif for the marketing surface only — the product UI stays on
-// Archivo. Optical sizing axis opted in so display sizes get the
-// high-contrast cut instead of a scaled-up text face.
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
-  subsets: ["latin"],
-  axes: ["opsz"],
 });
 
 // Nonce-based CSP (src/proxy.ts) applies the per-request nonce during SSR;
@@ -54,7 +56,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${archivo.variable} ${jetbrainsMono.variable} ${fraunces.variable} h-full`}
+      className={`${inter.variable} ${jetbrainsMono.variable} ${cormorant.variable} h-full`}
     >
       {/* suppressHydrationWarning: attribute-only, for browser extensions
           (Grammarly et al.) that stamp data-* attributes on <body> before

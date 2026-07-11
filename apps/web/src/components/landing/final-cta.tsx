@@ -5,7 +5,7 @@ import { Reveal } from "./reveal";
 export function FinalCta() {
   return (
     <section className="overflow-hidden bg-ink text-cream">
-      <div className="mx-auto grid w-full max-w-[1200px] grid-cols-1 items-center gap-16 px-6 py-28 sm:px-10 lg:grid-cols-12 lg:gap-10 lg:py-36">
+      <div className="mx-auto grid w-full max-w-[1320px] grid-cols-1 items-center gap-16 px-6 py-28 sm:px-10 lg:grid-cols-12 lg:gap-10 lg:py-36">
         <div className="lg:col-span-7">
           <Reveal>
             <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-gilt">

@@ -5,7 +5,7 @@ import { Reveal } from "./reveal";
 export function Manifesto() {
   return (
     <section className="bg-ink text-cream">
-      <div className="mx-auto grid w-full max-w-[1200px] grid-cols-1 gap-14 px-6 py-28 sm:px-10 lg:grid-cols-12 lg:items-center lg:gap-10 lg:py-36">
+      <div className="mx-auto grid w-full max-w-[1320px] grid-cols-1 gap-14 px-6 py-28 sm:px-10 lg:grid-cols-12 lg:items-center lg:gap-10 lg:py-36">
         <Reveal className="lg:col-span-2">
           <ChapterMark number="01" tone="dark" />
         </Reveal>

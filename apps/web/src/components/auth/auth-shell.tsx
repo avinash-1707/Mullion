@@ -32,7 +32,7 @@ export function AuthShell({ eyebrow, title, subtitle, children }: AuthShellProps
           className="absolute left-10 top-8 flex items-center gap-2.5 text-cream transition-colors duration-200 hover:text-ember"
         >
           <MullionMark className="h-6 w-6" />
-          <span className="font-serif text-xl tracking-tight">Mullion</span>
+          <span className="font-serif text-2xl tracking-tight">Mullion</span>
         </Link>
         <p
           aria-hidden="true"
@@ -49,7 +49,7 @@ export function AuthShell({ eyebrow, title, subtitle, children }: AuthShellProps
           className="flex items-center gap-2.5 self-start text-ink transition-colors duration-200 hover:text-ember lg:invisible"
         >
           <MullionMark className="h-6 w-6" />
-          <span className="font-serif text-xl tracking-tight">Mullion</span>
+          <span className="font-serif text-2xl tracking-tight">Mullion</span>
         </Link>
 
         <div className="flex flex-1 items-center justify-center py-12">

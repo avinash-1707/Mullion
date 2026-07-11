@@ -81,7 +81,7 @@ export default function PricingPage() {
       <LandingNav />
 
       {/* Page header: cream band under the transparent nav. */}
-      <section className="mx-auto w-full max-w-[1200px] px-6 pb-20 pt-40 sm:px-10 lg:pb-24">
+      <section className="mx-auto w-full max-w-[1320px] px-6 pb-20 pt-40 sm:px-10 lg:pb-24">
         <span className="animate-reveal font-mono text-[11px] uppercase tracking-[0.3em] text-ember">
           Pricing
         </span>
@@ -103,7 +103,7 @@ export default function PricingPage() {
 
       {/* Feature comparison */}
       <section>
-        <div className="mx-auto w-full max-w-[1200px] px-6 py-28 sm:px-10 lg:py-36">
+        <div className="mx-auto w-full max-w-[1320px] px-6 py-28 sm:px-10 lg:py-36">
           <Reveal>
             <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-ember">
               Compare

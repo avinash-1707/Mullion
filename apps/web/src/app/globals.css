@@ -80,13 +80,20 @@
  * need this, so they stay in the plain block.
  */
 @theme inline {
-  --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", monospace;
-  --font-serif: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-serif: var(--font-cormorant), Georgia, "Times New Roman", serif;
 }
 
 :root {
   color-scheme: dark;
+}
+
+/* Cormorant's regular cut reads thin at display sizes; the whole serif
+   voice sits at 500 so every heading matches without per-usage weights.
+   Italic quotes inherit it too — that's the intended look. */
+.font-serif {
+  font-weight: 500;
 }
 
 html,
