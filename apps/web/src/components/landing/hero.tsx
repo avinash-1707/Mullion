@@ -10,7 +10,7 @@ export function Hero() {
             An AI build platform
           </span>
           <h1
-            className="animate-reveal mt-8 font-serif text-[clamp(3.25rem,7.5vw,5.75rem)] leading-[0.98] tracking-tight text-ember"
+            className="animate-reveal mt-8 font-serif text-[clamp(4rem,9vw,7.5rem)] leading-[0.95] tracking-tight text-ember"
             style={{ animationDelay: "90ms" }}
           >
             From idea
@@ -21,8 +21,8 @@ export function Hero() {
             className="animate-reveal mt-9 max-w-md text-lg leading-relaxed text-ink-muted"
             style={{ animationDelay: "180ms" }}
           >
-            Describe what you want to build. Mullion asks the right questions, plans the whole
-            thing in front of you, then builds and delivers it with your approval at every turn.
+            Describe what you want. Watch the plan take shape. Approve it, and the crew builds and
+            delivers.
           </p>
           <div
             className="animate-reveal mt-12 flex flex-wrap items-center gap-8"
@@ -49,37 +49,27 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Mobile: artwork flows below the copy, full-bleed. */}
-        <div className="animate-reveal relative -mx-6 aspect-[4/5] sm:-mx-10 lg:hidden">
+        {/* One artwork element, two layouts: in-flow full-bleed below the
+            copy on mobile; at lg it goes absolute and bleeds to the
+            viewport's right edge at full section height (the grid's empty
+            second column reserves the space beneath it). Single element =
+            single preload and an honest `sizes`. */}
+        <div className="animate-reveal relative -mx-6 aspect-[4/5] sm:-mx-10 lg:absolute lg:inset-y-0 lg:right-0 lg:mx-0 lg:aspect-auto lg:w-[46vw]">
           <Image
             src="/hero-architect.webp"
             alt="A blue classical statue studying a small golden wireframe cube floating above its palm"
             fill
             priority
-            sizes="100vw"
+            sizes="(min-width: 1024px) 46vw, 100vw"
             className="object-cover object-center"
           />
+          <span
+            aria-hidden="true"
+            className="absolute bottom-14 right-7 hidden font-mono text-[10px] uppercase tracking-[0.4em] text-gilt [writing-mode:vertical-rl] lg:block"
+          >
+            Idea meets execution
+          </span>
         </div>
-      </div>
-
-      {/* Desktop: artwork bleeds to the viewport's right edge, full height,
-          outside the content container. The grid's empty second column
-          reserves the space beneath it. */}
-      <div className="animate-reveal absolute inset-y-0 right-0 hidden w-[46vw] lg:block">
-        <Image
-          src="/hero-architect.webp"
-          alt="A blue classical statue studying a small golden wireframe cube floating above its palm"
-          fill
-          priority
-          sizes="46vw"
-          className="object-cover object-center"
-        />
-        <span
-          aria-hidden="true"
-          className="absolute bottom-14 right-7 font-mono text-[10px] uppercase tracking-[0.4em] text-gilt [writing-mode:vertical-rl]"
-        >
-          Idea meets execution
-        </span>
       </div>
     </section>
   );

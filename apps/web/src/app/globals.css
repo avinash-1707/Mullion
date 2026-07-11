@@ -113,6 +113,46 @@ body {
   transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/*
+ * Slim custom scrollbar, both surfaces. fg-faint reads on the product's
+ * dark bg and the landing's cream alike; hover warms to the accent.
+ * WebKit gets the full rounded treatment; Firefox (no ::-webkit-scrollbar)
+ * gets the standard thin/colored properties via @supports — setting
+ * scrollbar-color unconditionally would make Chrome ignore the
+ * ::-webkit-scrollbar rules entirely.
+ */
+@supports not selector(::-webkit-scrollbar) {
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-fg-faint) transparent;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-fg-faint);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Visible keyboard focus everywhere, without touching mouse-click focus
    (browsers already suppress :focus-visible on pointer interaction). */
 a:focus-visible,
@@ -311,8 +351,11 @@ select:focus-visible,
   transform: none;
 }
 
-/* Anchor navigation glides; the reduced-motion block below resets it. */
-html {
+/* Anchor navigation glides. Scoped to non-Lenis: when the landing page
+   mounts Lenis (html gets a .lenis class) it drives all scrolling itself,
+   and CSS smooth-behavior would fight its per-frame scroll writes. The
+   reduced-motion block below resets this fallback too. */
+html:not(.lenis) {
   scroll-behavior: smooth;
 }
 

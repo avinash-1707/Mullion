@@ -47,7 +47,13 @@ export default function RootLayout({
       lang="en"
       className={`${archivo.variable} ${jetbrainsMono.variable} ${fraunces.variable} h-full`}
     >
-      <body className="flex min-h-full flex-col bg-bg text-fg antialiased">
+      {/* suppressHydrationWarning: attribute-only, for browser extensions
+          (Grammarly et al.) that stamp data-* attributes on <body> before
+          React hydrates. Child mismatches still surface. */}
+      <body
+        suppressHydrationWarning
+        className="flex min-h-full flex-col bg-bg text-fg antialiased"
+      >
         <Providers>{children}</Providers>
       </body>
     </html>
