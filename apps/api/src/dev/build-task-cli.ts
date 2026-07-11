@@ -18,6 +18,8 @@ import { OpenRouterClient } from "@mullion/llm";
 import {
   DEFAULT_TASK_CAPS,
   buildTask,
+  makeTesterVerifier,
+  type OneShotLlm,
   type ToolCallingLlm,
 } from "@mullion/agents";
 import { ScriptedLlm, toolCall } from "@mullion/agents/testing";
@@ -115,7 +117,20 @@ async function main(): Promise<void> {
     .returning();
   if (!taskRow) throw new Error("task insert returned nothing");
 
-  const llm: ToolCallingLlm =
+  // Runner-owned test (ADR-48): written into the FRESH verify sandbox, so
+  // the Coder cannot tamper with what grades it.
+  const runnerTest = {
+    path: "sum.test.js",
+    content: [
+      "const { test } = require('node:test');",
+      "const assert = require('node:assert');",
+      "const { sum } = require('./sum.js');",
+      "test('sum adds', () => { assert.strictEqual(sum(2, 3), 5); });",
+    ].join("\n"),
+  };
+  const testCommand = "node --test sum.test.js";
+
+  const openRouter =
     llmMode === "openrouter"
       ? new OpenRouterClient({
           apiKey: env.OPENROUTER_API_KEY,
@@ -123,22 +138,35 @@ async function main(): Promise<void> {
           referer: env.API_ORIGIN,
           ...(env.OPENROUTER_BASE_URL ? { baseUrl: env.OPENROUTER_BASE_URL } : {}),
         })
-      : new ScriptedLlm([
-          {
-            toolCalls: [
-              toolCall("c1", "writeFile", {
-                path: "hello.test.js",
-                content: [
-                  "const { test } = require('node:test');",
-                  "const assert = require('node:assert');",
-                  "test('sandbox is alive', () => { assert.ok(true); });",
-                ].join("\n"),
-              }),
-            ],
-          },
-          { toolCalls: [toolCall("c2", "runCommand", { cmd: "node --version" })] },
-          { toolCalls: [toolCall("c3", "submit", {})] },
-        ]);
+      : undefined;
+
+  const llm: ToolCallingLlm =
+    openRouter ??
+    new ScriptedLlm([
+      {
+        toolCalls: [
+          toolCall("c1", "writeFile", {
+            path: "sum.js",
+            content: "exports.sum = (a, b) => a + b;",
+          }),
+        ],
+      },
+      { toolCalls: [toolCall("c2", "submit", {})] },
+    ]);
+
+  // Tester one-shot LLM: the real client in openrouter mode, else a canned
+  // green report (the deterministic exit code still decides pass/fail).
+  const testerLlm =
+    openRouter ??
+    ({
+      completeChat: async () => ({
+        content: JSON.stringify({ summary: "parsed by scripted tester", failures: [] }),
+        model: "scripted/tester",
+        generationId: "gen-scripted",
+        cost: 0,
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+      }),
+    } satisfies OneShotLlm);
 
   const driver = createSandboxDriver({
     driver: env.SANDBOX_DRIVER,
@@ -173,7 +201,23 @@ async function main(): Promise<void> {
         taskRowId: taskRow.id,
         userId: session.userId,
       },
-      { sandbox, llm, db, sandboxCostPerSec: env.SANDBOX_COST_USD_PER_SEC },
+      {
+        sandbox,
+        llm,
+        db,
+        sandboxCostPerSec: env.SANDBOX_COST_USD_PER_SEC,
+        budget: { runBudgetUsd: env.RUN_BUDGET_USD, orgBudgetUsd: env.ORG_DAILY_LLM_BUDGET_USD },
+        verify: makeTesterVerifier({
+          driver,
+          llm: testerLlm,
+          runnerTests: [runnerTest],
+          testCommand,
+          image: env.SANDBOX_IMAGE,
+          sandboxTimeoutMs: DEFAULT_TASK_CAPS.wallClockMs + 60_000,
+          db,
+          sandboxCostPerSec: env.SANDBOX_COST_USD_PER_SEC,
+        }),
+      },
     );
 
     await db

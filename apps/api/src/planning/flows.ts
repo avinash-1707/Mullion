@@ -5,6 +5,7 @@ import {
   analystRequirementsAgent,
   buildEditMessages,
   buildInitialPlanMessages,
+  checkBudget,
   checkGraphStructure,
   consistencyReviewAgent,
   plannedDecisionSchema,
@@ -65,22 +66,17 @@ function actorFor(task: AgentTask): string {
 }
 
 /**
- * ADR-43 stopgap spend ceiling: per-org SUM(cost) over a rolling 24h,
- * checked before any paid work starts. The real combined LLM+sandbox
- * circuit breaker is ADR-31 (Phase 2); without this, retry/edit loops are
- * bounded only by request rate, not money.
+ * Per-org spend gate before any paid planning work. As of M2 this delegates
+ * to the ADR-31 combined circuit breaker (`checkBudget`) so planning and
+ * build share ONE breaker instead of ADR-43's separate stopgap — same org
+ * rolling-window ceiling, one implementation.
  */
 export async function isOrgBudgetExhausted(organizationId: string): Promise<boolean> {
-  const rows = await db
-    .select({ total: sql<string>`coalesce(sum(${schema.costEvents.cost}), 0)` })
-    .from(schema.costEvents)
-    .where(
-      and(
-        eq(schema.costEvents.organizationId, organizationId),
-        sql`${schema.costEvents.createdAt} >= now() - interval '24 hours'`,
-      ),
-    );
-  return Number(rows[0]?.total ?? 0) >= env.ORG_DAILY_LLM_BUDGET_USD;
+  const status = await checkBudget(db, {
+    organizationId,
+    config: { orgBudgetUsd: env.ORG_DAILY_LLM_BUDGET_USD },
+  });
+  return !status.ok;
 }
 
 export type StartAgentResult = "started" | "busy" | "budget_exhausted";

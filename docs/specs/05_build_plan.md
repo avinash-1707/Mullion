@@ -355,6 +355,8 @@ alone answers "did we forget anything":
 | 45 | Native function-calling wire shape; tool-loop runner beside AgentSpec | 2 (M1) | ✅ |
 | 46 | M1 crash semantics: durable transcript, reaper, runner-owned verification | 2 (M1) | ✅ |
 | 47 | Hermetic sandbox network (--network none, toolchain baked into image) | 2 (M1) | ✅ |
+| 48 | M2 Tester: deterministic verification in a fresh sandbox vs runner-owned tests | 2 (M2) | ✅ |
+| 49 | ADR-31 combined budget breaker supersedes ADR-43 stopgap | 2 (M2) | ✅ |
 
 Process conventions (dependency installation, doc verification, per-phase
 security review) apply to every row above but are intentionally not

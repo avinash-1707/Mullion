@@ -24,9 +24,12 @@ export const apiEnvSchema = z.object({
     .url()
     .regex(/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?/, "must point at loopback")
     .optional(),
-  // Phase 1 stopgap spend ceiling per org per rolling 24h (ADR-43) — the
-  // real combined budget circuit breaker is ADR-31, Phase 2.
+  // Per-org rolling-24h combined (LLM + sandbox) spend ceiling — the org
+  // half of ADR-31's circuit breaker (was ADR-43's stopgap; same knob).
   ORG_DAILY_LLM_BUDGET_USD: z.coerce.number().positive().default(10),
+  // Per-run combined spend ceiling (ADR-31) — bounds a single build's total
+  // LLM + sandbox cost independently of the org window.
+  RUN_BUDGET_USD: z.coerce.number().positive().default(5),
   // Number of reverse proxies in front of the API. 0 (default) = trust the
   // socket address only; N>0 = take the Nth hop from the right of
   // x-forwarded-for. Never trust the leftmost value — it's client-supplied.

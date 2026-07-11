@@ -653,3 +653,78 @@ E2B-style default-on internet (contradicts the ZDR-grade caution this
 project applies to user-derived content).
 **Doc:** `packages/sandbox/src/local/docker-sandbox.ts`,
 `packages/config/src/env.ts` (SANDBOX_IMAGE)
+
+### ADR-48 — M2 Tester: deterministic verification in a fresh sandbox against runner-owned tests
+**Status:** 🔧 Designed by Claude during Phase 2 M2
+**Context:** M1's `submit` ran a runner-owned command, but IN the Coder's own
+`/workspace` (ADR-46 known-limit): the Coder can overwrite the test file or
+add a `test: exit 0` script and self-grade. `--network none` + ro-rootfs did
+not help — `runCommand` is arbitrary shell, so in-container path isolation is
+defeatable. Spec §5.1 wants a Tester agent, fast-tier, "run suite, parse
+structured output."
+**Decision:** Two pieces. (1) Verification runs in a FRESH sandbox per check,
+not the build sandbox: the runner copies the Coder's produced sources in,
+then writes the runner-owned test files LAST (so they overwrite any file the
+Coder named the same), runs the test command, and the EXIT CODE is the
+authoritative pass/fail. (2) The Tester agent (`testerAgent`, role "tester",
+fast tier) is a one-shot `AgentSpec` that ONLY parses raw test output into
+structured failures for the Coder's next fix turn; it does not and cannot
+decide pass/fail, and a parse/LLM failure degrades to an empty report rather
+than discarding the exit-code verdict. Verification is injected into
+`buildTask` as a `Verifier` dep (`makeTesterVerifier`); M1's inline verifier
+stays the default. The Coder↔Tester fix loop is a plain bounded loop inside
+buildTask (`maxTestFixCycles`, default 4) — NO Temporal, NO escalation gate
+(those are M3/M4); exhaustion → `TaskResult failed{reason:"test_failed"}`.
+**What this guarantees — and what it does NOT (scoped precisely after
+review):** the guarantee is FILE-LEVEL — the Coder cannot *edit or replace*
+the tests that grade it, because they are written by the runner into a
+sandbox the Coder never touches. This is a real improvement over M1's
+self-grading and is what the integration test proves. It is NOT full
+tamper-proof grading: the runner test still `require`s the Coder's source
+into the SAME process that runs the assertions, so adversarial Coder code
+could subvert its own in-process test run (monkeypatch `node:assert`, call
+`process.exit(0)` before assertions). Defeating that needs OUT-OF-PROCESS /
+black-box grading (spawn the artifact as a child and assert on observable
+output/exit from a runner-owned parent, or parse a trusted machine-readable
+report on the host) — deferred; capture as its own ADR when built (M4/
+hardening era). The current Coder is an LLM building software, not a
+dedicated adversary, so file-level tamper-proofing is the proportionate M2
+guarantee; the residual is documented, not silently claimed away.
+**Alternatives considered:** LLM Tester that authors+runs its own tests
+(still tamperable, adds cost/nondeterminism to the grade); in-container path
+isolation (defeated by runCommand); a full state machine (that is M3).
+**Known limits:** (a) the in-process grading residual above; (b) only files
+the Coder wrote via `writeFile` are copied into the fresh sandbox — the Coder
+must `writeFile` every graded artifact (files it produces via `runCommand`
+are not snapshotted; a whole-`/workspace` snapshot needs a port `listFiles`
+capability, deferred); (c) runner-owned tests are supplied to the verifier
+(harness/Build Spec) — turning prose `acceptance_criteria` into real tests
+(test authoring) is later work; (d) the inline default verifier's repeated
+failure is now bounded by `maxTestFixCycles` (→ `test_failed`) rather than
+looping to `turn_cap` as in strict M1 — a deliberate improvement, not exact
+M1 parity.
+**Doc:** `packages/agents/src/tester/{tester,verify}.ts`,
+`packages/agents/src/coder/{build-task,verify}.ts`
+
+### ADR-49 — ADR-31 combined budget circuit breaker supersedes ADR-43's stopgap
+**Status:** 🔧 Designed by Claude during Phase 2 M2
+**Context:** ADR-43 was a per-org LLM-only rolling-24h ceiling checked before
+planning tasks. Now that sandbox cost exists (M1) the real ADR-31 combined
+(LLM + sandbox) breaker is due, per-run AND per-org (02 §9, ADR-36).
+**Decision:** One `checkBudget(db, {organizationId, runId?, liveAccruedUsd,
+config})` in `packages/agents/src/budget.ts` backs both surfaces — planning's
+`isOrgBudgetExhausted` now delegates to its per-org half, so there is ONE
+breaker, not two. Per-run = `SUM(cost_events WHERE run_id)` PLUS the in-flight
+task's live-accrued sandbox cost; per-org = `SUM WHERE org` over a rolling
+window. Sandbox cost is persisted best-effort, so counting only committed rows
+under-counts; adding the live accrual makes the check err toward over-counting
+— the safe direction for a ceiling (security-review point). Checked before
+every LLM call and before each verification (which creates a sandbox); a trip
+mid-task → `TaskResult failed{reason:"budget_exceeded"}`. Config:
+`RUN_BUDGET_USD` (new) + `ORG_DAILY_LLM_BUDGET_USD` (existing, now the org
+window value). Query logic only — no schema change.
+**Alternatives considered:** Keep ADR-43 beside ADR-31 (two drifting
+breakers); trust persisted cost_events alone (under-counts best-effort
+sandbox cost); a reservation/ledger system (over-built for v1).
+**Doc:** `packages/agents/src/budget.ts`, `apps/api/src/planning/flows.ts`,
+`packages/config/src/env.ts`

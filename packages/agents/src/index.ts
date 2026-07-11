@@ -37,3 +37,23 @@ export {
 export { CODER_TOOL_DEFINITIONS, parseToolCall } from "./coder/tools.js";
 export { buildCoderSystemPrompt, buildCoderUserMessage, type CoderTaskInput } from "./coder/prompt.js";
 export { appendMessage, recordSandboxCost, setTaskStatus, type PersistContext } from "./coder/persist.js";
+export {
+  inlineVerifier,
+  type Verifier,
+  type VerifyContext,
+  type VerificationResult,
+} from "./coder/verify.js";
+export { testerAgent, type TesterInput } from "./tester/tester.js";
+export {
+  makeTesterVerifier,
+  type OneShotLlm,
+  type TesterVerifierConfig,
+} from "./tester/verify.js";
+export {
+  BudgetExceededError,
+  assertBudget,
+  checkBudget,
+  type BudgetCheckArgs,
+  type BudgetConfig,
+  type BudgetStatus,
+} from "./budget.js";

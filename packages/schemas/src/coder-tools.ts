@@ -39,6 +39,11 @@ export const taskFailureReasonSchema = z.enum([
   "llm_error",
   "protocol",
   "crashed",
+  // M2: the test-fix cycle budget was exhausted without the runner-owned
+  // tests passing.
+  "test_failed",
+  // M2: ADR-31 combined budget circuit breaker tripped mid-task.
+  "budget_exceeded",
 ]);
 export type TaskFailureReason = z.infer<typeof taskFailureReasonSchema>;
 

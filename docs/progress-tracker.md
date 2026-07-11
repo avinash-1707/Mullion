@@ -28,7 +28,7 @@ ADR for that.
 |---|---|---|---|
 | Phase 0 — Foundation & Platform Wiring | Done (1 DoD item pending creds) | 2026-07-10 | Built + verified live; OpenRouter round-trip awaits a real API key; Neon swap-in is a DATABASE_URL change |
 | Phase 1 — Interactive Planning Experience | Done (live-LLM verification pending creds) | 2026-07-11 | Built + verified end to end against a mock OpenRouter; real-model pass needs OPENROUTER_API_KEY |
-| Phase 2 — Automated Build Pipeline | In progress (M1 done) | 2026-07-11 | M1 (Coder + sandbox) built, verified, reviewed; M2–M4 next |
+| Phase 2 — Automated Build Pipeline | In progress (M1–M2 done) | 2026-07-11 | M1 (Coder + sandbox) + M2 (Tester + budget breaker) built, verified, reviewed; M3–M4 next |
 | Phase 3 — Observability, Evaluation & Hardening | Not started | 2026-07-10 | Blocked on Phase 2 |
 | Phase 4 — Polish & Fast-Follow | Not started | 2026-07-10 | Blocked on Phase 3 |
 
@@ -63,6 +63,57 @@ template.
 ```
 
 ---
+
+### [2026-07-11] Phase 2 M2 — Tester + pass/fail feedback + ADR-31 budget breaker
+**Phase:** Phase 2 — Automated Build Pipeline (milestone M2)
+**Type:** Progress update
+**Summary:** Second build-pipeline milestone: added the Tester and wired a
+pass/fail fix loop, and closed M1's ADR-46 self-grading gap. Verification is
+now injected into `buildTask` as a `Verifier` dependency (M1's inline
+verifier stays the default). M2's `makeTesterVerifier` runs each check in a
+FRESH sandbox — copies the Coder's produced sources in, writes the
+runner-owned test files LAST (overwriting any file the Coder named the same),
+runs the test command, and takes the EXIT CODE as authoritative pass/fail.
+This is a FILE-LEVEL guarantee — the Coder cannot edit or replace the tests
+that grade it (proven by the integration test). It is NOT full tamper-proof
+grading: the runner test still `require`s Coder source into the grading
+process, so adversarial Coder code could subvert its own in-process run
+(monkeypatch assert, force exit 0) — that needs out-of-process/black-box
+grading, deferred (see ADR-48 known-limits). The `testerAgent` (fast tier,
+one-shot AgentSpec) only parses raw output into structured failures for the
+Coder's next fix turn — it cannot decide pass/fail. The Coder↔Tester loop is
+a plain bounded loop inside buildTask (`maxTestFixCycles`, default 4; no
+Temporal, no escalation gate — those are M3/M4); exhaustion →
+`failed{reason:"test_failed"}`. Tester verdicts join the durable transcript
+as a `test_report` envelope. ADR-31 combined LLM+sandbox budget breaker
+(`packages/agents/src/budget.ts`): per-run (SUM cost_events by run_id + live
+sandbox accrual so best-effort sandbox cost isn't under-counted) AND per-org
+(rolling window); checked before every LLM call and each verification; trip →
+`failed{reason:"budget_exceeded"}`. Planning's `isOrgBudgetExhausted`
+(ADR-43) now delegates to the same `checkBudget`, so planning and build share
+one breaker. New config RUN_BUDGET_USD. No migration (query logic + jsonb
+result/envelope only).
+**Verified:** full DoD green (`check-types`+`lint`+`build`+`test`, 107 unit
+tests incl. tester agent, budget, verifier, fix-cycle, budget-trip) plus both
+Docker integration tiers — the crux M2 test proves a Coder that plants a fake
+passing test still FAILS (runner test overwrites it in the fresh sandbox) and
+an honest Coder converges wrong→feedback→fix→verified; harness run against the
+live dev DB + Docker produced run=done with a test_report in the transcript.
+**Files/areas touched:** packages/{agents (tester/*, budget, coder/verify,
+build-task),schemas (tester, agent-message, coder-tools),config}, apps/api
+(planning/flows, dev/build-task-cli), docs/specs/{04,05}
+**Related ADR:** New — ADR-48 (fresh-sandbox verification vs runner-owned
+tests closes ADR-46), ADR-49 (ADR-31 combined breaker supersedes ADR-43);
+`05` table extended 48–49
+**Follow-ups:**
+- Runner-owned tests are supplied to the verifier (harness/Build Spec);
+  turning a task's prose acceptance_criteria into real tests (test authoring)
+  is later work — M2 proves the tamper-proof mechanism, not test generation.
+- M2 keeps run status building→done|failed; the real testing/fixing/reviewing
+  state machine + escalation gates land with Temporal in M3/M4.
+- Tester + fresh-sandbox verification are LLM/driver-agnostic but only run
+  live against the mock/loopback so far; real-key + E2B passes ride the
+  existing Phase-1/M1 cred follow-ups.
 
 ### [2026-07-11] Phase 2 M1 — single Coder + sandbox tool-loop built, verified, reviewed
 **Phase:** Phase 2 — Automated Build Pipeline (milestone M1)

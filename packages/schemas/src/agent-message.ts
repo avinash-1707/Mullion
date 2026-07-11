@@ -39,5 +39,15 @@ export const agentMessageEnvelopeSchema = z.discriminatedUnion("kind", [
     exitCode: z.number().int().optional(),
     durationMs: z.number().nonnegative().optional(),
   }),
+  // The Tester's verdict for a fix cycle (M2, ADR-48): deterministic
+  // pass/fail plus the parsed failures the Coder sees next turn.
+  z.object({
+    kind: z.literal("test_report"),
+    passed: z.boolean(),
+    exitCode: z.number().int(),
+    failures: z.array(z.string().max(2_000)).max(50).default([]),
+    summary: z.string().max(4_000),
+    costUsd: z.number().nonnegative(),
+  }),
 ]);
 export type AgentMessageEnvelope = z.infer<typeof agentMessageEnvelopeSchema>;
