@@ -6,3 +6,4 @@ Deltas compare against the previous run of the same mode.
 | version | date | mode | pass | retries | escalations | cost (USD) | turns |
 |---|---|---|---|---|---|---|---|
 | 6aff7c2 | 2026-07-11 | scripted | 15/16 (93.8%) | 2 | 1 | 0.0443 | 43 |
+| 0047142 | 2026-07-11 | scripted | 15/16 (93.8% (=)) | 2 (=) | 1 (=) | 0.0437 (-0.0006) | 43 (=) |
