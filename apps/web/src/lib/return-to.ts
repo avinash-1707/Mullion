@@ -41,6 +41,15 @@ if (typeof window !== "undefined") {
   });
 }
 
+function dashboardTarget(): string {
+  const base = process.env.NEXT_PUBLIC_DASHBOARD_URL;
+  if (!base) {
+    throw new Error("NEXT_PUBLIC_DASHBOARD_URL is not set");
+  }
+  const raw = new URLSearchParams(window.location.search).get("returnTo");
+  return resolveReturnTo(raw, base);
+}
+
 /**
  * Full-page navigation to the dashboard app, honoring a validated
  * ?returnTo= from the current URL. Used on sign-in/sign-up success and to
@@ -48,12 +57,17 @@ if (typeof window !== "undefined") {
  */
 export function redirectToApp(): void {
   if (redirecting) return;
-  const base = process.env.NEXT_PUBLIC_DASHBOARD_URL;
-  if (!base) {
-    throw new Error("NEXT_PUBLIC_DASHBOARD_URL is not set");
-  }
-  const raw = new URLSearchParams(window.location.search).get("returnTo");
-  const target = resolveReturnTo(raw, base);
+  const target = dashboardTarget();
   redirecting = true;
   window.location.assign(target);
+}
+
+/**
+ * Same destination as redirectToApp, but returned rather than navigated to
+ * — for social/OAuth2 sign-in, where better-auth itself owns the redirect
+ * (the browser leaves this page for the provider before we'd ever call
+ * window.location.assign) and just needs the final callbackURL up front.
+ */
+export function appCallbackURL(): string {
+  return dashboardTarget();
 }

@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { childLogger } from "@mullion/logger";
 import { auth } from "./modules/auth/auth.js";
+import { accountRoute } from "./modules/auth/routes.js";
 import { env } from "./config/env.js";
 import { credentialRateLimit, ipRateLimit, userRateLimit } from "./middleware/rate-limit.js";
 import { requestLogMiddleware } from "./middleware/request-log.js";
@@ -86,8 +87,13 @@ export function createApp(): Hono<{ Bindings: HttpBindings; Variables: AuthVaria
   // Credential endpoints ride a 10/min/IP window on top of the global limits.
   app.use("/api/auth/sign-in/*", credentialRateLimit);
   app.use("/api/auth/sign-up/*", credentialRateLimit);
+  // OTP endpoints cost an email per hit and take guessable codes — same
+  // 10/min/IP window as the credential endpoints (ADR-66), on top of the
+  // emailOTP plugin's own per-email limit.
+  app.use("/api/auth/email-otp/*", credentialRateLimit);
   app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
+  app.route("/api/account", accountRoute);
   app.route("/api/sessions", planningSessionsRoute);
   app.route("/api/builds", buildsRoute);
   app.route("/api/github", githubRoute);

@@ -78,6 +78,23 @@ export const apiEnvSchema = z.object({
   // SOFT (GitHub push is an optional target, unlike SANDBOX_DRIVER=e2b).
   GITHUB_CLIENT_ID: z.string().min(1).optional(),
   GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
+  // GitHub LOGIN OAuth app (ADR-65) — a SECOND, minimal-scope app
+  // (read:user + user:email), distinct from the repo-scoped delivery app
+  // above so signing in never asks for repo access.
+  GITHUB_LOGIN_CLIENT_ID: z.string().min(1).optional(),
+  GITHUB_LOGIN_CLIENT_SECRET: z.string().min(1).optional(),
+  // Google sign-in (ADR-65). Soft-optional like the GitHub apps: dev boots
+  // without it, the provider just isn't offered.
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  // Email delivery (ADR-67): console logs the full message (OTP included)
+  // for local dev; resend is the real sender. Production must be resend —
+  // the console driver would put OTPs into production logs.
+  EMAIL_DRIVER: z.enum(["console", "resend"]).default("console"),
+  RESEND_API_KEY: z.string().min(1).optional(),
+  // Sender address, e.g. "Mullion <auth@mail.mullion.dev>" — the domain must
+  // be verified in Resend for production sending.
+  EMAIL_FROM: z.string().min(3).optional(),
   // Delivery: which GitHub target — `fake` (no creds, local remote) or the
   // real Octokit push. Archive is always offered alongside.
   GITHUB_DELIVERY: z.enum(["fake", "github"]).default("fake"),
@@ -99,7 +116,37 @@ export const apiEnvSchema = z.object({
       message: "GITHUB_DELIVERY=github requires BOTH GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET (or use GITHUB_DELIVERY=fake)",
     });
   }
+  if (env.EMAIL_DRIVER === "resend" && !(env.RESEND_API_KEY && env.EMAIL_FROM)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["RESEND_API_KEY"],
+      message: "EMAIL_DRIVER=resend requires BOTH RESEND_API_KEY and EMAIL_FROM (or use EMAIL_DRIVER=console in dev)",
+    });
+  }
+  // OAuth apps are soft-optional but must come in complete pairs — an ID
+  // without a secret would register nothing and silently hide the provider.
+  for (const [idKey, secretKey] of [
+    ["GITHUB_LOGIN_CLIENT_ID", "GITHUB_LOGIN_CLIENT_SECRET"],
+    ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+  ] as const) {
+    if (Boolean(env[idKey]) !== Boolean(env[secretKey])) {
+      ctx.addIssue({
+        code: "custom",
+        path: [secretKey],
+        message: `${idKey} and ${secretKey} must be set together (or both unset)`,
+      });
+    }
+  }
   if (env.NODE_ENV === "production") {
+    // OTPs (sign-in, verification, password reset) must never land in
+    // production logs — the console driver exists for local dev only.
+    if (env.EMAIL_DRIVER !== "resend") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["EMAIL_DRIVER"],
+        message: "production must use EMAIL_DRIVER=resend — the console driver logs OTPs",
+      });
+    }
     // Better Auth only marks session cookies Secure (and __Secure- prefixed)
     // when its baseURL is https — a production deploy on plain http would
     // silently ship session tokens over cleartext (Phase 3 verification).

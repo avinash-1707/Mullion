@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Hono } from "hono";
+import { initLogger } from "@mullion/logger";
 
 /**
  * HTTP/auth route-test harness (Phase 3 debt): boots the real wired Hono app
@@ -20,7 +21,15 @@ const DASHBOARD_ORIGIN = "http://localhost:3001";
 interface Harness {
   app: Hono;
   pool: { end: () => Promise<void> };
+  // Direct DB access for states the HTTP surface can't produce (e.g. a
+  // social-first user with no credential row, normally minted by OAuth).
+  db: typeof import("./lib/db.js")["db"];
 }
+
+// Every emitted log line, JSON-parsed lazily — the console email driver
+// (EMAIL_DRIVER=console under NODE_ENV=test) logs each OTP email here, which
+// is how the harness reads verification/reset codes back out.
+const logLines: string[] = [];
 
 async function boot(): Promise<Harness> {
   process.env["NODE_ENV"] ??= "test";
@@ -29,6 +38,16 @@ async function boot(): Promise<Harness> {
   process.env["WEB_ORIGIN"] ??= WEB_ORIGIN;
   process.env["DASHBOARD_ORIGIN"] ??= DASHBOARD_ORIGIN;
   process.env["OPENROUTER_API_KEY"] ??= "test-key";
+  // Per-test-user rate-limit isolation: trust one forwarded hop so each
+  // harness user can present a distinct IP instead of sharing "unknown".
+  process.env["TRUSTED_PROXY_HOPS"] ??= "1";
+  // initLogger BEFORE the app imports — module-scope childLogger() calls
+  // (email driver included) bind to whatever root exists at import time.
+  initLogger({
+    service: "test-api",
+    level: "info",
+    stream: { write: (line: string) => void logLines.push(line) },
+  });
   // DATABASE_URL is deliberately NOT defaulted — the test needs a real one.
   const [{ createApp }, { pool }, { seedModelRouting }, { db }] = await Promise.all([
     import("./app.js"),
@@ -37,25 +56,83 @@ async function boot(): Promise<Harness> {
     import("./lib/db.js"),
   ]);
   await seedModelRouting(db);
-  return { app: createApp() as unknown as Hono, pool };
+  return { app: createApp() as unknown as Hono, pool, db };
 }
 
-/** A signed-up user's session cookie, for authenticated requests. */
-async function signUp(app: Hono): Promise<{ cookie: string; email: string }> {
+const PASSWORD = "correct-horse-battery-staple";
+
+// Distinct forwarded IP per harness user (TRUSTED_PROXY_HOPS=1 above) so the
+// 10/min credential window is per-user, not shared across the whole run.
+let ipCounter = 0;
+function nextIp(): string {
+  ipCounter += 1;
+  return `10.99.${Math.floor(ipCounter / 200)}.${(ipCounter % 200) + 1}`;
+}
+
+/**
+ * The most recent OTP mailed to `email`, read from the console email driver's
+ * log. `sinceIndex` (a logLines.length snapshot taken BEFORE the triggering
+ * request) scopes the search to sends caused by that request — without it,
+ * two same-type sends to one address (signup + a blocked sign-in's re-send)
+ * can race in the background and `at(-1)` would grab the stale, rotated-out
+ * code.
+ */
+async function waitForOtp(email: string, sinceIndex = 0): Promise<string> {
+  // The verification send may run in the background of the triggering
+  // request — poll briefly instead of racing it.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const mails = logLines
+      .slice(sinceIndex)
+      .map((line) => {
+        try {
+          return JSON.parse(line) as { module?: string; to?: string; body?: string };
+        } catch {
+          return null;
+        }
+      })
+      .filter((line) => line?.module === "email" && line.to === email);
+    const body = mails.at(-1)?.body ?? "";
+    const match = /\b(\d{6})\b/.exec(body);
+    if (match?.[1]) return match[1];
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`no OTP email captured for ${email}`);
+}
+
+function sessionCookie(res: Response): string {
+  const setCookie = res.headers.get("set-cookie");
+  if (!setCookie) throw new Error("expected a session cookie");
+  // Take the cookie name=value pair (drop attributes) for the request header.
+  return setCookie.split(";")[0] ?? "";
+}
+
+/**
+ * A signed-up, OTP-VERIFIED user's session cookie. requireEmailVerification
+ * (ADR-66) means sign-up alone no longer returns a session — the OTP round
+ * trip is part of what "signed up" means now.
+ */
+async function signUp(app: Hono): Promise<{ cookie: string; email: string; ip: string }> {
   const email = `harness-${randomUUID()}@mullion.local`;
+  const ip = nextIp();
   const res = await app.request("/api/auth/sign-up/email", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Origin: WEB_ORIGIN },
-    body: JSON.stringify({ name: "Harness User", email, password: "correct-horse-battery-staple" }),
+    headers: { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip },
+    body: JSON.stringify({ name: "Harness User", email, password: PASSWORD }),
   });
   if (res.status !== 200) {
     throw new Error(`sign-up failed (${res.status}): ${await res.text()}`);
   }
-  const setCookie = res.headers.get("set-cookie");
-  if (!setCookie) throw new Error("sign-up returned no session cookie");
-  // Take the cookie name=value pair (drop attributes) for the request header.
-  const cookie = setCookie.split(";")[0] ?? "";
-  return { cookie, email };
+  const otp = await waitForOtp(email);
+  const verify = await app.request("/api/auth/email-otp/verify-email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip },
+    body: JSON.stringify({ email, otp }),
+  });
+  if (verify.status !== 200) {
+    throw new Error(`verify-email failed (${verify.status}): ${await verify.text()}`);
+  }
+  // autoSignInAfterVerification: the verify response carries the session.
+  return { cookie: sessionCookie(verify), email, ip };
 }
 
 describe.skipIf(!integration)("apps/api HTTP surface", () => {
@@ -147,7 +224,9 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     for (const origin of [WEB_ORIGIN, DASHBOARD_ORIGIN]) {
       const res = await harness.app.request("/api/auth/sign-up/email", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Origin: origin },
+        // Distinct forwarded IP so this never shares (and never flakes on)
+        // the cred:unknown rate-limit bucket with other no-XFF tests.
+        headers: { "Content-Type": "application/json", Origin: origin, "x-forwarded-for": nextIp() },
         body: JSON.stringify({
           name: "Origin Probe",
           email: `origin-${randomUUID()}@mullion.local`,
@@ -185,10 +264,12 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     // regardless of whether a GitHub OAuth app is configured — link-only.
     const res = await harness.app.request("/api/auth/sign-in/social", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Origin: WEB_ORIGIN },
+      headers: { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": nextIp() },
       body: JSON.stringify({ provider: "github", callbackURL: "/" }),
     });
     expect(res.status).toBe(403);
+    // Prove it's the ADR-56 guard's 403, not the CSRF gate's or a generic one.
+    expect(await res.text()).toMatch(/link-only/);
   });
 
   it("signs a user up, provisions a personal org, and serves their (empty) builds", async () => {
@@ -214,5 +295,301 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     // that it never returns a freshly-authenticated 200 session.
     expect(res.status).not.toBe(200);
     expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("does not catch Google in the GitHub sign-in guard", async () => {
+    // No Google OAuth app is configured in the harness env, so Better Auth
+    // rejects the provider — the load-bearing assertion is that the ADR-56
+    // guard's 403 never fires for a non-github provider.
+    const res = await harness.app.request("/api/auth/sign-in/social", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": nextIp() },
+      body: JSON.stringify({ provider: "google", callbackURL: "/" }),
+    });
+    expect(res.status).not.toBe(403);
+  });
+
+  it("blocks credential sign-in until the email is OTP-verified (ADR-66)", async () => {
+    const email = `harness-${randomUUID()}@mullion.local`;
+    const ip = nextIp();
+    const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
+    const signup = await harness.app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "Unverified User", email, password: PASSWORD }),
+    });
+    expect(signup.status).toBe(200);
+
+    // Pre-verification sign-in must be refused, and (sendOnSignIn) must
+    // re-send a fresh OTP so a returning user isn't stuck on an expired code.
+    const beforeBlocked = logLines.length;
+    const blocked = await harness.app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, password: PASSWORD }),
+    });
+    expect(blocked.status).toBe(403);
+    expect(blocked.headers.get("set-cookie")).toBeNull();
+
+    // A wrong code is rejected without flipping the flag… (scoped past the
+    // signup send: rotate strategy means only the re-sent code is live)
+    const otp = await waitForOtp(email, beforeBlocked);
+    const wrongOtp = otp === "000000" ? "000001" : "000000";
+    const wrong = await harness.app.request("/api/auth/email-otp/verify-email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, otp: wrongOtp }),
+    });
+    expect(wrong.status).not.toBe(200);
+
+    // …the right one verifies and signs in (autoSignInAfterVerification).
+    const verify = await harness.app.request("/api/auth/email-otp/verify-email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, otp }),
+    });
+    expect(verify.status).toBe(200);
+    expect(verify.headers.get("set-cookie")).not.toBeNull();
+
+    // And the password now works.
+    const signin = await harness.app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, password: PASSWORD }),
+    });
+    expect(signin.status).toBe(200);
+  });
+
+  it("resets a password via OTP and revokes the old credentials", async () => {
+    const { email, ip } = await signUp(harness.app);
+    const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
+    const request = await harness.app.request("/api/auth/email-otp/request-password-reset", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email }),
+    });
+    expect(request.status).toBe(200);
+
+    const otp = await waitForOtp(email);
+    const newPassword = "an-entirely-new-passphrase";
+    const reset = await harness.app.request("/api/auth/email-otp/reset-password", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, otp, password: newPassword }),
+    });
+    expect(reset.status).toBe(200);
+
+    const oldSignin = await harness.app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, password: PASSWORD }),
+    });
+    expect(oldSignin.status).toBe(401);
+
+    const newSignin = await harness.app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, password: newPassword }),
+    });
+    expect(newSignin.status).toBe(200);
+  });
+
+  it("revokes every pre-reset session when the password is reset", async () => {
+    // revokeSessionsOnPasswordReset — a compromise reset must log the
+    // attacker (and everyone else) out, not just change the password.
+    const { cookie, email, ip } = await signUp(harness.app);
+    const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
+    const before = logLines.length;
+    await harness.app.request("/api/auth/email-otp/request-password-reset", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email }),
+    });
+    const otp = await waitForOtp(email, before);
+    const reset = await harness.app.request("/api/auth/email-otp/reset-password", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, otp, password: "post-compromise-passphrase" }),
+    });
+    expect(reset.status).toBe(200);
+
+    const withOldSession = await harness.app.request("/api/builds", {
+      method: "GET",
+      headers: { Cookie: cookie, Origin: WEB_ORIGIN, "x-forwarded-for": ip },
+    });
+    expect(withOldSession.status).toBe(401);
+  });
+
+  it("invalidates the code after 3 wrong attempts (allowedAttempts)", async () => {
+    const email = `harness-${randomUUID()}@mullion.local`;
+    const ip = nextIp();
+    const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
+    const signup = await harness.app.request("/api/auth/sign-up/email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ name: "Attempts Cap", email, password: PASSWORD }),
+    });
+    expect(signup.status).toBe(200);
+    const otp = await waitForOtp(email);
+    for (const wrong of ["000000", "111111", "222222"]) {
+      const res = await harness.app.request("/api/auth/email-otp/verify-email", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ email, otp: wrong === otp ? "999999" : wrong }),
+      });
+      expect(res.status).not.toBe(200);
+    }
+    // The correct code is burned now — brute-forcing 3 guesses must not
+    // leave the real code usable.
+    const afterCap = await harness.app.request("/api/auth/email-otp/verify-email", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, otp }),
+    });
+    expect(afterCap.status).not.toBe(200);
+  });
+
+  it("signs a passwordless (social-first) account in via OTP end to end (ADR-66)", async () => {
+    // The happy half of the password-presence gate: a user with NO
+    // credential row (normally minted by OAuth — seeded directly here since
+    // the harness has no live OAuth provider) must be able to request a
+    // sign-in code and complete OTP sign-in.
+    const { schema } = await import("@mullion/db");
+    const { provisionPersonalOrg } = await import("./modules/auth/org.js");
+    const email = `passwordless-${randomUUID()}@mullion.local`;
+    const userId = randomUUID();
+    const [user] = await harness.db
+      .insert(schema.user)
+      .values({ id: userId, name: "Social First", email, emailVerified: true })
+      .returning();
+    if (!user) throw new Error("seed insert returned no user row");
+    await provisionPersonalOrg(harness.db, user);
+
+    const ip = nextIp();
+    const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
+    const before = logLines.length;
+    const send = await harness.app.request("/api/auth/email-otp/send-verification-otp", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, type: "sign-in" }),
+    });
+    expect(send.status).toBe(200);
+
+    const otp = await waitForOtp(email, before);
+    const signin = await harness.app.request("/api/auth/sign-in/email-otp", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, otp }),
+    });
+    expect(signin.status).toBe(200);
+    const cookie = sessionCookie(signin);
+
+    // The session is real: it clears the org-scoped product surface.
+    const builds = await harness.app.request("/api/builds", {
+      method: "GET",
+      headers: { Cookie: cookie, Origin: WEB_ORIGIN, "x-forwarded-for": ip },
+    });
+    expect(builds.status).toBe(200);
+  });
+
+  it("answers password-reset requests identically for unknown emails (no enumeration oracle)", async () => {
+    const { email, ip } = await signUp(harness.app);
+    const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
+    const known = await harness.app.request("/api/auth/email-otp/request-password-reset", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email }),
+    });
+    const unknown = await harness.app.request("/api/auth/email-otp/request-password-reset", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email: `nobody-${randomUUID()}@mullion.local` }),
+    });
+    expect(unknown.status).toBe(known.status);
+    expect(await unknown.text()).toBe(await known.text());
+  });
+
+  it("refuses OTP sign-in for accounts that have a password (ADR-66)", async () => {
+    const { email, ip } = await signUp(harness.app);
+    const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
+    // Neither the code email nor the sign-in itself may proceed — the empty
+    // password field is the flag, and this account has one.
+    const send = await harness.app.request("/api/auth/email-otp/send-verification-otp", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, type: "sign-in" }),
+    });
+    expect(send.status).toBe(403);
+    expect(await send.text()).toMatch(/has a password/);
+    const signin = await harness.app.request("/api/auth/sign-in/email-otp", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ email, otp: "000000" }),
+    });
+    expect(signin.status).toBe(403);
+    expect(await signin.text()).toMatch(/has a password/);
+  });
+
+  it("rejects set-password for an account that already has one (409)", async () => {
+    const { cookie, ip } = await signUp(harness.app);
+    const res = await harness.app.request("/api/account/set-password", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: cookie,
+        Origin: DASHBOARD_ORIGIN,
+        "x-forwarded-for": ip,
+      },
+      body: JSON.stringify({ newPassword: "some-other-passphrase" }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  it("updates the avatar through update-user, https URLs only (ADR-66)", async () => {
+    const { cookie, ip } = await signUp(harness.app);
+    const headers = {
+      "Content-Type": "application/json",
+      Cookie: cookie,
+      Origin: DASHBOARD_ORIGIN,
+      "x-forwarded-for": ip,
+    };
+    const bad = await harness.app.request("/api/auth/update-user", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ image: "javascript:alert(1)" }),
+    });
+    expect(bad.status).toBe(400);
+
+    const good = await harness.app.request("/api/auth/update-user", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ image: "https://avatars.example.com/u/1.png" }),
+    });
+    expect(good.status).toBe(200);
+
+    const session = await harness.app.request("/api/auth/get-session", {
+      method: "GET",
+      headers: { Cookie: cookie, Origin: DASHBOARD_ORIGIN, "x-forwarded-for": ip },
+    });
+    const body = (await session.json()) as { user?: { image?: string | null } };
+    expect(body.user?.image).toBe("https://avatars.example.com/u/1.png");
+  });
+
+  it("rate-limits the OTP endpoints on the credential window (ADR-32/66)", async () => {
+    const ip = nextIp();
+    const headers = { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip };
+    let limited = false;
+    for (let i = 0; i < 12; i += 1) {
+      const res = await harness.app.request("/api/auth/email-otp/send-verification-otp", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ email: `flood-${randomUUID()}@mullion.local`, type: "email-verification" }),
+      });
+      if (res.status === 429) {
+        limited = true;
+        break;
+      }
+    }
+    expect(limited).toBe(true);
   });
 });

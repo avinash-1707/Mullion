@@ -61,6 +61,11 @@ describe("dashboard origin (ADR-64)", () => {
       DATABASE_URL: "postgres://user:pass@host/db?sslmode=require",
       API_ORIGIN: "https://api.example.com",
       WEB_ORIGIN: "https://example.com",
+      // Production pins EMAIL_DRIVER=resend (ADR-67) — satisfy it so this
+      // test only exercises the origin guard.
+      EMAIL_DRIVER: "resend",
+      RESEND_API_KEY: "re_x",
+      EMAIL_FROM: "Mullion <auth@mullion.dev>",
     };
     expect(() => parseApiEnv({ ...prod, DASHBOARD_ORIGIN: "http://app.example.com" })).toThrow(
       /DASHBOARD_ORIGIN/,
@@ -84,5 +89,66 @@ describe("origin normalization", () => {
     expect(parsed.API_ORIGIN).toBe("http://localhost:8787");
     expect(parsed.WEB_ORIGIN).toBe("http://localhost:3000");
     expect(parsed.DASHBOARD_ORIGIN).toBe("http://localhost:3001");
+  });
+});
+
+describe("email + login provider env (ADR-66/67)", () => {
+  const PROD = {
+    ...BASE,
+    NODE_ENV: "production",
+    DATABASE_URL: "postgres://user:pass@host/db?sslmode=require",
+    API_ORIGIN: "https://api.example.com",
+    WEB_ORIGIN: "https://example.com",
+    DASHBOARD_ORIGIN: "https://app.example.com",
+  };
+
+  it("defaults EMAIL_DRIVER to console outside production", () => {
+    expect(parseApiEnv({ ...BASE }).EMAIL_DRIVER).toBe("console");
+  });
+
+  it("requires RESEND_API_KEY and EMAIL_FROM together when EMAIL_DRIVER=resend", () => {
+    expect(() => parseApiEnv({ ...BASE, EMAIL_DRIVER: "resend" })).toThrow(/RESEND_API_KEY/);
+    expect(() =>
+      parseApiEnv({ ...BASE, EMAIL_DRIVER: "resend", RESEND_API_KEY: "re_x" }),
+    ).toThrow(/RESEND_API_KEY/);
+    expect(() =>
+      parseApiEnv({ ...BASE, EMAIL_DRIVER: "resend", EMAIL_FROM: "Mullion <auth@mullion.dev>" }),
+    ).toThrow(/RESEND_API_KEY/);
+    expect(
+      parseApiEnv({
+        ...BASE,
+        EMAIL_DRIVER: "resend",
+        RESEND_API_KEY: "re_x",
+        EMAIL_FROM: "Mullion <auth@mullion.dev>",
+      }).EMAIL_DRIVER,
+    ).toBe("resend");
+  });
+
+  it("rejects the console driver in production — OTPs must not land in logs", () => {
+    expect(() => parseApiEnv({ ...PROD })).toThrow(/EMAIL_DRIVER/);
+    expect(
+      parseApiEnv({
+        ...PROD,
+        EMAIL_DRIVER: "resend",
+        RESEND_API_KEY: "re_x",
+        EMAIL_FROM: "Mullion <auth@mullion.dev>",
+      }).EMAIL_DRIVER,
+    ).toBe("resend");
+  });
+
+  it("requires OAuth id/secret pairs to be complete (google, github-login)", () => {
+    expect(() => parseApiEnv({ ...BASE, GOOGLE_CLIENT_ID: "id" })).toThrow(/GOOGLE_CLIENT_SECRET/);
+    expect(() => parseApiEnv({ ...BASE, GITHUB_LOGIN_CLIENT_SECRET: "secret" })).toThrow(
+      /GITHUB_LOGIN_CLIENT_SECRET/,
+    );
+    const both = parseApiEnv({
+      ...BASE,
+      GOOGLE_CLIENT_ID: "id",
+      GOOGLE_CLIENT_SECRET: "secret",
+      GITHUB_LOGIN_CLIENT_ID: "id2",
+      GITHUB_LOGIN_CLIENT_SECRET: "secret2",
+    });
+    expect(both.GOOGLE_CLIENT_ID).toBe("id");
+    expect(both.GITHUB_LOGIN_CLIENT_ID).toBe("id2");
   });
 });

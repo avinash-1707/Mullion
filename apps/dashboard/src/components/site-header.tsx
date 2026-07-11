@@ -33,6 +33,9 @@ export function SiteHeader() {
             <Link href="/builds" className={buttonVariants({ variant: "ghost", size: "sm" })}>
               Builds
             </Link>
+            <Link href="/settings" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+              Settings
+            </Link>
             <Link href="/" className={buttonVariants({ variant: "secondary", size: "sm" })}>
               Dashboard
             </Link>

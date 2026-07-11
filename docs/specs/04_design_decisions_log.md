@@ -1184,3 +1184,89 @@ deploy serving two hosts, but none of the isolation the split is for).
 **Doc:** `apps/dashboard/`, `apps/web/src/lib/return-to.ts`,
 `apps/api/src/app.ts` (browserOrigins), `apps/api/src/modules/auth/auth.ts`,
 `packages/config/src/env.ts` (DASHBOARD_ORIGIN)
+
+### ADR-65 — Login providers: Google + a second, minimal-scope GitHub OAuth app
+**Status:** 🔧 Owner-directed during Phase 5
+**Context:** ADR-56 made GitHub link-only because the delivery OAuth app
+requests `repo` scope — as a login it would demand full repo access at
+sign-in. The owner wants GitHub and Google as real sign-in methods next to
+credentials, without touching the delivery model.
+**Decision:** Google becomes a first-class social login
+(`socialProviders.google`, soft-optional env pair). GitHub login runs on a
+SECOND OAuth app with `read:user` + `user:email` only, registered through
+the `genericOAuth` plugin as `providerId: "github-login"` (Better Auth
+allows one config per built-in provider id, and the built-in `github` slot
+stays with the repo-scoped delivery app). Its `getUserInfo` reads
+`/user/emails` so `emailVerified` is GitHub's own verdict, which account
+linking depends on. The ADR-56 sign-in block on the delivery app stays;
+this supersedes only its "GitHub is never a sign-in method" consequence.
+**Alternatives considered:** enabling sign-in on the repo-scoped app
+(every login grants repo access — rejected); keeping GitHub link-only with
+Google as the sole social login (fewer moving parts, but the owner
+explicitly wants GitHub login); swapping the apps so login owns the
+built-in slot (would migrate existing delivery-linked account rows for no
+benefit).
+**Doc:** `apps/api/src/modules/auth/auth.ts` (genericOAuth block),
+`packages/config/src/env.ts` (GITHUB_LOGIN_*, GOOGLE_*), ADR-56
+
+### ADR-66 — Credential auth: OTP verification/reset, password-presence gate, implicit linking, `image` as avatar
+**Status:** 🔧 Designed by Claude during Phase 5, owner-refined
+**Context:** Credential accounts had no email verification, no password
+recovery, and no linking policy; the owner asked for OTP-based
+verification, forgot/reset flows, account linking, and an avatarUrl field.
+**Decision:** The `emailOTP` plugin is the single code mechanism (6
+digits, 5 min, 3 attempts, `storeOTP: "hashed"`,
+`overrideDefaultEmailVerification: true` — no link-based flows exist).
+`requireEmailVerification: true` gates credential sign-in;
+`autoSignInAfterVerification: true` signs the user in off the verify
+response; a data-only migration (0007) grandfathers pre-launch users.
+Password reset is the plugin's `request-password-reset` →
+`reset-password` OTP flow. Passwordless OTP SIGN-IN is allowed only for
+accounts with no credential password (social-first accounts) — the empty
+password field is the flag; accounts with a password get 403 on both the
+send and sign-in OTP routes (`otp-signin-guard.ts`), and a session-gated
+`POST /api/account/set-password` lets social-first users add a password
+(never rotate an existing one — that stays change-password's job, which
+demands the current password). Account linking: implicit same-email
+linking stays ON with `trustedProviders: []` (nothing bypasses the
+provider-verified-email check) and `allowDifferentEmails: true` (the
+ADR-56 delivery link needs it); the pre-hijack path dead-ends because an
+unverified credential row can never be signed into. Avatar reuses the
+core `image` column (no `avatarUrl` migration) via Better Auth's
+`update-user`, pinned to https URLs ≤ 2048 chars by a
+`user.update.before` hook. OTP endpoints ride the credential rate-limit
+window on top of the plugin's per-email limit.
+**Alternatives considered:** link-based verification/reset emails (two
+mechanisms, and the owner asked for OTP); blocking passwordless sign-in
+outright (loses the social-first recovery path the owner wants);
+`disableImplicitLinking: true` (max caution, but friction for no closed
+vector given verification gating); a real `avatarUrl` column (migration +
+field-mapping for a cosmetic rename).
+**Doc:** `apps/api/src/modules/auth/auth.ts`,
+`apps/api/src/modules/auth/otp-signin-guard.ts`,
+`apps/api/src/modules/auth/routes.ts`,
+`packages/db/drizzle/0007_backfill-email-verified.sql`
+
+### ADR-67 — Email delivery: driver seam, console in dev, Resend pinned in production
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** OTP flows (ADR-66) need real email in production and zero
+external dependencies in local dev/test — the same tension
+SANDBOX_DRIVER/ARTIFACT_STORE already resolve with env-selected drivers.
+**Decision:** One `sendEmail` seam (`modules/email/send.ts`) behind
+`EMAIL_DRIVER`: `console` logs the full message (OTP readable off the
+terminal — also how the integration harness reads codes back) and is the
+dev/test default; `resend` really sends and requires `RESEND_API_KEY` +
+`EMAIL_FROM` (verified domain). Production boots ONLY with
+`EMAIL_DRIVER=resend` — a console driver in prod would write OTPs into
+logs, so the env schema fails the boot, same tier as the https/sslmode
+guards. Resend API errors come back in the return value, not as throws —
+the driver rethrows so Better Auth never mistakes a failed send for
+success. Templates are plain text/HTML (`templates.ts`); branding/i18n
+deferred (`03` territory).
+**Alternatives considered:** SMTP/nodemailer (another server to run,
+Resend is already the chosen stack); logging OTPs at debug level in prod
+as a fallback (a leak, not a fallback); sending via a queue/Temporal
+(nothing needs durability for a 5-minute code in v1).
+**Doc:** `apps/api/src/modules/email/send.ts`,
+`apps/api/src/modules/email/templates.ts`, `packages/config/src/env.ts`
+(EMAIL_DRIVER guards), `apps/api/.env.example`

@@ -64,6 +64,60 @@ template.
 
 ---
 
+### [2026-07-11] Auth surface completed: OTP verification/reset, Google + GitHub login, linking, avatars (ADR-65/66/67)
+**Phase:** Post-Phase-4 follow-on (auth hardening)
+**Type:** Progress update + Architecture change
+**Summary:** Credential auth now requires OTP email verification
+(`emailOTP` plugin: 6 digits, 5 min, 3 attempts, hashed at rest;
+`requireEmailVerification` + `autoSignInAfterVerification`); password
+reset is the same plugin's OTP flow; passwordless OTP sign-in is allowed
+only for accounts with no credential password (empty password field is
+the flag — guard in `otp-signin-guard.ts` on both send + sign-in routes),
+with a session-gated `POST /api/account/set-password` so social-first
+users can add one. Google is a login (`socialProviders.google`); GitHub
+login runs on a second minimal-scope OAuth app via `genericOAuth`
+(`github-login`, reads /user/emails for a real emailVerified verdict) —
+the repo-scoped delivery app stays link-only (ADR-56 guard intact,
+integration-tested to not catch Google). Account linking: implicit for
+verified same-email identities, `trustedProviders: []`,
+`allowDifferentEmails: true` for the delivery link. Avatar reuses the
+core `image` column via Better Auth `update-user`, pinned to https URLs
+≤2048 chars by a `user.update.before` hook. Email goes through one
+`sendEmail` seam: `EMAIL_DRIVER=console` logs the OTP locally (also how
+the integration harness reads codes), `resend` in production (boot-fails
+otherwise). OTP endpoints ride the 10/min/IP credential window. Data-only
+migration 0007 grandfathers pre-launch users to `email_verified=true`.
+Verified: config 11/11 unit, api 22/22 unit, 42/42 integration against
+local Postgres (signup→OTP→verify→sign-in, wrong/expired OTP, reset +
+old-password revocation, enumeration-identical reset responses, OTP
+sign-in 403 for password holders, set-password 409, avatar https-only,
+OTP flood 429); `db:generate` emits no schema drift.
+**Files/areas touched:** `apps/api/src/modules/auth/` (auth.ts,
+otp-signin-guard.ts, routes.ts), `apps/api/src/modules/email/` (new),
+`apps/api/src/app.ts`, `packages/config/src/env.ts`,
+`packages/db/drizzle/0007_backfill-email-verified.sql`,
+`apps/api/src/app.integration.test.ts` (harness now OTP-verifies),
+`apps/web` + `apps/dashboard` auth pages/settings, `.env.example`
+**Related ADR:** New — added ADR-65/66/67 to `04` (login providers; OTP +
+linking + avatar policy; email driver)
+**Follow-ups:** register the Google + second GitHub OAuth apps and Resend
+domain before prod deploy; branded email templates deferred (`03`);
+shared auth-client extraction still pending (deliberate per ADR-64).
+Multi-lens review (correctness/security/tests/blast-radius) ran post-build;
+fixed from findings: `revokeSessionsOnPasswordReset` + `sendOnSignIn` were
+missing (reset now really logs out everywhere, blocked sign-in really
+re-sends the OTP — both integration-tested), per-email OTP send cap
+(6/hour, in-memory like the rate-limit store), fail-closed GitHub
+/user/emails fetch, OTP autofill handling, harness de-flaking + 3 new
+integration tests (passwordless OTP sign-in happy path, allowedAttempts
+cap, session revocation). Accepted risks / deferred: the 403
+"has a password" auth-method oracle is an owner-chosen UX tradeoff;
+unverified-email squatting is a DoS-only path (needs an unverified-account
+sweep, `03` territory); set-password check→write is non-atomic (benign —
+add a partial unique index on account(userId) WHERE providerId='credential'
+with the next real schema migration); NODE_ENV remains the single switch
+for the prod env guards.
+
 ### [2026-07-11] Dashboard restyled to the brand (dark hybrid)
 **Phase:** Post-Phase-4 follow-on (marketing/product separation)
 **Type:** Progress update
