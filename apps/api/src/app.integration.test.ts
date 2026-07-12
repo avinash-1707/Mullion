@@ -647,4 +647,214 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     }
     expect(limited).toBe(true);
   });
+
+  describe("settings: BYOK + model overrides + analytics (ADR-70/71)", () => {
+    const TEST_KEY = "sk-or-v1-harness-key-000000000000abcd";
+
+    function authedHeaders(cookie: string, ip: string): Record<string, string> {
+      return {
+        "Content-Type": "application/json",
+        Cookie: cookie,
+        Origin: DASHBOARD_ORIGIN,
+        "x-forwarded-for": ip,
+      };
+    }
+
+    /** Stub the outbound OpenRouter probe — never a live call from a test. */
+    async function stubValidateKey(valid: boolean): Promise<{ mockRestore: () => void }> {
+      const { llm } = await import("./lib/llm.js");
+      return vi.spyOn(llm, "validateKey").mockResolvedValue({ valid });
+    }
+
+    async function orgIdForCookie(cookie: string, ip: string): Promise<string> {
+      const res = await harness.app.request("/api/auth/get-session", {
+        method: "GET",
+        headers: { Cookie: cookie, Origin: DASHBOARD_ORIGIN, "x-forwarded-for": ip },
+      });
+      const body = (await res.json()) as { session?: { activeOrganizationId?: string | null } };
+      if (!body.session?.activeOrganizationId) {
+        throw new Error("session has no active organization");
+      }
+      return body.session.activeOrganizationId;
+    }
+
+    it("rejects anonymous access on every settings route", async () => {
+      for (const path of ["/api/settings/byok", "/api/settings/models", "/api/settings/analytics"]) {
+        const res = await harness.app.request(path);
+        expect(res.status).toBe(401);
+      }
+    });
+
+    it("refuses to persist a key OpenRouter rejects", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const spy = await stubValidateKey(false);
+      try {
+        const res = await harness.app.request("/api/settings/byok", {
+          method: "POST",
+          headers: authedHeaders(cookie, ip),
+          body: JSON.stringify({ apiKey: TEST_KEY }),
+        });
+        expect(res.status).toBe(400);
+        const status = await harness.app.request("/api/settings/byok", {
+          headers: authedHeaders(cookie, ip),
+        });
+        expect(await status.json()).toMatchObject({ hasKey: false });
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("saves a valid key, returns only the masked tail, and gates model overrides on it", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const headers = authedHeaders(cookie, ip);
+
+      // Custom pick before any key exists → 409 (ADR-71: platform pays, platform picks).
+      const early = await harness.app.request("/api/settings/models", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ role: "coder", modelSlug: "anthropic/claude-sonnet-4.5" }),
+      });
+      expect(early.status).toBe(409);
+
+      const spy = await stubValidateKey(true);
+      try {
+        const save = await harness.app.request("/api/settings/byok", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ apiKey: TEST_KEY }),
+        });
+        expect(save.status).toBe(200);
+        const saveBody = (await save.json()) as { keyLast4: string };
+        expect(saveBody.keyLast4).toBe(TEST_KEY.slice(-4));
+
+        const status = await harness.app.request("/api/settings/byok", { headers });
+        const statusBody = JSON.stringify(await status.json());
+        expect(statusBody).toContain(TEST_KEY.slice(-4));
+        // The plaintext key must never come back in any response (ADR-70).
+        expect(statusBody).not.toContain(TEST_KEY);
+
+        // Foreign slug → 400 even with a key (ADR-71 allowlist).
+        const foreign = await harness.app.request("/api/settings/models", {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({ role: "coder", modelSlug: "evil/model" }),
+        });
+        expect(foreign.status).toBe(400);
+
+        // Allowlisted slug → saved and visible in GET /models.
+        const put = await harness.app.request("/api/settings/models", {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({ role: "coder", modelSlug: "anthropic/claude-sonnet-4.5" }),
+        });
+        expect(put.status).toBe(200);
+        const models = (await (
+          await harness.app.request("/api/settings/models", { headers })
+        ).json()) as {
+          byokEnabled: boolean;
+          roles: Array<{ role: string; overrideModelSlug: string | null }>;
+        };
+        expect(models.byokEnabled).toBe(true);
+        expect(models.roles.find((r) => r.role === "coder")?.overrideModelSlug).toBe(
+          "anthropic/claude-sonnet-4.5",
+        );
+
+        // "Platform default" (null) deletes the override row.
+        const revert = await harness.app.request("/api/settings/models", {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({ role: "coder", modelSlug: null }),
+        });
+        expect(revert.status).toBe(200);
+
+        // Removing the key flips byokEnabled off for the models surface.
+        const del = await harness.app.request("/api/settings/byok", {
+          method: "DELETE",
+          headers,
+        });
+        expect(del.status).toBe(200);
+        const after = (await (
+          await harness.app.request("/api/settings/models", { headers })
+        ).json()) as { byokEnabled: boolean };
+        expect(after.byokEnabled).toBe(false);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("aggregates cost events per role and per day, org-scoped", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const headers = authedHeaders(cookie, ip);
+      const organizationId = await orgIdForCookie(cookie, ip);
+
+      const { schema } = await import("@mullion/db");
+      await harness.db.insert(schema.costEvents).values([
+        {
+          organizationId,
+          source: "llm",
+          role: "coder",
+          modelSlug: "anthropic/claude-haiku-4.5",
+          cost: "0.01000000",
+          byok: false,
+          promptTokens: 100,
+          completionTokens: 50,
+        },
+        {
+          organizationId,
+          source: "llm",
+          role: "reviewer",
+          modelSlug: "anthropic/claude-sonnet-4.5",
+          cost: "0.02000000",
+          byok: true,
+          promptTokens: 200,
+          completionTokens: 80,
+        },
+      ]);
+
+      const res = await harness.app.request("/api/settings/analytics?days=7", { headers });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        totals: { costUsd: number; byokCostUsd: number; promptTokens: number; completionTokens: number; llmCalls: number };
+        byRole: Array<{ role: string; promptTokens: number }>;
+        byDay: Array<{ day: string }>;
+      };
+      expect(body.totals.costUsd).toBeCloseTo(0.03, 8);
+      expect(body.totals.byokCostUsd).toBeCloseTo(0.02, 8);
+      expect(body.totals.promptTokens).toBe(300);
+      expect(body.totals.completionTokens).toBe(130);
+      expect(body.totals.llmCalls).toBe(2);
+      expect(body.byRole.map((r) => r.role).sort()).toEqual(["coder", "reviewer"]);
+      expect(body.byDay.length).toBe(1);
+
+      // A second org sees none of it (ADR-36 tenancy).
+      const other = await signUp(harness.app);
+      const otherRes = await harness.app.request("/api/settings/analytics?days=7", {
+        headers: authedHeaders(other.cookie, other.ip),
+      });
+      const otherBody = (await otherRes.json()) as { totals: { llmCalls: number } };
+      expect(otherBody.totals.llmCalls).toBe(0);
+    });
+
+    it("rate-limits key saves on a strict per-user window (ADR-70)", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const spy = await stubValidateKey(true);
+      try {
+        let limited = false;
+        for (let i = 0; i < 7; i += 1) {
+          const res = await harness.app.request("/api/settings/byok", {
+            method: "POST",
+            headers: authedHeaders(cookie, ip),
+            body: JSON.stringify({ apiKey: TEST_KEY }),
+          });
+          if (res.status === 429) {
+            limited = true;
+            break;
+          }
+        }
+        expect(limited).toBe(true);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  });
 });
