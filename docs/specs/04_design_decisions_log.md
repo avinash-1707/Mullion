@@ -1339,3 +1339,82 @@ still yields stream-backed bodies; unfixable from the caller side).
 `apps/api/src/app.integration.test.ts` (retry removed),
 `apps/api/node_modules/better-auth/dist/api/routes/sign-up.mjs:245-249`
 (root cause)
+
+### ADR-70 — BYOK: per-org OpenRouter key, platform fallback, budget split
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** Users hitting the per-org budget ceiling (ADR-31/49) need a
+way to spend their own OpenRouter credit instead of the platform's. A
+user-supplied key is a live dependency, not a static credential like the
+GitHub token (ADR-56): it can lose credit, hit rate limits, or be revoked
+mid-build, and a Temporal build that hard-fails on someone else's key
+failure reads as a platform failure.
+**Decision:**
+- **Scope: one key per org** (`byok_keys`, `unique(organization_id)`), set
+  by any org member in v1. Keys are a billing concern and budgets are
+  per-org (ADR-36); GitHub tokens stay per-user because they are identity.
+- **Encryption:** ciphertext via better-auth's `symmetricEncrypt`
+  (AES-256-GCM keyed off `BETTER_AUTH_SECRET`) — the same primitive that
+  encrypts OAuth tokens (Phase 3 audit M2). Only `key_last4` is ever
+  returned to a client; the key never appears in logs (ADR-63).
+- **Validation:** `POST /api/settings/byok` probes OpenRouter `GET /key`
+  (free, no completion spend) and persists only on success. The endpoint
+  rides a strict per-user rate limit (5/min) because each hit is an
+  outbound probe.
+- **Key selection:** the `OpenRouterClient` takes an injected
+  `apiKeyResolver(costContext)` — apps/api wires it to read + decrypt the
+  org's enabled key; `packages/llm` stays the only OpenRouter integration
+  point (ADR-24) without learning about tenancy tables.
+- **Mid-call auth failure (401/403) on a BYOK key:** retry the call once
+  on the platform key, record that call `byok=false`, disable the stored
+  key (`enabled=false`) so every later call skips straight to platform,
+  and surface a warning. Never hard-fail a build on a dead BYOK key; if
+  the platform fallback then trips the org budget, the existing
+  budget-escalation path pauses the run (ADR-31) — no new run state.
+- **Budget split:** the per-org rolling window (`sumForOrgWindow`) counts
+  only `byok = false` spend — that ceiling exists to cap the platform's
+  bill. The per-run ceiling keeps counting everything — it is runaway-loop
+  protection regardless of whose money burns.
+**Alternatives considered:** per-user keys (matches GitHub pattern but
+mismatches per-org budgets; only the initiator's key would fund a shared
+build — revisit in v2); hard-fail on key death (punishes the org for a
+stale key mid-build); counting BYOK in the org window (defeats the
+pressure-valve purpose); excluding BYOK from the per-run cap (removes the
+runaway brake).
+**Doc:** `packages/db/src/schema/app.ts` (`byok_keys`, `cost_events.byok`),
+`packages/llm/src/client.ts` (`apiKeyResolver`), `packages/agents/src/budget.ts`,
+`apps/api/src/modules/settings/`
+
+### ADR-71 — Per-role model overrides: static ZDR allowlist, BYOK-gated
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** BYOK users want to pick which model each agent role uses.
+Free-text model choice would let a user pick a model with zero ZDR
+providers, silently violating ADR-27; letting platform-funded users route
+every role to the priciest model inverts the cost control ADR-25 exists
+for.
+**Decision:**
+- **Allowlist is code:** `packages/llm/src/model-allowlist.ts` exports
+  `MODEL_ALLOWLIST: Record<AgentRole, readonly string[]>` + an
+  `assertAllowed(role, slug)` guard. Every entry is ZDR-verified by
+  inclusion; curation is a human PR (ADR-61 posture), and model slugs stay
+  inside `packages/llm` (CODING_STANDARDS §3). Not a DB table — a DB list
+  would move slug curation outside code review.
+- **Overrides are per-org rows** (`model_overrides`, PK
+  `(organization_id, role)`); "Platform default" deletes the row and
+  `model_routing` (ADR-25) resolves as before.
+- **BYOK-gated:** custom picks save only while the org has an enabled
+  BYOK key (server-enforced, mirrored in the UI as disabled options).
+  Platform pays → platform picks. If the key is later removed/disabled,
+  stored overrides stop applying rather than being deleted.
+- **Read-time fail-safe:** `resolveModel` re-checks the stored override
+  against the allowlist and the key's enabled state; a stale slug falls
+  back to the `model_routing` default — a build never fails on a
+  yesterday-valid settings row.
+- **Routing cache re-keyed** from `role` to `org:role` — a global cache
+  would leak one org's override into another's calls.
+**Alternatives considered:** free-text slugs (ZDR footgun); DB-driven
+allowlist (curation outside review); per-user overrides (no per-user key
+in v1 to gate them on); failing on stale overrides (turns a settings row
+into a build-breaker).
+**Doc:** `packages/llm/src/model-allowlist.ts`, `packages/llm/src/client.ts`
+(`resolveModel`), `packages/db/src/schema/app.ts` (`model_overrides`),
+`apps/api/src/modules/settings/routes.ts`
