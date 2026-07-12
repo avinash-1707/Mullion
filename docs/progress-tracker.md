@@ -64,6 +64,52 @@ template.
 
 ---
 
+### [2026-07-12] Dashboard visual pass: no focus rings, smoother motion, custom Select, slight radius
+**Phase:** Post-Phase-4 follow-on (UI polish, `apps/dashboard` only — a
+parallel pass covers `apps/web`)
+**Type:** Progress update
+**Summary:** Four user-directed visual changes to the signed-in product
+surface. (1) Removed the global `:focus-visible` outline rule and every
+component-level `focus:ring-*`/`focus-visible:ring-*` utility; every
+interactive element now carries its own non-ring keyboard-focus
+affordance instead (a border or background shift on `:focus-visible`,
+mirroring that element's hover treatment) — extended beyond the
+originally-named files to `ui/button.tsx`, `ui/tabs.tsx`,
+`nav/mobile-nav.tsx`, `nav/account-menu.tsx` once it was clear those had
+no focus style of their own and would otherwise go invisible-on-keyboard
+once the global rule was gone. (2) Tuned `.transition-swift` 150ms→200ms
+and proportionally lengthened the rail/drawer/dialog timings in
+`globals.css`, keeping the existing easing curve and the rail/drawer's
+deliberate asymmetric open/close mechanism intact. (3) Replaced the
+native `<select>` (`ui/select.tsx`) with a hand-rolled ARIA listbox
+(WAI-ARIA APG pattern, full keyboard nav, click-outside, enter/exit
+animation matching the dialog's state-driven class-toggle mechanism) —
+its one consumer, `settings/model-role-row.tsx`, was updated for the
+new `(value: string) => void` `onChange` contract. (4) Added a slight,
+consistent border radius (`rounded-md` on inputs/buttons/tags/small
+elements, `rounded-lg` on cards/panels/dialogs/popovers) across
+`ui/`, `planning/`, `settings/`, and app chrome, superseding the
+restyle-pass-1 "square corners everywhere" rule; `design-context.md`
+updated to document the override rather than left contradicting it.
+**Files/areas touched:** `apps/dashboard/src/app/globals.css`;
+`src/components/ui/{select,text-field,textarea,button,confirm-dialog,skeleton,avatar,tabs}.tsx`;
+`src/components/planning/{question-round-card,edit-prompt-bar,idea-intake-form}.tsx`;
+`src/components/nav/{app-sidebar,mobile-nav,account-menu}.tsx`;
+`src/components/settings/{model-role-row,byok-key-card,stat-tile,analytics-section,profile-section,form-note}.tsx`;
+`src/components/{settings-skeleton,dashboard-skeleton}.tsx`;
+`src/app/page.tsx`; `apps/dashboard/design-context.md`
+**Related ADR:** None — visual direction/motion/radius are explicitly
+engineering-not-ADR territory per `CODING_STANDARDS.md` §9.
+**Follow-ups:** Verified by full re-read of every changed file, not a
+live build/typecheck run (no shell access in this session) — worth a
+`pnpm --filter dashboard build`/typecheck pass before merge. Left
+untouched, flagged for the planning/build restyle (passes 2–3): any
+`components/planning/*`/`components/build/*` files outside the ones
+listed above, and the Phase 2 React Flow diagram chrome
+(`.mullion-flow` controls) — these may still rely solely on hover
+states with no dedicated focus-visible affordance now that the global
+outline rule is gone.
+
 ### [2026-07-12] Recovery flow unified: passwordless OTP sign-in de-advertised (ADR-68)
 **Phase:** Phase 5
 **Type:** Architecture change

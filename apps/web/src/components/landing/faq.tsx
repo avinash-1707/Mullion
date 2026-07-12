@@ -70,10 +70,10 @@ export function Faq({
                 aria-expanded={isOpen}
                 aria-controls={panelId}
                 onClick={() => setOpenIndex(isOpen ? null : index)}
-                className="group flex w-full items-baseline justify-between gap-6 py-6 text-left transition-colors duration-200 hover:text-ember"
+                className="group flex w-full items-baseline justify-between gap-6 py-6 text-left outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember"
               >
                 <span
-                  className={`font-serif text-xl transition-colors duration-200 group-hover:text-ember sm:text-2xl ${
+                  className={`font-serif text-xl transition-colors duration-200 group-hover:text-ember group-focus-visible:text-ember sm:text-2xl ${
                     tone === "light" ? "text-ink" : "text-cream"
                   }`}
                 >

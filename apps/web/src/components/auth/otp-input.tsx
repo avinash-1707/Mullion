@@ -127,10 +127,10 @@ export function OtpInput({
           onPaste={(event) => handlePaste(index, event)}
           onFocus={(event) => event.target.select()}
           className={cn(
-            "h-14 w-full min-w-0 border border-hairline-light bg-transparent text-center font-mono text-xl text-ink outline-none transition-colors duration-200",
+            "h-14 w-full min-w-0 rounded-md border border-hairline-light bg-transparent text-center font-mono text-xl text-ink outline-none transition-colors duration-200",
             "hover:border-ink-faint",
-            "focus-visible:border-ember focus-visible:ring-3 focus-visible:ring-ember/20",
-            "aria-invalid:border-ember aria-invalid:ring-3 aria-invalid:ring-ember/20",
+            "focus-visible:border-ember",
+            "aria-invalid:border-ember",
             "disabled:pointer-events-none disabled:opacity-50",
           )}
         />

@@ -31,8 +31,11 @@ function isDraftValid(question: McqQuestion, draft: QuestionDraft): boolean {
 
 function chipClass(selected: boolean): string {
   return [
-    "transition-swift border px-4 py-2 text-left text-sm font-medium",
-    "active:scale-[0.97] focus-visible:outline-none",
+    "transition-swift rounded-md border px-4 py-2 text-left text-sm font-medium",
+    // No focus ring by design — a border shift to ember on `:focus-visible`
+    // is the keyboard affordance (a no-op on an already-selected chip,
+    // whose border is ember already).
+    "active:scale-[0.97] focus-visible:outline-none focus-visible:border-ember",
     selected
       ? "border-ember bg-accent-soft text-accent-strong"
       : "border-border-strong text-fg-muted hover:border-fg-faint hover:text-fg",
@@ -117,10 +120,10 @@ interface QuestionRoundRecapProps {
 // for non-creators viewing someone else's session.
 export function QuestionRoundRecap({ round }: QuestionRoundRecapProps) {
   return (
-    <div className="flex flex-col gap-4 border border-border bg-surface p-6">
+    <div className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-6">
       <div className="flex items-center justify-between">
         <span className="font-mono text-xs uppercase tracking-[0.15em] text-fg-faint">Round {round.round}</span>
-        <span className="border border-border-strong px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.15em] text-fg-muted">
+        <span className="rounded-md border border-border-strong px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.15em] text-fg-muted">
           {round.answers === null ? "Awaiting answer" : "Answered"}
         </span>
       </div>
@@ -179,7 +182,7 @@ export function QuestionRoundCard({ round, disabled, isSubmitting, submitLabel =
   }
 
   return (
-    <div className="animate-reveal flex flex-col gap-6 border border-border bg-surface p-6">
+    <div className="animate-reveal flex flex-col gap-6 rounded-lg border border-border bg-surface p-6">
       <span className="font-mono text-xs uppercase tracking-[0.15em] text-fg-faint">
         Round {round.round} of 2
       </span>

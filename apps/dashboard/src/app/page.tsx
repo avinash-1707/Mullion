@@ -35,7 +35,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        <span className="border border-gilt/40 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.15em] text-gilt">
+        <span className="rounded-md border border-gilt/40 px-3 py-1 font-mono text-[11px] uppercase tracking-[0.15em] text-gilt">
           Org: {activeOrganization?.name ?? "—"}
         </span>
       </div>

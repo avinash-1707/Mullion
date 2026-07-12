@@ -39,13 +39,13 @@ export function LandingNav() {
           scrolled
             ? // px matches the ~13.5px vertical inset around the CTA inside
               // the h-16 bar, so the floating state reads as one uniform frame.
-              "mt-3 h-16 max-w-[min(66rem,calc(100%-1.5rem))] border border-hairline-light bg-cream/75 px-3.5 shadow-[0_1px_2px_rgba(8,8,13,0.05),0_12px_32px_-8px_rgba(8,8,13,0.14)] backdrop-blur-xl"
+              "mt-3 h-16 max-w-[min(66rem,calc(100%-1.5rem))] rounded-lg border border-hairline-light bg-cream/75 px-3.5 shadow-[0_1px_2px_rgba(8,8,13,0.05),0_12px_32px_-8px_rgba(8,8,13,0.14)] backdrop-blur-xl"
             : "mt-0 h-20 max-w-[1320px] border border-transparent bg-transparent px-6 sm:px-10"
         }`}
       >
         <Link
           href="/"
-          className="flex items-center gap-2.5 text-ink transition-colors duration-200 hover:text-ember"
+          className="flex items-center gap-2.5 text-ink outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember"
         >
           <MullionMark className="h-6 w-6" />
           <span className="font-serif text-2xl tracking-tight">Mullion</span>
@@ -56,7 +56,7 @@ export function LandingNav() {
             <a
               key={link.href}
               href={link.href}
-              className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-muted transition-colors duration-200 hover:text-ember"
+              className="font-mono text-[11px] uppercase tracking-[0.2em] text-ink-muted outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember"
             >
               {link.label}
             </a>
@@ -69,13 +69,13 @@ export function LandingNav() {
               so both use treatments that read on either surface. */}
           <Link
             href="/sign-in"
-            className="hidden font-mono text-[11px] uppercase tracking-[0.2em] text-ember transition-colors duration-200 hover:text-ember-strong sm:inline"
+            className="hidden font-mono text-[11px] uppercase tracking-[0.2em] text-ember outline-none transition-colors duration-200 hover:text-ember-strong focus-visible:text-ember-strong sm:inline"
           >
             Sign in
           </Link>
           <Link
             href="/sign-up"
-            className="bg-ember px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97]"
+            className="rounded-md bg-ember px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,transform] duration-200 hover:bg-ember-strong focus-visible:bg-ember-strong active:scale-[0.97]"
           >
             Start building
           </Link>

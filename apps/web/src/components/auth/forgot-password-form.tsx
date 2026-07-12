@@ -44,14 +44,14 @@ export function ForgotPasswordForm() {
       <button
         type="submit"
         disabled={request.isPending || !email}
-        className="w-full bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
+        className="w-full rounded-md bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,transform] duration-200 hover:bg-ember-strong focus-visible:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
       >
         {request.isPending ? "Sending…" : "Send code"}
       </button>
 
       <p className="text-center text-sm text-ink-muted">
         Remembered it?{" "}
-        <Link href="/sign-in" className="font-medium text-ember transition-colors duration-200 hover:text-ember-strong">
+        <Link href="/sign-in" className="font-medium text-ember outline-none transition-colors duration-200 hover:text-ember-strong focus-visible:text-ember-strong">
           Sign in
         </Link>
       </p>

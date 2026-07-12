@@ -11,7 +11,7 @@ export default function NotFound() {
       <div className="mx-auto flex h-24 w-full max-w-[1320px] items-center px-6 sm:px-10">
         <Link
           href="/"
-          className="flex items-center gap-2.5 text-cream transition-colors duration-200 hover:text-ember"
+          className="flex items-center gap-2.5 text-cream outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember"
         >
           <MullionMark className="h-6 w-6" />
           <span className="font-serif text-2xl tracking-tight">Mullion</span>
@@ -60,13 +60,13 @@ export default function NotFound() {
           >
             <Link
               href="/"
-              className="bg-ember px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97]"
+              className="rounded-md bg-ember px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,transform] duration-200 hover:bg-ember-strong focus-visible:bg-ember-strong active:scale-[0.97]"
             >
               Back to home
             </Link>
             <Link
               href="/sign-up"
-              className="border border-hairline-dark px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,border-color,transform] duration-200 hover:border-ember hover:bg-ember active:scale-[0.97]"
+              className="rounded-md border border-hairline-dark px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,border-color,transform] duration-200 hover:border-ember hover:bg-ember focus-visible:border-ember focus-visible:bg-ember active:scale-[0.97]"
             >
               Start building
             </Link>

@@ -31,14 +31,19 @@ export function EditPromptBar({ disabled, disabledMessage, isSubmitting, onSubmi
 
   if (disabled && disabledMessage) {
     return (
-      <div className="flex items-center justify-center border border-dashed border-border-strong bg-surface px-4 py-3.5 text-xs text-fg-faint">
+      <div className="flex items-center justify-center rounded-lg border border-dashed border-border-strong bg-surface px-4 py-3.5 text-xs text-fg-faint">
         {disabledMessage}
       </div>
     );
   }
 
   return (
-    <div className="flex items-end gap-2.5 border border-border-strong bg-surface p-2.5">
+    // The textarea itself has no border (transparent, `focus:outline-none`
+    // only) — this wrapper carries the border, so its `:focus-within` shift
+    // to ember is the textarea's real keyboard-focus affordance, same
+    // border-on-focus language as TextField/Textarea just applied one level
+    // up.
+    <div className="transition-swift flex items-end gap-2.5 rounded-lg border border-border-strong bg-surface p-2.5 focus-within:border-ember">
       <textarea
         rows={1}
         value={prompt}

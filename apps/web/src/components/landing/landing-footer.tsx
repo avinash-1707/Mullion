@@ -33,7 +33,7 @@ export function LandingFooter() {
                 <li key={link.href} className="mt-3 first:mt-0">
                   <a
                     href={link.href}
-                    className="font-serif text-lg text-parchment transition-colors duration-200 hover:text-ember"
+                    className="font-serif text-lg text-parchment outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember"
                   >
                     {link.label}
                   </a>
@@ -48,7 +48,7 @@ export function LandingFooter() {
               <li>
                 <Link
                   href="/sign-in"
-                  className="font-serif text-lg text-parchment transition-colors duration-200 hover:text-ember"
+                  className="font-serif text-lg text-parchment outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember"
                 >
                   Sign in
                 </Link>
@@ -56,7 +56,7 @@ export function LandingFooter() {
               <li className="mt-3">
                 <Link
                   href="/sign-up"
-                  className="font-serif text-lg text-parchment transition-colors duration-200 hover:text-ember"
+                  className="font-serif text-lg text-parchment outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember"
                 >
                   Create an account
                 </Link>
@@ -64,7 +64,7 @@ export function LandingFooter() {
               <li className="mt-8">
                 <Link
                   href="/sign-up"
-                  className="inline-block bg-ember px-6 py-3.5 font-mono text-[11px] uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97]"
+                  className="inline-block rounded-md bg-ember px-6 py-3.5 font-mono text-[11px] uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,transform] duration-200 hover:bg-ember-strong focus-visible:bg-ember-strong active:scale-[0.97]"
                 >
                   Start building
                 </Link>

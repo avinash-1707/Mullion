@@ -113,7 +113,10 @@ export function MobileNav() {
         ref={headerRef}
         className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-hairline bg-bg/85 px-6 backdrop-blur-sm lg:hidden"
       >
-        <Link href="/" className="flex items-center gap-2.5 text-fg transition-swift hover:text-ember">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 text-fg transition-swift hover:text-ember focus-visible:text-ember focus-visible:outline-none"
+        >
           <MullionMark className="h-6 w-6" />
           <span className="font-serif text-xl tracking-tight">Mullion</span>
         </Link>
@@ -124,7 +127,7 @@ export function MobileNav() {
           aria-controls={drawerId}
           aria-label={open ? "Close navigation" : "Open navigation"}
           onClick={() => setOpen((value) => !value)}
-          className="transition-swift flex h-9 w-9 items-center justify-center text-fg-muted hover:bg-elevated hover:text-fg"
+          className="transition-swift flex h-9 w-9 items-center justify-center rounded-md text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none"
         >
           {open ? <CloseIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
         </button>
@@ -147,7 +150,7 @@ export function MobileNav() {
           <Link
             href="/"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 text-fg transition-swift hover:text-ember"
+            className="flex items-center gap-2.5 text-fg transition-swift hover:text-ember focus-visible:text-ember focus-visible:outline-none"
           >
             <MullionMark className="h-6 w-6" />
             <span className="font-serif text-xl tracking-tight">Mullion</span>
@@ -156,7 +159,7 @@ export function MobileNav() {
             type="button"
             aria-label="Close navigation"
             onClick={() => setOpen(false)}
-            className="transition-swift flex h-9 w-9 items-center justify-center text-fg-muted hover:bg-elevated hover:text-fg"
+            className="transition-swift flex h-9 w-9 items-center justify-center rounded-md text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none"
           >
             <CloseIcon className="h-5 w-5" />
           </button>
@@ -173,7 +176,7 @@ export function MobileNav() {
                 aria-current={active ? "page" : undefined}
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "transition-swift relative flex h-12 items-center gap-3 px-6 text-fg-muted hover:bg-elevated hover:text-fg",
+                  "transition-swift relative flex h-12 items-center gap-3 px-6 text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none",
                   active && "bg-accent-soft text-fg",
                 )}
               >

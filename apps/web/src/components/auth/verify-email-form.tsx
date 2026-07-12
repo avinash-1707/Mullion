@@ -63,7 +63,7 @@ export function VerifyEmailForm({ initialEmail }: VerifyEmailFormProps) {
       <button
         type="submit"
         disabled={verify.isPending || otp.length < 6 || !email}
-        className="mt-2 w-full bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
+        className="mt-2 w-full rounded-md bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,transform] duration-200 hover:bg-ember-strong focus-visible:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
       >
         {verify.isPending ? "Verifying…" : "Verify email"}
       </button>
@@ -72,14 +72,14 @@ export function VerifyEmailForm({ initialEmail }: VerifyEmailFormProps) {
         type="button"
         disabled={!resend.canResend || resendOtp.isPending || !email}
         onClick={handleResend}
-        className="text-center font-mono text-[11px] uppercase tracking-[0.2em] text-ink-faint transition-colors duration-200 hover:text-ember disabled:pointer-events-none disabled:opacity-50"
+        className="text-center font-mono text-[11px] uppercase tracking-[0.2em] text-ink-faint outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember disabled:pointer-events-none disabled:opacity-50"
       >
         {resendOtp.isPending ? "Sending…" : resend.canResend ? "Resend code" : `Resend in ${resend.remaining}s`}
       </button>
 
       <p className="text-center text-sm text-ink-muted">
         Wrong account?{" "}
-        <Link href="/sign-in" className="font-medium text-ember transition-colors duration-200 hover:text-ember-strong">
+        <Link href="/sign-in" className="font-medium text-ember outline-none transition-colors duration-200 hover:text-ember-strong focus-visible:text-ember-strong">
           Sign in again
         </Link>
       </p>

@@ -33,7 +33,7 @@ export function AppSidebar() {
       <Link
         href="/"
         aria-label="Mullion dashboard"
-        className="flex h-16 shrink-0 items-center text-fg transition-swift hover:text-ember"
+        className="flex h-16 shrink-0 items-center text-fg transition-swift hover:text-ember focus-visible:text-ember focus-visible:outline-none"
       >
         <span className="flex h-16 w-[60px] shrink-0 items-center justify-center">
           <MullionMark className="h-6 w-6" />
@@ -56,7 +56,7 @@ export function AppSidebar() {
               aria-current={active ? "page" : undefined}
               style={style}
               className={cn(
-                "transition-swift relative flex h-11 items-center text-fg-muted hover:bg-elevated hover:text-fg",
+                "transition-swift relative flex h-11 items-center text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none",
                 active && "bg-accent-soft text-fg",
               )}
             >

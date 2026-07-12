@@ -44,7 +44,7 @@ raw hex, in components.
 | `fg-faint` | `#83858e` | unchanged | Tertiary text, disabled marks |
 | `accent` | `#c4552a` | **repointed** (was `#f2a65a` amber) | Now equals ember. Every existing `accent`/`accent-strong`/`accent-soft` usage inherited the brand automatically — no call-site changes needed |
 | `accent-strong` | `#d96b3d` | **repointed** | Hover state of accent |
-| `accent-soft` | `rgba(196,85,42,0.14)` | **repointed** | Soft fills, focus rings, `::selection`, scrollbar hover |
+| `accent-soft` | `rgba(196,85,42,0.14)` | **repointed** | Soft fills (selected chips, active nav rows, the Select popup's highlighted row), `::selection`, scrollbar hover |
 | `ember` / `ember-strong` | `#c4552a` / `#d96b3d` | **new** | Same values as accent, named explicitly for when the brand color is the point (buttons, focus rings) rather than "the themeable accent" |
 | `gilt` | `#c99b2e` | **new** | Eyebrows, small labels, tags, borders on tags — never large fills |
 | `parchment` / `parchment-faint` | `rgba(242,236,221,0.72)` / `rgba(242,236,221,0.44)` | **new** | Reserve for prose-like body copy on dark that wants a warmer white than `fg`/`fg-muted`. Not yet used anywhere in this pass — available for passes 2–3 if a planning/build surface needs it |
@@ -55,11 +55,11 @@ raw hex, in components.
 
 **Why two accent-shaped things (`accent` and `ember`) with identical
 values:** `accent` is the generic "this app's primary interactive color"
-slot — existing code (buttons, focus-visible outline, scrollbar hover,
-`::selection`) already keys off it and needed zero call-site changes to
-pick up the brand. `ember` is the brand token proper, for new code where
-you want to say "this is ember" on purpose (e.g. a focus ring that should
-read as branded, not just "whatever the accent is"). Use `accent` for
+slot — existing code (buttons, scrollbar hover, `::selection`) already
+keys off it and needed zero call-site changes to pick up the brand.
+`ember` is the brand token proper, for new code where you want to say
+"this is ember" on purpose (e.g. a focus border that should read as
+branded, not just "whatever the accent is"). Use `accent` for
 anything that was already accent-colored pre-restyle; reach for `ember` /
 `gilt` directly when writing new brand-forward UI (buttons, eyebrows,
 tags).
@@ -101,8 +101,8 @@ product density:
 exported API — `variant`/`size`/`className`, same variant names, same
 sizes — only the class strings changed:
 
-- Base: `font-mono uppercase tracking-[0.2em]`, square corners (no
-  `rounded-*`), `active:scale-[0.97]`.
+- Base: `font-mono uppercase tracking-[0.2em]`, slight rounding
+  (`rounded-md`, see "Radius" below), `active:scale-[0.97]`.
 - `primary`: `bg-accent text-fg hover:bg-accent-strong` — ember fill,
   cream-toned text (using `fg`, which already reads as warm cream-white —
   no separate "cream" token was introduced for this).
@@ -125,13 +125,32 @@ sizes — only the class strings changed:
   `border-hairline` (gilt at 0.18 alpha). Used for the header's bottom
   border and the rule between the dashboard's welcome block and the idea
   intake section.
-- **Tags/chips** that are brand-flavored (the org chip): square, `border
-  border-gilt/40`, `text-gilt`, mono uppercase, small tracking. Not
-  `rounded-full` — corners are square everywhere on this surface now.
-- Corners are square across the whole product surface. No
-  `rounded-*` on buttons, skeletons, tags, or cards. If you inherit a
-  component with rounded corners from before this pass, square it when
-  you touch that file.
+- **Tags/chips** that are brand-flavored (the org chip): `border
+  border-gilt/40`, `text-gilt`, mono uppercase, small tracking,
+  `rounded-md` like every other small element. Not `rounded-full` — a
+  slight radius, not a pill.
+
+### Radius (supersedes "square corners everywhere")
+
+This pass originally locked the whole surface to square corners (no
+`rounded-*` anywhere). A later user-directed pass explicitly overrode
+that: the product now carries a slight, consistent radius wherever
+there's a visible box edge, because all-square read as too
+sharp/unfriendly. One small scale, two steps:
+
+- `rounded-md` (~6px) — inputs, buttons, the custom Select's trigger and
+  its popup's option rows, tags/chips/small status badges, avatars.
+- `rounded-lg` (~8px) — cards/panels (idea intake, question round cards,
+  the BYOK key card, stat tiles), dialogs (ConfirmDialog's panel),
+  popovers (the custom Select's popup).
+- Left un-rounded on purpose: page chrome flush to a viewport/rail edge
+  (the nav rail/drawer/mobile header, full-width nav rows and
+  account-menu rows — their hover fill runs edge-to-edge, so rounding it
+  would look like a bug) and anything already fully-rounded (the
+  scrollbar thumb).
+- If you inherit a component with hard square corners from before this
+  override, round it (to whichever of the two sizes above it reads as)
+  when you touch that file — don't perpetuate the old rule.
 
 ## Forms
 
@@ -139,10 +158,16 @@ sizes — only the class strings changed:
 copy for any new form primitive:
 
 ```
-transition-swift h-auto border border-border bg-transparent px-3.5 py-3
+transition-swift h-auto rounded-md border border-border bg-transparent px-3.5 py-3
 text-sm text-fg placeholder:text-fg-faint hover:border-border-strong
-focus:border-ember focus:outline-none focus:ring-3 focus:ring-ember/20
+focus:border-ember focus:outline-none
 ```
+
+No focus ring by design (user directive) — the `focus:border-ember` color
+shift on the existing hairline border *is* the focus affordance, for mouse
+and keyboard alike. Every other interactive element follows the same
+non-ring rule: a border or background shift on `:focus-visible`, mirroring
+that element's own hover treatment.
 
 Label: `font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted`.
 
@@ -159,7 +184,14 @@ named exceptions that are load-bearing product signals, not decoration:
 
 - One easing curve everywhere: `cubic-bezier(0.22, 1, 0.36, 1)`. Never
   bare `ease`. Already centralized in `.transition-swift`.
-- Hover transitions: 150–300ms, colors and transforms only.
+- Hover transitions: 190–320ms, colors and transforms only. (Bumped up
+  from an original 150–300ms range in a later smoothing pass — same
+  curve family, just enough longer that feedback reads as eased rather
+  than snapped; still well under Emil Kowalski's sub-300ms productivity-UI
+  ceiling for the base `.transition-swift` case. The rail/drawer's
+  deliberate asymmetric open/close timing and the dialog's symmetric
+  timing scaled up proportionally — see `globals.css` for exact numbers,
+  don't hand-derive them from this range.)
 - `animate-reveal` (opacity + translateY + blur, 600ms) for one-time
   entrances — unchanged.
 - **`flash-once` and `pulse-glow` are the two intentional exceptions to
@@ -182,17 +214,20 @@ automatically (via the shared tokens/primitives) or must match by hand:
 
 - **Automatic** (no action needed, just don't fight it): `accent` is now
   ember everywhere — any existing `bg-accent`, `text-accent-strong`,
-  `border-accent`, `ring-accent-soft`, `::selection`, scrollbar-hover
-  usage already renders in brand. `Button`, `Skeleton`, `Textarea` are
-  already restyled; components consuming them pick up square corners and
-  brand focus states with zero changes to those component files.
+  `border-accent`, `::selection`, scrollbar-hover usage already renders in
+  brand. `Button`, `Skeleton`, `Textarea` are already restyled; components
+  consuming them pick up `rounded-md` and non-ring focus states with zero
+  changes to those component files.
 - **Match by hand, same recipes as above**: page/section titles →
   `font-serif`; eyebrows and small brand-flavored labels → mono uppercase
   `text-gilt`; routine field/column labels → mono uppercase
   `text-fg-muted`; decorative dividers → `border-hairline`; functional
-  dividers/input borders → `border-border` / `border-border-strong`; no
-  `rounded-*` anywhere; ember only for interactive/actionable elements,
-  gilt only for small non-interactive brand marks (never swap the two).
+  dividers/input borders → `border-border` / `border-border-strong`;
+  `rounded-md` on inputs/buttons/tags/small elements, `rounded-lg` on
+  cards/panels/dialogs/popovers (see "Radius" above); no focus ring — a
+  border/background shift on `:focus-visible` instead; ember only for
+  interactive/actionable elements, gilt only for small non-interactive
+  brand marks (never swap the two).
 - **Do not touch**: `danger*`, `success*`, `node-datastore*`,
   `node-external*` — these encode state/kind, not brand.
 - **Do not add**: a `cream` token (use `fg`, which already reads
@@ -208,9 +243,12 @@ automatically (via the shared tokens/primitives) or must match by hand:
 
 - Design tokens and motion CSS: `src/app/globals.css`
 - Shared primitives: `src/components/ui/` (`button`, `skeleton`,
-  `textarea` restyled this pass; other primitives in that folder are
-  untouched and should be brought up to this system if passes 2–3 touch
-  a component that uses them)
+  `textarea` restyled this pass; `select` rebuilt as a hand-rolled ARIA
+  listbox — a native `<select>`'s browser-painted popup can't be restyled
+  to match this surface, and it now carries the same radius/focus/motion
+  system as everything else; other primitives in that folder are untouched
+  and should be brought up to this system if passes 2–3 touch a component
+  that uses them)
 - App chrome: `src/components/nav/` (`app-sidebar`, `mobile-nav`, `account-menu`, `nav-items`), `src/components/mullion-mark.tsx`
 - Dashboard home: `src/app/page.tsx`, `src/components/dashboard-skeleton.tsx`
 - Product 404: `src/app/not-found.tsx`

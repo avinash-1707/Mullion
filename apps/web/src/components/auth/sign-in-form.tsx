@@ -89,7 +89,7 @@ export function SignInForm() {
             <Label htmlFor="password">Password</Label>
             <Link
               href="/forgot-password"
-              className="font-mono text-[11px] uppercase tracking-[0.15em] text-ink-faint transition-colors duration-200 hover:text-ember"
+              className="font-mono text-[11px] uppercase tracking-[0.15em] text-ink-faint outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember"
             >
               Forgot password?
             </Link>
@@ -122,7 +122,7 @@ export function SignInForm() {
         <button
           type="submit"
           disabled={signIn.isPending}
-          className="mt-2 w-full bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
+          className="mt-2 w-full rounded-md bg-ember px-8 py-3.5 font-mono text-xs uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,transform] duration-200 hover:bg-ember-strong focus-visible:bg-ember-strong active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50"
         >
           {signIn.isPending ? "Signing in…" : "Sign in"}
         </button>
@@ -134,7 +134,7 @@ export function SignInForm() {
         New to Mullion?{" "}
         <Link
           href="/sign-up"
-          className="font-medium text-ember transition-colors duration-200 hover:text-ember-strong"
+          className="font-medium text-ember outline-none transition-colors duration-200 hover:text-ember-strong focus-visible:text-ember-strong"
         >
           Create an account
         </Link>

@@ -10,7 +10,7 @@ interface StatTileProps {
 // IDs/timestamps/session emails (design-context.md "Mono metadata").
 export function StatTile({ label, value }: StatTileProps) {
   return (
-    <div className="border border-border p-4">
+    <div className="rounded-lg border border-border p-4">
       <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-gilt">{label}</p>
       <p className="mt-2 font-mono text-2xl text-fg">{value}</p>
     </div>

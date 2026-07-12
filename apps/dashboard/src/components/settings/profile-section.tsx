@@ -37,7 +37,7 @@ export function ProfileSection() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden border border-border bg-elevated">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-elevated">
             {trimmedImage && imageLooksValid ? (
               // eslint-disable-next-line @next/next/no-img-element -- arbitrary user-supplied URL, not a static/optimizable asset
               <img

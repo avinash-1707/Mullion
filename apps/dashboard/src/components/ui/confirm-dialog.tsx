@@ -185,7 +185,7 @@ export function ConfirmDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="mullion-dialog-panel relative w-full max-w-sm border border-hairline bg-surface p-6 shadow-[0_20px_48px_-12px_rgba(0,0,0,0.6)]"
+        className="mullion-dialog-panel relative w-full max-w-sm rounded-lg border border-hairline bg-surface p-6 shadow-[0_20px_48px_-12px_rgba(0,0,0,0.6)]"
       >
         <h2 id={titleId} className="font-serif text-xl text-fg">
           {title}

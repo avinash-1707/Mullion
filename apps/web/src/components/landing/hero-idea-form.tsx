@@ -31,7 +31,7 @@ export function HeroIdeaForm() {
   }
 
   return (
-    <div className="animate-reveal-invite mt-12 w-full max-w-[42rem] border border-hairline-light bg-cream-deep transition-colors duration-200 focus-within:border-ink/30">
+    <div className="animate-reveal-invite mt-12 w-full max-w-[42rem] rounded-lg border border-hairline-light bg-cream-deep transition-colors duration-200 focus-within:border-ink/30">
       <form onSubmit={handleSubmit} className="relative">
         <label htmlFor="hero-idea" className="sr-only">
           Describe your project idea
@@ -52,12 +52,12 @@ export function HeroIdeaForm() {
             reserves the corner so typed text never runs under it. */}
         <button
           type="submit"
-          className="group/submit absolute bottom-4 right-4 flex items-center gap-2 bg-ink px-5 py-2.5 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember active:scale-[0.97]"
+          className="group/submit absolute bottom-4 right-4 flex items-center gap-2 rounded-md bg-ink px-5 py-2.5 font-mono text-xs uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,transform] duration-200 hover:bg-ember focus-visible:bg-ember active:scale-[0.97]"
         >
           Start building
           <span
             aria-hidden="true"
-            className="transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/submit:translate-x-1"
+            className="transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/submit:translate-x-1 group-focus-visible/submit:translate-x-1"
           >
             &rarr;
           </span>

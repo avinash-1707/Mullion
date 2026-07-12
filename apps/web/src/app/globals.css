@@ -120,18 +120,11 @@ body {
   background: transparent;
 }
 
-/* Visible keyboard focus everywhere, without touching mouse-click focus
-   (browsers already suppress :focus-visible on pointer interaction). */
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible,
-[tabindex]:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 3px;
-  border-radius: 4px;
-}
+/* Keyboard focus, ring-free by explicit user preference: every interactive
+   element on the marketing surface carries its own non-ring affordance
+   (a border-color or background-color shift on :focus-visible, defined
+   per-component) instead of a global outline. Nothing here needs to touch
+   mouse-click focus — :focus-visible already excludes pointer interaction. */
 
 /* Emil-weighted timing: fast, custom deceleration, no bare `ease`. */
 @keyframes reveal {

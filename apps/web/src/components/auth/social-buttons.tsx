@@ -5,7 +5,7 @@ import { useSignInSocialMutation, useSignInOAuth2Mutation } from "@/hooks/use-au
 import { AuthAlert } from "./auth-alert";
 
 const BUTTON_CLASS =
-  "flex h-11 w-full items-center justify-center gap-3 border border-hairline-light bg-transparent font-mono text-xs uppercase tracking-[0.2em] text-ink transition-colors duration-200 hover:border-ember hover:text-ember-strong focus-visible:border-ember disabled:pointer-events-none disabled:opacity-50";
+  "flex h-11 w-full items-center justify-center gap-3 rounded-md border border-hairline-light bg-transparent font-mono text-xs uppercase tracking-[0.2em] text-ink outline-none transition-colors duration-200 hover:border-ember hover:text-ember-strong focus-visible:border-ember focus-visible:text-ember-strong disabled:pointer-events-none disabled:opacity-50";
 
 // Official full-color brand marks: Google's four-color G and GitHub's
 // near-black octocat (#181717) — these buttons only render on the light

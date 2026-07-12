@@ -83,8 +83,8 @@ export function TabList({ items, value, onChange, idBase, className = "" }: TabL
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(item.value)}
             className={cn(
-              "transition-swift relative shrink-0 whitespace-nowrap px-4 py-3 font-mono text-[11px] uppercase tracking-[0.2em]",
-              active ? "text-fg" : "text-fg-muted hover:text-fg",
+              "transition-swift relative shrink-0 whitespace-nowrap px-4 py-3 font-mono text-[11px] uppercase tracking-[0.2em] focus-visible:outline-none",
+              active ? "text-fg" : "text-fg-muted hover:text-fg focus-visible:text-fg",
             )}
           >
             {item.label}

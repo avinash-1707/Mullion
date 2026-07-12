@@ -20,7 +20,7 @@ export function FinalCta() {
           <Reveal delay={220}>
             <Link
               href="/sign-up"
-              className="mt-14 inline-block bg-ember px-9 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97]"
+              className="mt-14 inline-block rounded-md bg-ember px-9 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,transform] duration-200 hover:bg-ember-strong focus-visible:bg-ember-strong active:scale-[0.97]"
             >
               Start building
             </Link>

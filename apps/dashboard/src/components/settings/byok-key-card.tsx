@@ -45,7 +45,7 @@ export function ByokKeyCard({ status }: ByokKeyCardProps) {
   // (owner/admin gate, ADR-70), so no form, no Replace/Remove.
   if (!status.canManage) {
     return (
-      <div className="border border-border p-5">
+      <div className="rounded-lg border border-border p-5">
         <h3 className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted">OpenRouter API key</h3>
         <p className="mt-4 font-mono text-sm text-fg">
           {status.hasKey ? `••••${status.keyLast4}` : "No key on file"}
@@ -80,7 +80,7 @@ export function ByokKeyCard({ status }: ByokKeyCardProps) {
   }
 
   return (
-    <div className="border border-border p-5">
+    <div className="rounded-lg border border-border p-5">
       <h3 className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted">OpenRouter API key</h3>
 
       {editing ? (

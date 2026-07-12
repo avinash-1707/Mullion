@@ -2,7 +2,7 @@ import { Skeleton } from "./ui/skeleton";
 
 // Mirrors the real dashboard's layout (eyebrow + heading + org chip +
 // intake section) so there's no shape shift when the session resolves.
-// Square throughout, matching the brand's no-rounded-corners rule.
+// Slight rounding throughout, via Skeleton's own base treatment.
 export function DashboardSkeleton() {
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-16 lg:py-20">

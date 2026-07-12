@@ -7,15 +7,16 @@ import { cn } from "@/lib/utils";
 import { CheckIcon } from "lucide-react";
 
 // shadcn checkbox restyled for Mullion's editorial marketing surface:
-// hairline ink border, fills ember when checked.
+// hairline ink border, fills ember when checked. Focus is a border-color
+// shift only (no ring), matching the rest of the marketing surface.
 function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
   return (
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        "peer relative flex size-4 shrink-0 items-center justify-center rounded-[2px] border border-ink/30 bg-transparent transition-colors duration-200 outline-none",
+        "peer relative flex size-4 shrink-0 items-center justify-center rounded-sm border border-ink/30 bg-transparent transition-colors duration-200 outline-none",
         "after:absolute after:-inset-x-3 after:-inset-y-2",
-        "focus-visible:border-ember focus-visible:ring-3 focus-visible:ring-ember/20",
+        "focus-visible:border-ember",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "data-[state=checked]:border-ember data-[state=checked]:bg-ember data-[state=checked]:text-cream",
         className,

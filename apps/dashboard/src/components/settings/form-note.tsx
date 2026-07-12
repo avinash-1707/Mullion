@@ -16,7 +16,7 @@ export function FormNote({ children, tone = "error" }: FormNoteProps) {
     );
   }
   return (
-    <p role="alert" className="border-l-2 border-danger bg-danger-soft px-3.5 py-2.5 text-sm text-danger">
+    <p role="alert" className="rounded-r-md border-l-2 border-danger bg-danger-soft px-3.5 py-2.5 text-sm text-danger">
       {children}
     </p>
   );

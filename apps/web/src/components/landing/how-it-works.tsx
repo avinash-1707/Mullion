@@ -60,8 +60,8 @@ export function HowItWorks() {
             <ChapterMark number="02" tone="light" />
           </Reveal>
           <Reveal variant="art" delay={80} className="lg:col-span-4">
-            <div className="mx-auto max-w-[360px] border border-hairline-light p-3">
-              <div className="relative aspect-square overflow-hidden">
+            <div className="mx-auto max-w-[360px] rounded-lg border border-hairline-light p-3">
+              <div className="relative aspect-square overflow-hidden rounded-md">
                 <Image
                   src="/landing/chapter-02-orrery.webp"
                   alt="A brass orrery floating in storm clouds, one ring turning into a technical blueprint drawing"

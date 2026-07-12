@@ -63,14 +63,14 @@ Copy voice: plain language, short sentences, no jargon, no em dashes. Periods do
 - Sections alternate cream and ink. Dark band: `bg-ink text-cream`.
 - Chapter sections use a 12-column grid: 2 cols for the chapter mark, 4 for artwork, 6 for text (`grid lg:grid-cols-12 lg:gap-10`).
 - Hairline rules structure everything: `border-t border-hairline-light` on cream, `border-hairline-dark` on dark. Column dividers via `lg:divide-x lg:divide-hairline-light`.
-- Corners are square. No rounded cards or buttons on the marketing surface (the arch frame and checkbox 2px radius are the only exceptions).
+- Corners carry a slight, consistent radius (owner override, 2026-07-12 — square corners were the original deliberate look; friendlier won). Two-step scale: `rounded-md` (~6px) on buttons, inputs, OTP cells, tags, and small banners; `rounded-lg` (~8-10px) on cards, framed artwork, and floating/contained panels (pricing tier cards, the hero idea composer, the scrolled floating nav bar, the `how-it-works` square-frame artwork, crew image tiles). `rounded-sm` on the checkbox only. Never a full pill from this pass — the arch frame (`rounded-t-[999px]`) and other already-fully-rounded shapes (avatars, scrollbar thumb) are untouched exceptions, not the new default. Full-bleed page bands and table cells stay unrounded (radius on an edge-to-edge rectangle or a `border-collapse` cell doesn't read).
 
 ## Recurring elements
 
-- Primary button: `bg-ember px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream transition-[background-color,transform] duration-200 hover:bg-ember-strong active:scale-[0.97]`. On cream the hero variant uses `bg-ink ... hover:bg-ember`.
-- Outline button (dark bands): `border border-hairline-dark ... hover:border-ember hover:bg-ember`
+- Primary button: `rounded-md bg-ember px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-cream outline-none transition-[background-color,transform] duration-200 hover:bg-ember-strong focus-visible:bg-ember-strong active:scale-[0.97]`. On cream the hero variant uses `bg-ink ... hover:bg-ember`.
+- Outline button (dark bands): `rounded-md border border-hairline-dark ... hover:border-ember hover:bg-ember focus-visible:border-ember focus-visible:bg-ember`
 - Text link with arrow: group link, mono uppercase, arrow span gets `transition-transform duration-200 group-hover:translate-x-1`
-- Framed artwork: thin border wrapper with `p-3` gap, image inside. Arch frame: `rounded-t-[999px]` on both wrapper and image container. Square frame: no radius.
+- Framed artwork: thin border wrapper with `p-3` gap, image inside, both corners `rounded-lg`. Arch frame (fully round, `rounded-t-[999px]` on both wrapper and image container) is untouched by the radius pass — it was already deliberately fully-rounded.
 - Unframed artwork on dark bands: let the near-black image ground melt into the band; feather edges with `[mask-image:radial-gradient(...)]` if a rectangle edge shows.
 - Card hover: `transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1`, image inside scales `group-hover:scale-[1.04]` at 500ms.
 - Quote block: `border-l-2 border-gilt pl-6`, serif italic, mono cite.
@@ -93,10 +93,27 @@ The full rationale lives with the components; the rules:
 
 shadcn components restyled to the brand live in `src/components/ui/`: `input`, `label`, `checkbox`, `separator`. Recipes:
 
-- Input: h-12, square corners, transparent background, `border-hairline-light`, ember focus ring
+- Input: h-11, `rounded-md`, transparent background, `border-hairline-light`, ember focus border
 - Label: mono 11px uppercase `tracking-[0.2em] text-ink-muted`
-- Checkbox: fills ember when checked
-- Errors: `border-l-2 border-ember bg-ember/10 px-4 py-3 text-sm text-ember`
+- Checkbox: `rounded-sm`, fills ember when checked
+- Errors: `rounded-md border-l-2 border-ember bg-ember/10 px-4 py-3 text-sm text-ember`
+
+## Focus states
+
+Owner directive (2026-07-12): zero focus rings, anywhere. No `focus:ring-*`,
+no `focus-visible:ring-*`, no outline-based halos — including the outline
+that `globals.css` used to draw on `:focus-visible` for every `a`/`button`/
+`input`/`textarea`/`select`/`[tabindex]`, which is gone. Every interactive
+element instead carries `outline-none` plus its own non-ring
+`focus-visible:` shift, so keyboard users are never left without a visible
+affordance:
+
+- Inputs / OTP cells / checkbox: border-color shift, same as the existing hover treatment (`focus-visible:border-ember`).
+- Bordered buttons (social buttons, secondary CTAs): border-color shift, matching hover.
+- Solid ember/ink buttons: background-color shift to the same tone hover already uses (`focus-visible:bg-ember-strong`, etc.).
+- Plain text links/nav items with no border or fill: color shift mirroring hover (`focus-visible:text-ember`), since there's nothing else on the element to shift.
+
+New interactive elements must follow this pattern — never add a bare `focus:ring-*`/`focus-visible:ring-*` utility, and never leave a focusable element with only `outline-none` and no replacement.
 
 Auth pages use the `AuthShell` split (artwork left, cream form right): `src/components/auth/auth-shell.tsx`.
 

@@ -29,7 +29,7 @@ export function AuthShell({ eyebrow, title, subtitle, children }: AuthShellProps
         />
         <Link
           href="/"
-          className="absolute left-10 top-8 flex items-center gap-2.5 text-cream transition-colors duration-200 hover:text-ember"
+          className="absolute left-10 top-8 flex items-center gap-2.5 text-cream outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember"
         >
           <MullionMark className="h-6 w-6" />
           <span className="font-serif text-2xl tracking-tight">Mullion</span>
@@ -47,7 +47,7 @@ export function AuthShell({ eyebrow, title, subtitle, children }: AuthShellProps
             removing it from the flow keeps the form truly centered. */}
         <Link
           href="/"
-          className="flex items-center gap-2.5 self-start text-ink transition-colors duration-200 hover:text-ember lg:hidden"
+          className="flex items-center gap-2.5 self-start text-ink outline-none transition-colors duration-200 hover:text-ember focus-visible:text-ember lg:hidden"
         >
           <MullionMark className="h-6 w-6" />
           <span className="font-serif text-2xl tracking-tight">Mullion</span>

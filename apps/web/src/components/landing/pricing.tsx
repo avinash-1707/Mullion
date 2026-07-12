@@ -76,7 +76,7 @@ export function Pricing({ hideHeader = false }: { hideHeader?: boolean }) {
           {PRICING_TIERS.map((tier, index) => (
             <Reveal key={tier.name} delay={index * 90}>
               <div
-                className={`flex h-full flex-col px-8 py-10 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1 ${
+                className={`flex h-full flex-col rounded-lg px-8 py-10 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1 ${
                   tier.featured ? "bg-cream text-ink" : "border border-hairline-dark bg-ink-soft"
                 }`}
               >
@@ -89,7 +89,7 @@ export function Pricing({ hideHeader = false }: { hideHeader?: boolean }) {
                     {tier.name}
                   </h3>
                   {tier.featured ? (
-                    <span className="bg-ember px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.2em] text-cream">
+                    <span className="rounded-sm bg-ember px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.2em] text-cream">
                       Most popular
                     </span>
                   ) : null}
@@ -133,10 +133,10 @@ export function Pricing({ hideHeader = false }: { hideHeader?: boolean }) {
                 </ul>
                 <Link
                   href="/sign-up"
-                  className={`mt-10 inline-block text-center font-mono text-xs uppercase tracking-[0.2em] transition-[background-color,color,border-color,transform] duration-200 active:scale-[0.97] ${
+                  className={`mt-10 inline-block rounded-md text-center font-mono text-xs uppercase tracking-[0.2em] outline-none transition-[background-color,color,border-color,transform] duration-200 active:scale-[0.97] ${
                     tier.featured
-                      ? "bg-ember px-7 py-4 text-cream hover:bg-ember-strong"
-                      : "border border-hairline-dark px-7 py-4 text-cream hover:border-ember hover:bg-ember"
+                      ? "bg-ember px-7 py-4 text-cream hover:bg-ember-strong focus-visible:bg-ember-strong"
+                      : "border border-hairline-dark px-7 py-4 text-cream hover:border-ember hover:bg-ember focus-visible:border-ember focus-visible:bg-ember"
                   }`}
                 >
                   {tier.cta}

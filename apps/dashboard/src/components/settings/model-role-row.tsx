@@ -1,6 +1,5 @@
 "use client";
 
-import type { ChangeEvent } from "react";
 import { Select, type SelectOption } from "@/components/ui/select";
 import { useUpdateModelMutation } from "@/hooks/use-model-settings";
 import { roleLabel, type ModelRoleConfig } from "@/lib/settings-api";
@@ -24,9 +23,8 @@ export function ModelRoleRow({ role, byokEnabled, canManage }: ModelRoleRowProps
   const updateModel = useUpdateModelMutation();
   const selectedValue = role.overrideModelSlug ?? PLATFORM_DEFAULT_VALUE;
 
-  function handleChange(event: ChangeEvent<HTMLSelectElement>) {
-    const value = event.target.value;
-    updateModel.mutate({ role: role.role, modelSlug: value === PLATFORM_DEFAULT_VALUE ? null : value });
+  function handleChange(nextValue: string) {
+    updateModel.mutate({ role: role.role, modelSlug: nextValue === PLATFORM_DEFAULT_VALUE ? null : nextValue });
   }
 
   const customPickTitle = !canManage

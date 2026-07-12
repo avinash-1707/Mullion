@@ -46,7 +46,7 @@ export function Crew() {
           {CREW.map((member, index) => (
             <Reveal key={member.name} delay={index * 90}>
               <div className="group transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1">
-                <div className="relative aspect-[4/3] overflow-hidden">
+                <div className="relative aspect-[4/3] overflow-hidden rounded-lg">
                   <Image
                     src={member.image}
                     alt={`Artwork for the ${member.name} agent`}

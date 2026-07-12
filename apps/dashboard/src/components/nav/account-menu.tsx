@@ -94,7 +94,7 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
           onClick={() => onNavigate?.()}
           aria-label="Account settings"
           className={cn(
-            "transition-swift flex shrink-0 items-center justify-center hover:bg-elevated",
+            "transition-swift flex shrink-0 items-center justify-center hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none",
             isRail ? "h-16 w-[60px]" : "h-11 w-11",
           )}
         >
@@ -118,7 +118,7 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
         disabled={signOut.isPending}
         aria-label="Sign out"
         className={cn(
-          "transition-swift flex items-center text-fg-muted hover:bg-danger-soft hover:text-danger disabled:pointer-events-none disabled:opacity-45",
+          "transition-swift flex items-center text-fg-muted hover:bg-danger-soft hover:text-danger focus-visible:bg-danger-soft focus-visible:text-danger focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
           isRail ? "h-11" : "h-12 gap-3 px-6",
         )}
       >

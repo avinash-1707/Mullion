@@ -20,7 +20,7 @@ export function Avatar({ name, email, image, className = "h-8 w-8" }: AvatarProp
 
   return (
     <span
-      className={`${className} flex shrink-0 items-center justify-center overflow-hidden border border-border bg-elevated`}
+      className={`${className} flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-elevated`}
     >
       {showImage ? (
         // eslint-disable-next-line @next/next/no-img-element -- remote user avatar, not a static/optimizable asset
