@@ -14,6 +14,7 @@ import { createBuildWorker } from "@mullion/orchestrator";
 import { db } from "./lib/db.js";
 import { env } from "./config/env.js";
 import { getGitHubAccessToken } from "./modules/github/token.js";
+import { byokApiKeyResolver, disableByokKeyOnAuthFailure } from "./modules/settings/byok.js";
 import { llmFetchImpl } from "./lib/llm-fetch.js";
 import { publishStreamEvent } from "./lib/sse.js";
 
@@ -59,6 +60,11 @@ async function main(): Promise<void> {
     apiKey: env.OPENROUTER_API_KEY,
     db,
     referer: env.API_ORIGIN,
+    // ADR-70: same BYOK wiring as the API process — builds spend the org's
+    // key when one is enabled, and a dead key degrades to platform, never
+    // a hard build failure.
+    apiKeyResolver: byokApiKeyResolver(db),
+    onByokAuthFailure: disableByokKeyOnAuthFailure(db),
     ...(env.NODE_ENV !== "production" && env.OPENROUTER_BASE_URL
       ? { baseUrl: env.OPENROUTER_BASE_URL }
       : {}),
