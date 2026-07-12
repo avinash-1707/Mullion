@@ -1,8 +1,9 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { withSpan, type Span } from "@mullion/otel";
 import { schema, type Db } from "@mullion/db";
 import type { AgentRole } from "@mullion/schemas";
 import { NoZdrProviderAvailableError, OpenRouterError, UnknownRoleError } from "./errors.js";
+import { isModelAllowed } from "./model-allowlist.js";
 import {
   openRouterErrorBodySchema,
   parseChatCompletion,
@@ -140,6 +141,20 @@ interface RoutingEntry {
   fetchedAt: number;
 }
 
+/** The key a call will be signed with, and whose money it burns (ADR-70). */
+export interface ResolvedApiKey {
+  apiKey: string;
+  byok: boolean;
+}
+
+/**
+ * ADR-70: injected by the composition root to resolve an org's BYOK key
+ * per call. Returning null means "no BYOK key — use the platform key".
+ * Lives outside packages/llm so this package never learns tenancy tables'
+ * secret handling; it stays the only OpenRouter integration point (ADR-24).
+ */
+export type ApiKeyResolver = (context: CostContext) => Promise<ResolvedApiKey | null>;
+
 export interface OpenRouterClientOptions {
   apiKey: string;
   db: Db;
@@ -149,6 +164,14 @@ export interface OpenRouterClientOptions {
   fetchImpl?: typeof fetch | undefined;
   /** Dev/test only: point at a local mock. Production uses the default. */
   baseUrl?: string | undefined;
+  /** ADR-70: per-call BYOK key lookup. Absent = platform key for everything. */
+  apiKeyResolver?: ApiKeyResolver | undefined;
+  /**
+   * ADR-70: fired once when a BYOK-signed call fails auth (401/403) just
+   * before the platform-key retry — the composition root disables the
+   * stored key here so later calls skip straight to platform.
+   */
+  onByokAuthFailure?: ((context: CostContext, error: OpenRouterError) => Promise<void>) | undefined;
 }
 
 /**
@@ -165,7 +188,13 @@ export class OpenRouterClient {
   private readonly referer: string | undefined;
   private readonly fetchImpl: typeof fetch;
   private readonly baseUrl: string;
-  private readonly routingCache = new Map<AgentRole, RoutingEntry>();
+  private readonly apiKeyResolver: ApiKeyResolver | undefined;
+  private readonly onByokAuthFailure:
+    | ((context: CostContext, error: OpenRouterError) => Promise<void>)
+    | undefined;
+  // Keyed `${orgId}:${role}` — a global role key would leak one org's
+  // override into another's calls (ADR-71).
+  private readonly routingCache = new Map<string, RoutingEntry>();
 
   constructor(options: OpenRouterClientOptions) {
     this.apiKey = options.apiKey;
@@ -173,6 +202,38 @@ export class OpenRouterClient {
     this.referer = options.referer;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.baseUrl = options.baseUrl ?? OPENROUTER_BASE_URL;
+    this.apiKeyResolver = options.apiKeyResolver;
+    this.onByokAuthFailure = options.onByokAuthFailure;
+  }
+
+  private async resolveKey(context: CostContext): Promise<ResolvedApiKey> {
+    if (this.apiKeyResolver) {
+      const resolved = await this.apiKeyResolver(context);
+      if (resolved) return resolved;
+    }
+    return { apiKey: this.apiKey, byok: false };
+  }
+
+  /**
+   * ADR-70: a BYOK key is a live dependency that can die mid-build. On an
+   * auth failure (401/403) under a BYOK key, notify the composition root
+   * (which disables the stored key) and retry ONCE on the platform key —
+   * never hard-fail a build on someone's stale key. Any other failure, or
+   * a failure already on the platform key, throws as before.
+   */
+  private async fetchWithByokFallback(
+    context: CostContext,
+    doFetch: (apiKey: string) => Promise<Response>,
+  ): Promise<{ response: Response; key: ResolvedApiKey }> {
+    let key = await this.resolveKey(context);
+    let response = await doFetch(key.apiKey);
+    if (key.byok && (response.status === 401 || response.status === 403)) {
+      const error = await this.toError(response);
+      await this.onByokAuthFailure?.(context, error)?.catch(() => undefined);
+      key = { apiKey: this.apiKey, byok: false };
+      response = await doFetch(key.apiKey);
+    }
+    return { response, key };
   }
 
   private requestInit(
@@ -180,12 +241,13 @@ export class OpenRouterClient {
     modelSlug: string,
     stream: boolean,
     signal: AbortSignal,
+    apiKey: string,
   ): RequestInit {
     return {
       method: "POST",
       signal,
       headers: {
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
         ...(this.referer ? { "HTTP-Referer": this.referer } : {}),
         "X-OpenRouter-Title": "Mullion",
@@ -210,16 +272,19 @@ export class OpenRouterClient {
   }
 
   private async completeChatImpl(args: CompleteChatArgs): Promise<CompleteChatResult> {
-    const modelSlug = await this.resolveModel(args.role);
+    const modelSlug = await this.resolveModel(args.role, args.costContext.organizationId);
 
     let response: Response;
+    let key: ResolvedApiKey;
     try {
-      response = await this.fetchImpl(
-        `${this.baseUrl}/chat/completions`,
-        // A hung provider must never wedge the caller's agent slot — abort
-        // and surface as retryable (security review Phase 1, finding #1).
-        this.requestInit(args, modelSlug, false, AbortSignal.timeout(REQUEST_TIMEOUT_MS)),
-      );
+      ({ response, key } = await this.fetchWithByokFallback(args.costContext, (apiKey) =>
+        this.fetchImpl(
+          `${this.baseUrl}/chat/completions`,
+          // A hung provider must never wedge the caller's agent slot — abort
+          // and surface as retryable (security review Phase 1, finding #1).
+          this.requestInit(args, modelSlug, false, AbortSignal.timeout(REQUEST_TIMEOUT_MS), apiKey),
+        ),
+      ));
     } catch (error) {
       throw toAbortError(error, "OpenRouter request timed out");
     }
@@ -240,7 +305,7 @@ export class OpenRouterClient {
       });
     }
 
-    await this.recordCost(args, modelSlug, parsed.usage.cost, parsed.usage);
+    await this.recordCost(args, modelSlug, parsed.usage.cost, parsed.usage, key.byok);
 
     return {
       content: choice.message.content,
@@ -275,31 +340,34 @@ export class OpenRouterClient {
   private async completeChatWithToolsImpl(
     args: CompleteChatWithToolsArgs,
   ): Promise<CompleteChatWithToolsResult> {
-    const modelSlug = await this.resolveModel(args.role);
+    const modelSlug = await this.resolveModel(args.role, args.costContext.organizationId);
 
     let response: Response;
+    let key: ResolvedApiKey;
     try {
-      response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
-        method: "POST",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-          ...(this.referer ? { "HTTP-Referer": this.referer } : {}),
-          "X-OpenRouter-Title": "Mullion",
-        },
-        body: JSON.stringify({
-          model: modelSlug,
-          messages: args.messages,
-          tools: args.tools,
-          tool_choice: args.toolChoice ?? "auto",
-          ...(args.maxTokens !== undefined ? { max_tokens: args.maxTokens } : {}),
-          ...(args.temperature !== undefined ? { temperature: args.temperature } : {}),
-          // ADR-26/27: ZDR hardcoded, no `models` fallback array — same
-          // structural guarantees as completeChat.
-          provider: { zdr: true },
+      ({ response, key } = await this.fetchWithByokFallback(args.costContext, (apiKey) =>
+        this.fetchImpl(`${this.baseUrl}/chat/completions`, {
+          method: "POST",
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            ...(this.referer ? { "HTTP-Referer": this.referer } : {}),
+            "X-OpenRouter-Title": "Mullion",
+          },
+          body: JSON.stringify({
+            model: modelSlug,
+            messages: args.messages,
+            tools: args.tools,
+            tool_choice: args.toolChoice ?? "auto",
+            ...(args.maxTokens !== undefined ? { max_tokens: args.maxTokens } : {}),
+            ...(args.temperature !== undefined ? { temperature: args.temperature } : {}),
+            // ADR-26/27: ZDR hardcoded, no `models` fallback array — same
+            // structural guarantees as completeChat.
+            provider: { zdr: true },
+          }),
         }),
-      });
+      ));
     } catch (error) {
       throw toAbortError(error, "OpenRouter tool request timed out");
     }
@@ -330,7 +398,7 @@ export class OpenRouterClient {
       });
     }
 
-    await this.recordCost(args, modelSlug, parsed.usage.cost, parsed.usage);
+    await this.recordCost(args, modelSlug, parsed.usage.cost, parsed.usage, key.byok);
 
     return {
       content,
@@ -371,7 +439,7 @@ export class OpenRouterClient {
   private async completeChatStreamImpl(
     args: CompleteChatArgs & { onDelta: (text: string) => void | Promise<void> },
   ): Promise<CompleteChatResult> {
-    const modelSlug = await this.resolveModel(args.role);
+    const modelSlug = await this.resolveModel(args.role, args.costContext.organizationId);
 
     // Two-layer abort: a hard deadline on the whole stream, plus an idle
     // watchdog so a provider that accepts then stalls can't hold the
@@ -385,11 +453,16 @@ export class OpenRouterClient {
     };
 
     let response: Response;
+    let key: ResolvedApiKey;
     try {
-      response = await this.fetchImpl(
-        `${this.baseUrl}/chat/completions`,
-        this.requestInit(args, modelSlug, true, controller.signal),
-      );
+      // The BYOK fallback fires on the pre-body auth check — a mid-stream
+      // auth failure can't happen (the provider rejects before streaming).
+      ({ response, key } = await this.fetchWithByokFallback(args.costContext, (apiKey) =>
+        this.fetchImpl(
+          `${this.baseUrl}/chat/completions`,
+          this.requestInit(args, modelSlug, true, controller.signal, apiKey),
+        ),
+      ));
     } catch (error) {
       clearTimeout(deadline);
       clearTimeout(idle);
@@ -481,7 +554,7 @@ export class OpenRouterClient {
       // before the stream died, the spend is real — record it. Without one
       // the provider-side spend is unknowable here; say so loudly.
       if (usage) {
-        await this.recordCost(args, modelSlug, usage.cost, usage).catch(() => undefined);
+        await this.recordCost(args, modelSlug, usage.cost, usage, key.byok).catch(() => undefined);
       } else if (content.length > 0) {
         console.error(
           `OpenRouter stream for role "${args.role}" failed after partial output with no usage chunk — provider-side spend untracked (ADR-28)`,
@@ -512,7 +585,7 @@ export class OpenRouterClient {
       });
     }
 
-    await this.recordCost(args, modelSlug, usage.cost, usage);
+    await this.recordCost(args, modelSlug, usage.cost, usage, key.byok);
 
     return {
       content,
@@ -527,11 +600,40 @@ export class OpenRouterClient {
     };
   }
 
-  private async resolveModel(role: AgentRole): Promise<string> {
-    const cached = this.routingCache.get(role);
+  private async resolveModel(role: AgentRole, organizationId: string): Promise<string> {
+    const cacheKey = `${organizationId}:${role}`;
+    const cached = this.routingCache.get(cacheKey);
     if (cached && Date.now() - cached.fetchedAt < ROUTING_CACHE_TTL_MS) {
       return cached.modelSlug;
     }
+
+    // ADR-71: an org override wins over the routing default, but only while
+    // it is still allowlisted AND the org's BYOK key is enabled (platform
+    // pays → platform picks). Both are read-time fail-safes: a stale row
+    // falls back to the default instead of failing the build.
+    const overrideRows = await this.db
+      .select({ modelSlug: schema.modelOverrides.modelSlug })
+      .from(schema.modelOverrides)
+      .where(
+        and(
+          eq(schema.modelOverrides.organizationId, organizationId),
+          eq(schema.modelOverrides.role, role),
+        ),
+      )
+      .limit(1);
+    const override = overrideRows[0];
+    if (override && isModelAllowed(role, override.modelSlug)) {
+      const keyRows = await this.db
+        .select({ enabled: schema.byokKeys.enabled })
+        .from(schema.byokKeys)
+        .where(eq(schema.byokKeys.organizationId, organizationId))
+        .limit(1);
+      if (keyRows[0]?.enabled) {
+        this.routingCache.set(cacheKey, { modelSlug: override.modelSlug, fetchedAt: Date.now() });
+        return override.modelSlug;
+      }
+    }
+
     const rows = await this.db
       .select()
       .from(schema.modelRouting)
@@ -548,8 +650,37 @@ export class OpenRouterClient {
         `model_routing row for "${role}" has zdr_only=false — ADR-27 forbids non-ZDR routing; fix the row`,
       );
     }
-    this.routingCache.set(role, { modelSlug: row.modelSlug, fetchedAt: Date.now() });
+    this.routingCache.set(cacheKey, { modelSlug: row.modelSlug, fetchedAt: Date.now() });
     return row.modelSlug;
+  }
+
+  /**
+   * ADR-70: probe a candidate BYOK key against OpenRouter's free key-info
+   * endpoint — no completion spend. `valid:false` means the key itself was
+   * rejected; anything else (5xx, network) throws so the caller can tell
+   * "bad key" apart from "OpenRouter is down".
+   */
+  async validateKey(apiKey: string): Promise<{ valid: boolean }> {
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/key`, {
+        method: "GET",
+        signal: AbortSignal.timeout(15_000),
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+    } catch (error) {
+      throw toAbortError(error, "OpenRouter key validation timed out");
+    }
+    if (response.ok) {
+      // Drain so the connection is reusable; the body content is irrelevant.
+      await response.body?.cancel().catch(() => undefined);
+      return { valid: true };
+    }
+    if (response.status === 401 || response.status === 403) {
+      await response.body?.cancel().catch(() => undefined);
+      return { valid: false };
+    }
+    throw await this.toError(response);
   }
 
   private async recordCost(
@@ -557,7 +688,9 @@ export class OpenRouterClient {
     modelSlug: string,
     cost: number,
     usage: unknown,
+    byok: boolean,
   ): Promise<void> {
+    const tokens = usage as { prompt_tokens?: unknown; completion_tokens?: unknown } | null;
     await this.db.insert(schema.costEvents).values({
       organizationId: args.costContext.organizationId,
       userId: args.costContext.userId ?? null,
@@ -568,6 +701,10 @@ export class OpenRouterClient {
       modelSlug,
       cost: cost.toFixed(8),
       usage,
+      byok,
+      promptTokens: typeof tokens?.prompt_tokens === "number" ? tokens.prompt_tokens : null,
+      completionTokens:
+        typeof tokens?.completion_tokens === "number" ? tokens.completion_tokens : null,
     });
   }
 

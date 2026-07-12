@@ -1,6 +1,7 @@
 export {
   OpenRouterClient,
   seedModelRouting,
+  type ApiKeyResolver,
   type ChatMessage,
   type CompleteChatArgs,
   type CompleteChatResult,
@@ -8,7 +9,9 @@ export {
   type CompleteChatWithToolsResult,
   type CostContext,
   type OpenRouterClientOptions,
+  type ResolvedApiKey,
 } from "./client.js";
+export { MODEL_ALLOWLIST, assertAllowed, isModelAllowed } from "./model-allowlist.js";
 export {
   cassetteKey,
   createRecordReplayFetch,
@@ -20,6 +23,7 @@ export type { ToolCall, ToolChatMessage, ToolChoice, ToolDefinition } from "./to
 export {
   LlmReplayMissError,
   MalformedLlmResponseError,
+  ModelNotAllowedError,
   NoZdrProviderAvailableError,
   OpenRouterError,
   UnknownRoleError,

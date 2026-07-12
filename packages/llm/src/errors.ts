@@ -64,6 +64,19 @@ export class LlmReplayMissError extends Error {
   }
 }
 
+/** ADR-71: a model override referenced a slug outside the curated allowlist. */
+export class ModelNotAllowedError extends Error {
+  readonly role: string;
+  readonly modelSlug: string;
+
+  constructor(role: string, modelSlug: string) {
+    super(`Model "${modelSlug}" is not in the ZDR-verified allowlist for role "${role}" (ADR-71)`);
+    this.name = "ModelNotAllowedError";
+    this.role = role;
+    this.modelSlug = modelSlug;
+  }
+}
+
 export class UnknownRoleError extends Error {
   constructor(role: string) {
     super(`No model_routing row for role "${role}" — seed the routing table first`);
