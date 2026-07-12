@@ -373,8 +373,9 @@ select:focus-visible,
 }
 
 /*
- * Confirm-dialog (sign-out) enter/exit. Dedicated rules rather than
- * `transition-swift` + Tailwind scale/translate utilities: Tailwind v4
+ * Confirm-dialog enter/exit (ui/confirm-dialog.tsx — sign-out, remove-BYOK-
+ * key, and any future destructive confirmation all share this one). Dedicated
+ * rules rather than `transition-swift` + Tailwind scale/translate utilities: Tailwind v4
  * compiles `scale-*`/`translate-y-*` to the standalone `scale`/`translate`
  * properties, which `transition-swift`'s property list (`transform`, not
  * `scale`/`translate`) never animates — the panel faded but its
