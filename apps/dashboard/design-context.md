@@ -211,7 +211,7 @@ automatically (via the shared tokens/primitives) or must match by hand:
   `textarea` restyled this pass; other primitives in that folder are
   untouched and should be brought up to this system if passes 2–3 touch
   a component that uses them)
-- App chrome: `src/components/site-header.tsx`, `src/components/mullion-mark.tsx`
+- App chrome: `src/components/nav/` (`app-sidebar`, `mobile-nav`, `account-menu`, `nav-items`), `src/components/mullion-mark.tsx`
 - Dashboard home: `src/app/page.tsx`, `src/components/dashboard-skeleton.tsx`
 - Product 404: `src/app/not-found.tsx`
 - Not yet restyled (owned by passes 2–3): `src/components/planning/*`,

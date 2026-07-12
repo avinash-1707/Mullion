@@ -2,7 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { SiteHeader } from "@/components/site-header";
+import { AppSidebar } from "@/components/nav/app-sidebar";
+import { MobileNav } from "@/components/nav/mobile-nav";
 
 // Same font stack as apps/web so the product surface stays on-brand; the
 // restyle pass decides what the dashboard actually uses from it.
@@ -61,8 +62,11 @@ export default function RootLayout({
         className="flex min-h-full flex-col bg-bg text-fg antialiased"
       >
         <Providers>
-          <SiteHeader />
-          <main className="flex flex-1 flex-col">{children}</main>
+          <AppSidebar />
+          <MobileNav />
+          <main id="app-content" className="flex flex-1 flex-col lg:pl-[60px]">
+            {children}
+          </main>
         </Providers>
       </body>
     </html>

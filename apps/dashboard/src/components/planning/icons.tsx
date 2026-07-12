@@ -24,6 +24,11 @@ import {
   LuUser,
   LuSparkles,
   LuEye,
+  LuLayoutDashboard,
+  LuSettings,
+  LuMenu,
+  LuX,
+  LuLogOut,
 } from "react-icons/lu";
 
 interface IconProps {
@@ -74,3 +79,17 @@ export const PersonIcon = wrapIcon(LuUser, "PersonIcon");
 export const SparkIcon = wrapIcon(LuSparkles, "SparkIcon");
 // view-only state
 export const EyeIcon = wrapIcon(LuEye, "EyeIcon");
+
+// Nav rail/drawer (app shell) — extends the same set rather than a
+// parallel icon file, so the shell reads as the same visual family as
+// planning/build iconography.
+// nav: dashboard home
+export const DashboardIcon = wrapIcon(LuLayoutDashboard, "DashboardIcon");
+// nav: settings
+export const SettingsIcon = wrapIcon(LuSettings, "SettingsIcon");
+// nav: mobile drawer open trigger
+export const MenuIcon = wrapIcon(LuMenu, "MenuIcon");
+// nav: mobile drawer close trigger — swaps in place of MenuIcon, same slot
+export const CloseIcon = wrapIcon(LuX, "CloseIcon");
+// nav: sign out
+export const SignOutIcon = wrapIcon(LuLogOut, "SignOutIcon");

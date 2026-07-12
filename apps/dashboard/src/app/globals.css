@@ -293,6 +293,80 @@ select:focus-visible,
   border-color: var(--color-accent);
 }
 
+/*
+ * Desktop nav rail (app shell) — hover-only expand, pure CSS, no JS
+ * expansion state. `.mullion-rail` is the fixed-position <aside> itself;
+ * `.mullion-rail-label` goes on every label that should fade/slide in
+ * lockstep with the rail's width. Two different timings depending on
+ * direction is deliberate, not a bug: a CSS transition takes its
+ * duration/delay from whichever ruleset is the *target* of the state
+ * change, so declaring the fast, undelayed values on `:hover`/
+ * `:focus-within` and the slower, delayed values on the resting selector
+ * gives expand and collapse genuinely different pacing with no JS at all.
+ */
+.mullion-rail {
+  width: 60px;
+  box-shadow: 0 0 0 0 transparent;
+  transition:
+    width 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: 100ms; /* lets a mouse graze the edge without a collapse-then-reopen flicker */
+  will-change: width;
+}
+
+.mullion-rail:hover,
+.mullion-rail:focus-within {
+  width: 300px;
+  box-shadow: 8px 0 24px -8px rgba(0, 0, 0, 0.5);
+  border-right-color: var(--color-border-strong);
+  transition:
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Always in the DOM, never display:none (a11y, and the fade needs
+   something to animate) — the fixed 60px icon slot each label sits
+   beside is what actually hides it at rest, by leaving the label's
+   flex-1 overflow-hidden box nowhere to go. */
+.mullion-rail-label {
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: opacity 100ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mullion-rail:hover .mullion-rail-label,
+.mullion-rail:focus-within .mullion-rail-label {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+  /* Per-row stagger via a --row-index custom property set inline per link
+     (app-sidebar.tsx), capped so a longer nav never drifts past a fast,
+     deliberate reveal. */
+  transition-delay: min(calc(var(--row-index, 0) * 15ms), 120ms);
+}
+
+/*
+ * Mobile nav slide-over — full-screen, state-driven (class toggle on
+ * `open`, never transitionend-gated). Same asymmetric-timing trick as the
+ * rail above: the open state's transition lives on `.mullion-drawer-open`
+ * (the target when opening), the closed state's on `.mullion-drawer`
+ * alone (the target when closing).
+ */
+.mullion-drawer {
+  transform: translateX(-100%);
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.mullion-drawer.mullion-drawer-open {
+  transform: translateX(0);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* Anchor navigation glides (no Lenis here — that's a marketing-app thing). */
 html {
   scroll-behavior: smooth;
@@ -300,7 +374,12 @@ html {
 
 /* Accessibility is not optional: collapses every animation/transition to a
    single frame and preserves final state, so nothing here can disorient a
-   user who has asked the OS to reduce motion. */
+   user who has asked the OS to reduce motion. Note: this zeroes every
+   transition-DURATION (including the rail/drawer rules above) but not
+   transition-delay, so the rail's 100ms collapse grace-delay and the
+   ~0–120ms label stagger can still be felt as a brief pause before the
+   (now-instant) snap. Left as-is deliberately, matching this block's
+   existing scope — durations, not delays. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

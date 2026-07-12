@@ -991,3 +991,34 @@ databaseHooks with direct DB inserts; Better Auth has no built-in option)
   add CSRF tokens to mutating routes — decide before first deploy.
 - Cost-write-after-spend policy (L3) lands with real budget enforcement
   (ADR-31, Phase 2). Rate-limit store goes Redis with a second instance.
+
+### [2026-07-12] Dashboard chrome: navbar → hover-expand sidebar
+**Phase:** Phase 0 — Foundation & Platform Wiring (UI polish)
+**Type:** Progress update
+**Summary:** Replaced `apps/dashboard`'s sticky top navbar with an
+Aceternity-style sidebar, per owner decisions: hover-only expand (no pin,
+explicitly chosen over a pinned mode), desktop top bar retired, Cormorant
+wordmark (no Cinzel added), sign-out moved from the home page into the
+sidebar account footer. Desktop: fixed 60px icon rail expanding to 300px
+on `:hover`/`:focus-within` as an overlay (main stays at `lg:pl-[60px]`,
+content never reflows); labels fade/slide with per-row stagger, one easing
+curve (`cubic-bezier(0.22,1,0.36,1)`), asymmetric expand/collapse timing —
+all pure CSS, no framer-motion. Mobile (<lg): sticky top bar + full-screen
+slide-over dialog with declarative `inert` modality, body scroll lock,
+Escape/route-change/link-tap close, focus restore. Nav driven from a
+single config array with pure segment-bounded `isActive()` (unit-tested).
+Icons via `react-icons/lu` through the existing `wrapIcon` pattern.
+Multi-lens review: no Critical/High; applied declarative-inert fix and
+confirmed no z-index conflicts. All gates green: check-types, lint, test
+(10), build.
+**Files/areas touched:** `apps/dashboard/src/components/nav/*` (new:
+app-sidebar, mobile-nav, account-menu, nav-items + test), `app/layout.tsx`,
+`app/page.tsx`, `app/globals.css`, `components/planning/icons.tsx`,
+deleted `components/site-header.tsx`, `design-context.md` file map.
+**Related ADR:** None — UI chrome change, choices made interactively by
+owner (hover-only, no persistence), no architectural decision.
+**Follow-ups:**
+- If nav grows past ~8 items, revisit the stagger cap and give the nav
+  list its own scroll region.
+- Manual visual pass on the React Flow planning surface with the overlay
+  expand is still worth an eyeball on a real session.
