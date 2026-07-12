@@ -40,7 +40,7 @@
   },
   "devDependencies": {
     "@mullion/config": "workspace:*",
-    "@types/node": "^20.19.43",
+    "@types/node": "^26.1.1",
     "tsx": "^4.23.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
