@@ -27,11 +27,16 @@ async function rawApiFetch(path: string, init?: RequestInit): Promise<RawRespons
     throw new Error("NEXT_PUBLIC_API_URL is not set");
   }
 
+  // A FormData body must NOT get the JSON content-type — the browser has to
+  // set multipart/form-data with its own boundary parameter (avatar upload).
+  const defaultHeaders: Record<string, string> =
+    init?.body instanceof FormData ? {} : { "Content-Type": "application/json" };
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     credentials: "include",
     headers: {
-      "Content-Type": "application/json",
+      ...defaultHeaders,
       ...init?.headers,
     },
   });

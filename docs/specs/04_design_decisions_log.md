@@ -1506,3 +1506,57 @@ pick (oldest-membership is deterministic without parsing).
 `packages/db/drizzle/0009_owner-to-admin.sql`,
 `apps/dashboard/src/components/settings/members-section.tsx`,
 `apps/dashboard/src/app/invite/[id]/page.tsx`
+
+### ADR-73 — Avatar uploads: Cloudinary via the API, server-written URL
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** The profile section asked users to paste an https image URL —
+a non-feature (nobody has a hosted avatar URL handy) and a trust smell:
+the client freely chose what lands in `user.image`. The rework wants a
+real file upload. S3 is already in the stack but only as a blob store —
+matching Cloudinary's crop/face-detect/format-negotiation/CDN would mean
+CloudFront plus a transform layer, disproportionate for avatars.
+**Decision:**
+- **Cloudinary, server-side only.** Browser sends the file as multipart
+  to `POST /api/account/avatar` (session-gated, on the existing
+  `accountRoute`); the API uploads to Cloudinary with a signed request
+  and itself writes the returned `secure_url` to `user.image` via
+  `auth.api.updateUser`. The client never supplies a URL and no unsigned
+  preset exists — no unauthenticated write path to the Cloudinary
+  account, no client-chosen image URLs.
+- **`public_id = <userId>` in `avatars/`, `overwrite: true`,
+  `invalidate: true`.** One asset per user; a new upload replaces the
+  old, so no orphan-cleanup job ever exists. The versioned `secure_url`
+  busts browser caches; `invalidate` purges CDN copies of the reused id.
+  A square face-crop (`c_fill`/`g_face` 256×256) plus `q_auto`/`f_auto`
+  is baked into the stored delivery URL — no client crop UI in v1.
+- **Content decides, not the claim:** the route sniffs magic bytes
+  (JPEG/PNG/WebP) and enforces 5MB server-side (`bodyLimit` 6MB then
+  `file.size`); the dashboard's type/size check is UX only. Per-user
+  rate limit (10/min) mirrors `byokSaveRateLimit`'s posture. Upload
+  precedes the DB write, so any Cloudinary failure (502) leaves
+  `user.image` untouched.
+- **The `user.update.before` https validation stays permissive** (any
+  https URL ≤2048 chars, ADR-66) — the same hook fires for Google/GitHub
+  OAuth avatar writes, and a Cloudinary-host allowlist would reject
+  them. Residual: a user can still point their own `image` at any https
+  URL via Better Auth's raw update-user endpoint; accepted for v1 (self-
+  only, https-pinned, `referrerPolicy="no-referrer"` on render).
+- **Soft-optional creds:** `CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET` as
+  an all-or-none triple in `env.ts` (superRefine, like the OAuth pairs);
+  dev boots without them and the route answers 503.
+- **Remove avatar** (`DELETE /api/account/avatar`) clears `user.image`
+  (UI falls back to initials) and best-effort deletes the asset —
+  "not found" is expected when the image was an OAuth avatar.
+- Avatar is **per-user, not tenant-scoped**: it rides the Better Auth
+  `user` table, no `org_id` (ADR-36 applies to tenant data, not identity).
+**Alternatives considered:** unsigned upload preset direct from the
+browser (unauthenticated write path + client-chosen URLs — the exact
+pattern being removed); S3 presigned PUT + CloudFront (more infra glue,
+no face-crop/format negotiation); Cloudinary-host allowlist in the DB
+hook (breaks OAuth avatar writes through the same hook); eager/derived
+transforms with cleanup job (deterministic overwrite makes both moot).
+**Doc:** `apps/api/src/modules/auth/routes.ts`,
+`apps/api/src/lib/cloudinary.ts`, `apps/api/src/lib/image-sniff.ts`,
+`packages/config/src/env.ts`,
+`apps/dashboard/src/components/settings/avatar-upload.tsx`,
+`apps/dashboard/src/hooks/use-account-mutations.ts`

@@ -1183,3 +1183,43 @@ org switcher + invite accept surfaces, integration/unit tests,
 - Org-namespaced TanStack Query keys (v2 refinement; unqualified
   invalidate on switch today).
 - Last-active-org memory across logins deferred (deterministic default).
+
+## 2026-07-12 — Profile section rework: Cloudinary avatars + edit-mode name (ADR-73)
+Replaced the paste-an-https-URL avatar input with a real upload flow.
+Browser sends multipart to POST /api/account/avatar (session-gated, on
+accountRoute); the API magic-byte-sniffs the payload (JPEG/PNG/WebP,
+5MB via bodyLimit 6MB + file.size), uploads to Cloudinary signed
+(public_id = userId in avatars/, overwrite + invalidate, c_fill/g_face
+256² + q_auto/f_auto baked into the stored secure_url) and itself
+writes user.image via auth.api.updateUser — the client never chooses
+the URL. DELETE /api/account/avatar clears the field (initials
+fallback) with best-effort asset delete. Per-user 10/min rate limit
+mirrors byokSaveRateLimit. Cloudinary creds are a soft-optional
+all-or-none env triple; route answers 503 unconfigured. The
+user.update.before https hook stays permissive (OAuth avatars flow
+through it — ADR-73 records the residual).
+Dashboard: profile section is view-mode-first (name/email as text,
+Edit profile → enabled input + Save/Cancel, no lingering "Saved."
+note); new AvatarUpload component (hover "Change" overlay, touch
+corner badge, spinner, remove action, client type/size gate as UX);
+apiFetch skips the JSON content-type for FormData bodies; upload/
+remove mutations poke $sessionSignal so nav/member avatars refresh
+reactively. Shared Avatar component now rounded-full everywhere.
+Gates green: 54 unit tests (sniffer + cloudinary wrapper added),
+lint, check-types. New avatar integration tests added to
+app.integration.test.ts (mocked Cloudinary wrapper); integration
+tier not run this session.
+**Files/areas touched:** `apps/api/src/modules/auth/routes.ts`,
+`apps/api/src/lib/{cloudinary,image-sniff}.ts` (new, + unit tests),
+`packages/config/src/env.ts`, `apps/api/.env.example`,
+`apps/dashboard/src/lib/api.ts`,
+`apps/dashboard/src/hooks/use-account-mutations.ts`,
+`apps/dashboard/src/components/settings/{profile-section,avatar-upload}.tsx`,
+`apps/dashboard/src/components/ui/avatar.tsx`,
+`apps/dashboard/src/components/planning/icons.tsx`,
+`docs/specs/04` (ADR-73).
+**Related ADR:** ADR-73 (new).
+**Follow-ups:**
+- Run API_INTEGRATION=1 tier to exercise the new avatar route tests.
+- Manual pass: real jpg upload → spinner → rounded-full in profile,
+  account menu, member rows; remove → initials.

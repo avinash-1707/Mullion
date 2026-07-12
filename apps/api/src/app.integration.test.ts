@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Hono } from "hono";
 import { initLogger } from "@mullion/logger";
 
@@ -15,6 +15,21 @@ import { initLogger } from "@mullion/logger";
  */
 
 const integration = process.env["API_INTEGRATION"] === "1";
+
+// Cloudinary has no cassette system — mock the wrapper module so the avatar
+// routes exercise the full HTTP surface (auth, limits, sniffing, DB write)
+// without an outbound upload. Nothing else imports this module, so the mock
+// can't leak into unrelated tests.
+const cloudinaryMock = vi.hoisted(() => {
+  class CloudinaryError extends Error {}
+  return {
+    CloudinaryError,
+    isAvatarUploadConfigured: vi.fn(() => true),
+    uploadAvatar: vi.fn(),
+    deleteAvatar: vi.fn(),
+  };
+});
+vi.mock("./lib/cloudinary.js", () => cloudinaryMock);
 
 // Every test here is several HTTP round trips against a remote Postgres —
 // vitest's 5s default is inside normal tail latency for the slower ones.
@@ -628,6 +643,178 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     });
     const body = (await session.json()) as { user?: { image?: string | null } };
     expect(body.user?.image).toBe("https://avatars.example.com/u/1.png");
+  });
+
+  describe("avatar upload: Cloudinary via the API, server-written URL (ADR-73)", () => {
+    const AVATAR_URL = "https://res.cloudinary.com/test/image/upload/v1/avatars/u.webp";
+    // Real magic bytes — the route sniffs content, not the filename/MIME.
+    const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+
+    beforeEach(() => {
+      // No clearMocks config exists — call history would otherwise leak
+      // across tests and break the not.toHaveBeenCalled() assertions below.
+      // Scoped to these mocks (not clearAllMocks) so nothing outside this
+      // describe is disturbed.
+      cloudinaryMock.isAvatarUploadConfigured.mockClear();
+      cloudinaryMock.uploadAvatar.mockClear();
+      cloudinaryMock.deleteAvatar.mockClear();
+      cloudinaryMock.isAvatarUploadConfigured.mockReturnValue(true);
+      cloudinaryMock.uploadAvatar.mockResolvedValue({ imageUrl: AVATAR_URL });
+      cloudinaryMock.deleteAvatar.mockResolvedValue(undefined);
+    });
+
+    function avatarForm(bytes: Buffer, filename = "avatar.jpg", type = "image/jpeg"): FormData {
+      const form = new FormData();
+      form.append("avatar", new File([new Uint8Array(bytes)], filename, { type }));
+      return form;
+    }
+
+    function uploadHeaders(cookie: string, ip: string): Record<string, string> {
+      // No Content-Type — fetch sets the multipart boundary itself.
+      return { Cookie: cookie, Origin: DASHBOARD_ORIGIN, "x-forwarded-for": ip };
+    }
+
+    async function sessionImage(cookie: string, ip: string): Promise<string | null> {
+      const res = await harness.app.request("/api/auth/get-session", {
+        method: "GET",
+        headers: { Cookie: cookie, Origin: DASHBOARD_ORIGIN, "x-forwarded-for": ip },
+      });
+      const body = (await res.json()) as { user?: { image?: string | null } };
+      return body.user?.image ?? null;
+    }
+
+    it("rejects an anonymous upload with 401", async () => {
+      const res = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: { Origin: DASHBOARD_ORIGIN },
+        body: avatarForm(JPEG_BYTES),
+      });
+      expect(res.status).toBe(401);
+    });
+
+    it("uploads a real image and writes the Cloudinary URL to user.image", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const sessionRes = await harness.app.request("/api/auth/get-session", {
+        method: "GET",
+        headers: { Cookie: cookie, Origin: DASHBOARD_ORIGIN, "x-forwarded-for": ip },
+      });
+      const { user } = (await sessionRes.json()) as { user: { id: string } };
+      const res = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: uploadHeaders(cookie, ip),
+        body: avatarForm(JPEG_BYTES),
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ image: AVATAR_URL });
+      // public_id derives from the SESSION user id, never the request body.
+      expect(cloudinaryMock.uploadAvatar).toHaveBeenCalledWith(expect.any(Buffer), user.id);
+      expect(await sessionImage(cookie, ip)).toBe(AVATAR_URL);
+    });
+
+    it("rejects a text payload renamed to .jpg with 400 (magic bytes decide)", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const res = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: uploadHeaders(cookie, ip),
+        body: avatarForm(Buffer.from("plain text, not an image"), "sneaky.jpg", "image/jpeg"),
+      });
+      expect(res.status).toBe(400);
+      expect(cloudinaryMock.uploadAvatar).not.toHaveBeenCalled();
+    });
+
+    it("rejects a missing/mis-named multipart field with 400", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const form = new FormData();
+      form.append("file", new File([new Uint8Array(JPEG_BYTES)], "avatar.jpg", { type: "image/jpeg" }));
+      const res = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: uploadHeaders(cookie, ip),
+        body: form,
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects an over-5MB image with 413", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const oversized = Buffer.concat([JPEG_BYTES, Buffer.alloc(5 * 1024 * 1024)]);
+      const res = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: uploadHeaders(cookie, ip),
+        body: avatarForm(oversized),
+      });
+      expect(res.status).toBe(413);
+      expect(cloudinaryMock.uploadAvatar).not.toHaveBeenCalled();
+    });
+
+    it("maps a Cloudinary failure to 502 and leaves the EXISTING avatar untouched", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      // Establish a real avatar first — otherwise "untouched" is vacuous
+      // (a fresh user's image is already null).
+      const first = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: uploadHeaders(cookie, ip),
+        body: avatarForm(JPEG_BYTES),
+      });
+      expect(first.status).toBe(200);
+      cloudinaryMock.uploadAvatar.mockRejectedValue(new cloudinaryMock.CloudinaryError("down"));
+      const res = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: uploadHeaders(cookie, ip),
+        body: avatarForm(JPEG_BYTES),
+      });
+      expect(res.status).toBe(502);
+      expect(await sessionImage(cookie, ip)).toBe(AVATAR_URL);
+    });
+
+    it("answers 503 when Cloudinary creds are not configured", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      cloudinaryMock.isAvatarUploadConfigured.mockReturnValue(false);
+      const res = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: uploadHeaders(cookie, ip),
+        body: avatarForm(JPEG_BYTES),
+      });
+      expect(res.status).toBe(503);
+    });
+
+    it("DELETE clears user.image and tolerates a failed CDN delete", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const upload = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: uploadHeaders(cookie, ip),
+        body: avatarForm(JPEG_BYTES),
+      });
+      expect(upload.status).toBe(200);
+      // Even if Cloudinary's delete fails, the DB field (what renders) clears.
+      cloudinaryMock.deleteAvatar.mockRejectedValue(new cloudinaryMock.CloudinaryError("down"));
+      const res = await harness.app.request("/api/account/avatar", {
+        method: "DELETE",
+        headers: uploadHeaders(cookie, ip),
+      });
+      expect(res.status).toBe(200);
+      expect(await sessionImage(cookie, ip)).toBeNull();
+    });
+
+    it("rate-limits rapid uploads per user at the 10/min boundary", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      // The window is 10/min shared across POST + DELETE — assert the exact
+      // boundary so a misconfigured limit (1, or a different limiter firing)
+      // can't pass this test.
+      for (let i = 0; i < 10; i += 1) {
+        const res = await harness.app.request("/api/account/avatar", {
+          method: "POST",
+          headers: uploadHeaders(cookie, ip),
+          body: avatarForm(JPEG_BYTES),
+        });
+        expect(res.status).toBe(200);
+      }
+      const eleventh = await harness.app.request("/api/account/avatar", {
+        method: "POST",
+        headers: uploadHeaders(cookie, ip),
+        body: avatarForm(JPEG_BYTES),
+      });
+      expect(eleventh.status).toBe(429);
+    });
   });
 
   it("rate-limits the OTP endpoints on the credential window (ADR-32/66)", async () => {

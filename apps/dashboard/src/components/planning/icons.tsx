@@ -30,6 +30,7 @@ import {
   LuX,
   LuLogOut,
   LuBuilding2,
+  LuCamera,
 } from "react-icons/lu";
 
 interface IconProps {
@@ -96,3 +97,5 @@ export const CloseIcon = wrapIcon(LuX, "CloseIcon");
 export const SignOutIcon = wrapIcon(LuLogOut, "SignOutIcon");
 // nav: organization switcher
 export const OrgIcon = wrapIcon(LuBuilding2, "OrgIcon");
+// settings: avatar upload trigger
+export const CameraIcon = wrapIcon(LuCamera, "CameraIcon");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 import { authClient } from "../lib/auth-client";
 import { apiFetch, ApiError } from "../lib/api";
 
@@ -35,20 +36,57 @@ export function useListAccountsQuery() {
 
 interface UpdateProfileInput {
   name: string;
-  image: string;
 }
 
+// Name only — the avatar flows through the upload/remove mutations below,
+// where the server (not the client) decides the stored URL (ADR-73).
 export function useUpdateProfileMutation() {
   return useMutation({
-    mutationFn: async ({ name, image }: UpdateProfileInput) => {
-      // updateUser treats an empty string as "clear this field" for image,
-      // which is exactly what an emptied avatar-URL input should do.
-      const { data, error } = await authClient.updateUser({ name, image: image || null });
+    mutationFn: async ({ name }: UpdateProfileInput) => {
+      const { data, error } = await authClient.updateUser({ name });
       if (error) {
         throw new Error(error.message ?? "Couldn't save your profile.");
       }
       return data;
     },
+  });
+}
+
+const avatarResponseSchema = z.object({ image: z.string() });
+
+// user.image was written server-side, so Better Auth's client store doesn't
+// know — poke $sessionSignal and every useSession consumer (nav rail,
+// account menu, member rows) refetches and picks up the new avatar.
+function refreshSession() {
+  authClient.$store.notify("$sessionSignal");
+}
+
+export function useUploadAvatarMutation() {
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("avatar", file);
+      try {
+        const body = await apiFetch("/api/account/avatar", { method: "POST", body: formData });
+        return avatarResponseSchema.parse(body);
+      } catch (error) {
+        throw new Error(errorMessage(error, "Couldn't upload your avatar."));
+      }
+    },
+    onSuccess: refreshSession,
+  });
+}
+
+export function useRemoveAvatarMutation() {
+  return useMutation({
+    mutationFn: async () => {
+      try {
+        return await apiFetch("/api/account/avatar", { method: "DELETE" });
+      } catch (error) {
+        throw new Error(errorMessage(error, "Couldn't remove your avatar."));
+      }
+    },
+    onSuccess: refreshSession,
   });
 }
 

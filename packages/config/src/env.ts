@@ -98,6 +98,11 @@ export const apiEnvSchema = z.object({
   // Delivery: which GitHub target — `fake` (no creds, local remote) or the
   // real Octokit push. Archive is always offered alongside.
   GITHUB_DELIVERY: z.enum(["fake", "github"]).default("fake"),
+  // Avatar uploads via Cloudinary (ADR-73). Soft-optional triple: dev boots
+  // without creds and POST /api/account/avatar answers 503 until they're set.
+  CLOUDINARY_CLOUD_NAME: z.string().min(1).optional(),
+  CLOUDINARY_API_KEY: z.string().min(1).optional(),
+  CLOUDINARY_API_SECRET: z.string().min(1).optional(),
 }).superRefine((env, ctx) => {
   if (env.ARTIFACT_STORE === "s3" && !env.ARTIFACT_S3_BUCKET) {
     ctx.addIssue({
@@ -185,6 +190,28 @@ export const apiEnvSchema = z.object({
       path: ["LLM_REPLAY_MODE"],
       message: "record/replay is a dev/test tool (ADR-11) — production must run with LLM_REPLAY_MODE=off",
     });
+  }
+  // Cloudinary creds come as a complete triple or not at all — a partial set
+  // would pass the isConfigured() gate in lib/cloudinary.ts on some checks
+  // and then fail mid-upload (same posture as the OAuth pairs above).
+  {
+    const cloudinaryKeys = [
+      "CLOUDINARY_CLOUD_NAME",
+      "CLOUDINARY_API_KEY",
+      "CLOUDINARY_API_SECRET",
+    ] as const;
+    const set = cloudinaryKeys.filter((key) => Boolean(env[key]));
+    if (set.length > 0 && set.length < cloudinaryKeys.length) {
+      for (const key of cloudinaryKeys) {
+        if (!env[key]) {
+          ctx.addIssue({
+            code: "custom",
+            path: [key],
+            message: "CLOUDINARY_* vars must be set all together (or all unset)",
+          });
+        }
+      }
+    }
   }
   // Fail loud at boot, never mid-run with a half-built task.
   if (env.SANDBOX_DRIVER === "e2b" && !env.E2B_API_KEY) {
