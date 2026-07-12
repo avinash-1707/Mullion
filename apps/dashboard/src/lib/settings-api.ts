@@ -11,6 +11,9 @@ export const byokStatusSchema = z.object({
   hasKey: z.boolean(),
   keyLast4: z.string().nullable(),
   enabled: z.boolean(),
+  // Mutations are owner/admin-only server-side (ADR-70); this drives the
+  // read-only rendering for plain members, never the enforcement.
+  canManage: z.boolean(),
 });
 export type ByokStatus = z.infer<typeof byokStatusSchema>;
 
@@ -36,6 +39,7 @@ export type ModelRoleConfig = z.infer<typeof modelRoleConfigSchema>;
 
 export const modelsResponseSchema = z.object({
   byokEnabled: z.boolean(),
+  canManage: z.boolean(),
   roles: z.array(modelRoleConfigSchema),
 });
 export type ModelsResponse = z.infer<typeof modelsResponseSchema>;

@@ -40,7 +40,12 @@ export function ModelsSection() {
         ) : modelsData ? (
           <ul className="flex flex-col divide-y divide-border">
             {modelsData.roles.map((role) => (
-              <ModelRoleRow key={role.role} role={role} byokEnabled={modelsData.byokEnabled} />
+              <ModelRoleRow
+                key={role.role}
+                role={role}
+                byokEnabled={modelsData.byokEnabled}
+                canManage={modelsData.canManage}
+              />
             ))}
           </ul>
         ) : models.error ? (

@@ -25,7 +25,7 @@ interface ByokKeyCardProps {
 // refetch this comparison would otherwise wait on, for a snappier
 // transition.
 export function ByokKeyCard({ status }: ByokKeyCardProps) {
-  const [editing, setEditing] = useState(!status.hasKey);
+  const [editing, setEditing] = useState(!status.hasKey && status.canManage);
   const [prevHasKey, setPrevHasKey] = useState(status.hasKey);
   const [apiKey, setApiKey] = useState("");
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -34,7 +34,23 @@ export function ByokKeyCard({ status }: ByokKeyCardProps) {
 
   if (prevHasKey !== status.hasKey) {
     setPrevHasKey(status.hasKey);
-    setEditing(!status.hasKey);
+    setEditing(!status.hasKey && status.canManage);
+  }
+
+  // Plain members see status only — the server rejects their mutations
+  // (owner/admin gate, ADR-70), so no form, no Replace/Remove.
+  if (!status.canManage) {
+    return (
+      <div className="border border-border p-5">
+        <h3 className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted">OpenRouter API key</h3>
+        <p className="mt-4 font-mono text-sm text-fg">
+          {status.hasKey ? `••••${status.keyLast4}` : "No key on file"}
+        </p>
+        <p className="mt-2 text-sm text-fg-muted">
+          Only an organization owner or admin can manage the API key.
+        </p>
+      </div>
+    );
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

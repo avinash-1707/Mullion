@@ -43,9 +43,13 @@ const byokSaveRateLimit = rateLimiter<{ Variables: RequiredAuthVariables }>({
  * money — setting/removing the key flips billing source, model picks steer
  * per-call cost — so it is owner/admin only. Reads stay open to members.
  */
+function canManageBilling(orgRole: string): boolean {
+  return ["owner", "admin"].includes(orgRole);
+}
+
 const requireOrgAdmin = createMiddleware<{ Variables: RequiredAuthVariables }>(
   async (c, next) => {
-    if (!["owner", "admin"].includes(c.get("orgRole"))) {
+    if (!canManageBilling(c.get("orgRole"))) {
       throw new HTTPException(403, {
         message: "Only an organization owner or admin can change billing settings",
       });
@@ -64,7 +68,10 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
 
   .get("/byok", async (c) => {
     const organizationId = c.get("organizationId");
-    return c.json(await getOrgByokStatus(db, organizationId));
+    const status = await getOrgByokStatus(db, organizationId);
+    // canManage drives the UI's read-only state for plain members — the
+    // server-side requireOrgAdmin gate on mutations is the real enforcement.
+    return c.json({ ...status, canManage: canManageBilling(c.get("orgRole")) });
   })
 
   .post("/byok", requireOrgAdmin, byokSaveRateLimit, zValidator("json", saveKeySchema), async (c) => {
@@ -73,9 +80,14 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     const { apiKey } = c.req.valid("json");
 
     // Probe before persist (ADR-70) — a key that can't authenticate never
-    // lands in the table. Replay/record runs have no cassette for the
-    // key-info endpoint, so the probe is skipped there (dev/test only).
-    if (env.LLM_REPLAY_MODE === "off") {
+    // lands in the table. Skipped where no real OpenRouter is reachable:
+    // replay/record runs have no cassette for the key-info endpoint, and a
+    // dev loopback mock (OPENROUTER_BASE_URL) doesn't implement GET /key.
+    // Production always probes — env.ts forbids both overrides there.
+    const probeSkipped =
+      env.LLM_REPLAY_MODE !== "off" ||
+      (env.NODE_ENV !== "production" && Boolean(env.OPENROUTER_BASE_URL));
+    if (!probeSkipped) {
       const { valid } = await llm.validateKey(apiKey);
       if (!valid) {
         throw new HTTPException(400, { message: "OpenRouter rejected this key" });
@@ -119,7 +131,11 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
       overrideModelSlug: overrideByRole.get(d.role) ?? null,
       allowlist: MODEL_ALLOWLIST[d.role],
     }));
-    return c.json({ byokEnabled: byok.hasKey && byok.enabled, roles });
+    return c.json({
+      byokEnabled: byok.hasKey && byok.enabled,
+      canManage: canManageBilling(c.get("orgRole")),
+      roles,
+    });
   })
 
   .put("/models", requireOrgAdmin, zValidator("json", putModelSchema), async (c) => {

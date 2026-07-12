@@ -9,6 +9,7 @@ import { FormNote } from "./form-note";
 interface ModelRoleRowProps {
   role: ModelRoleConfig;
   byokEnabled: boolean;
+  canManage: boolean;
 }
 
 // Sentinel <option> value for "no override" — distinct from any real model
@@ -19,7 +20,7 @@ const PLATFORM_DEFAULT_VALUE = "__platform_default__";
 // One row per role (GET /models). Each row owns its own mutation instance,
 // so a slow/failed save on one role never blocks or misattributes state to
 // another row's select.
-export function ModelRoleRow({ role, byokEnabled }: ModelRoleRowProps) {
+export function ModelRoleRow({ role, byokEnabled, canManage }: ModelRoleRowProps) {
   const updateModel = useUpdateModelMutation();
   const selectedValue = role.overrideModelSlug ?? PLATFORM_DEFAULT_VALUE;
 
@@ -28,12 +29,15 @@ export function ModelRoleRow({ role, byokEnabled }: ModelRoleRowProps) {
     updateModel.mutate({ role: role.role, modelSlug: value === PLATFORM_DEFAULT_VALUE ? null : value });
   }
 
+  const customPickTitle = !canManage
+    ? "Only an organization owner or admin can change models"
+    : "Add an API key to pick your own model";
   const options: SelectOption[] = [
     { value: PLATFORM_DEFAULT_VALUE, label: `Platform default (${role.defaultModelSlug})` },
     ...role.allowlist.map((slug) =>
-      byokEnabled
+      byokEnabled && canManage
         ? { value: slug, label: slug }
-        : { value: slug, label: slug, disabled: true, title: "Add an API key to pick your own model" },
+        : { value: slug, label: slug, disabled: true, title: customPickTitle },
     ),
   ];
 
@@ -46,7 +50,7 @@ export function ModelRoleRow({ role, byokEnabled }: ModelRoleRowProps) {
           aria-label={`Model for the ${roleLabel(role.role)} role`}
           value={selectedValue}
           onChange={handleChange}
-          disabled={updateModel.isPending}
+          disabled={updateModel.isPending || !canManage}
           options={options}
         />
       </div>
