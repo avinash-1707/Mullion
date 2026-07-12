@@ -15,6 +15,8 @@ export interface RequiredAuthVariables {
   user: AuthSession["user"];
   session: AuthSession["session"];
   organizationId: string;
+  /** Better Auth org role of the verified membership: owner | admin | member. */
+  orgRole: string;
 }
 
 /** Resolves the Better Auth session (if any) onto the context. */
@@ -40,9 +42,10 @@ export const requireOrgMember = createMiddleware<{ Variables: RequiredAuthVariab
       throw new HTTPException(401, { message: "Sign in required" });
     }
     let organizationId = session.activeOrganizationId;
+    let orgRole: string | null = null;
     if (organizationId) {
       const membership = await db
-        .select({ id: schema.member.id })
+        .select({ id: schema.member.id, role: schema.member.role })
         .from(schema.member)
         .where(
           and(
@@ -56,6 +59,8 @@ export const requireOrgMember = createMiddleware<{ Variables: RequiredAuthVariab
         // fall through to the fallback below instead of 403-locking a user
         // who still has valid memberships elsewhere.
         organizationId = null;
+      } else {
+        orgRole = membership[0].role;
       }
     }
     if (!organizationId) {
@@ -63,15 +68,18 @@ export const requireOrgMember = createMiddleware<{ Variables: RequiredAuthVariab
       // hook's rows are visible, so its activeOrganizationId lands null —
       // fall back to the user's first membership and heal the session row.
       const memberships = await db
-        .select({ organizationId: schema.member.organizationId })
+        .select({ organizationId: schema.member.organizationId, role: schema.member.role })
         .from(schema.member)
         .where(eq(schema.member.userId, user.id))
         .limit(1);
       organizationId = memberships[0]?.organizationId ?? null;
+      orgRole = memberships[0]?.role ?? null;
       if (!organizationId) {
         // Zero memberships = signup provisioning failed mid-flight. Without
         // this the account is permanently locked out — re-provision instead.
         organizationId = await provisionPersonalOrg(db, user);
+        // provisionPersonalOrg creates the membership as the org's owner.
+        orgRole = "owner";
       }
       await db
         .update(schema.session)
@@ -79,6 +87,7 @@ export const requireOrgMember = createMiddleware<{ Variables: RequiredAuthVariab
         .where(eq(schema.session.id, session.id));
     }
     c.set("organizationId", organizationId);
+    c.set("orgRole", orgRole ?? "member");
     await next();
   },
 );

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { rateLimiter } from "hono-rate-limiter";
@@ -38,6 +39,22 @@ const byokSaveRateLimit = rateLimiter<{ Variables: RequiredAuthVariables }>({
 });
 
 /**
+ * ADR-70 (review finding): the mutating settings surface moves the org's
+ * money — setting/removing the key flips billing source, model picks steer
+ * per-call cost — so it is owner/admin only. Reads stay open to members.
+ */
+const requireOrgAdmin = createMiddleware<{ Variables: RequiredAuthVariables }>(
+  async (c, next) => {
+    if (!["owner", "admin"].includes(c.get("orgRole"))) {
+      throw new HTTPException(403, {
+        message: "Only an organization owner or admin can change billing settings",
+      });
+    }
+    await next();
+  },
+);
+
+/**
  * Org settings self-service (ADR-70/71): BYOK key lifecycle, per-role model
  * overrides, and the usage analytics behind the dashboard settings page.
  * Everything is org-scoped through requireOrgMember (ADR-36).
@@ -50,7 +67,7 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     return c.json(await getOrgByokStatus(db, organizationId));
   })
 
-  .post("/byok", byokSaveRateLimit, zValidator("json", saveKeySchema), async (c) => {
+  .post("/byok", requireOrgAdmin, byokSaveRateLimit, zValidator("json", saveKeySchema), async (c) => {
     const organizationId = c.get("organizationId");
     const user = c.get("user");
     const { apiKey } = c.req.valid("json");
@@ -77,7 +94,7 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     return c.json({ ok: true, keyLast4 });
   })
 
-  .delete("/byok", async (c) => {
+  .delete("/byok", requireOrgAdmin, async (c) => {
     const organizationId = c.get("organizationId");
     await db.delete(schema.byokKeys).where(eq(schema.byokKeys.organizationId, organizationId));
     // Override rows stay — they simply stop applying without an enabled key
@@ -105,7 +122,7 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     return c.json({ byokEnabled: byok.hasKey && byok.enabled, roles });
   })
 
-  .put("/models", zValidator("json", putModelSchema), async (c) => {
+  .put("/models", requireOrgAdmin, zValidator("json", putModelSchema), async (c) => {
     const organizationId = c.get("organizationId");
     const { role, modelSlug } = c.req.valid("json");
 
@@ -151,8 +168,12 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     const organizationId = c.get("organizationId");
     const { days } = c.req.valid("query");
     const since = sql`now() - make_interval(days => ${days})`;
+    // LLM-only across ALL three aggregates — mixing sources would make the
+    // totals disagree with the per-role breakdown once sandbox rows exist
+    // (review finding). Sandbox spend gets its own surface when it matters.
     const orgWindow = and(
       eq(schema.costEvents.organizationId, organizationId),
+      eq(schema.costEvents.source, "llm"),
       sql`${schema.costEvents.createdAt} >= ${since}`,
     );
 

@@ -53,9 +53,17 @@ export function byokApiKeyResolver(db: Db): ApiKeyResolver {
       const apiKey = await symmetricDecrypt({ key: env.BETTER_AUTH_SECRET, data: row.encryptedKey });
       return { apiKey, byok: true };
     } catch {
+      // Deterministic failure (rotated BETTER_AUTH_SECRET / corrupt row) —
+      // disable so this logs once, not once per LLM call, and the settings
+      // page shows the key as needing a re-save.
+      await db
+        .update(schema.byokKeys)
+        .set({ enabled: false })
+        .where(eq(schema.byokKeys.organizationId, context.organizationId))
+        .catch(() => undefined);
       childLogger({ module: "byok" }).error(
         { organizationId: context.organizationId },
-        "BYOK key failed to decrypt — falling back to platform key (was BETTER_AUTH_SECRET rotated?)",
+        "BYOK key failed to decrypt — key disabled, falling back to platform key (was BETTER_AUTH_SECRET rotated?)",
       );
       return null;
     }

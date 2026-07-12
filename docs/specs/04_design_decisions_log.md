@@ -1349,9 +1349,11 @@ GitHub token (ADR-56): it can lose credit, hit rate limits, or be revoked
 mid-build, and a Temporal build that hard-fails on someone else's key
 failure reads as a platform failure.
 **Decision:**
-- **Scope: one key per org** (`byok_keys`, `unique(organization_id)`), set
-  by any org member in v1. Keys are a billing concern and budgets are
-  per-org (ADR-36); GitHub tokens stay per-user because they are identity.
+- **Scope: one key per org** (`byok_keys`, `unique(organization_id)`).
+  Keys are a billing concern and budgets are per-org (ADR-36); GitHub
+  tokens stay per-user because they are identity. Setting/removing the key
+  and picking models are **owner/admin only** (review finding: they move
+  the org's money); reads stay open to every member.
 - **Encryption:** ciphertext via better-auth's `symmetricEncrypt`
   (AES-256-GCM keyed off `BETTER_AUTH_SECRET`) — the same primitive that
   encrypts OAuth tokens (Phase 3 audit M2). Only `key_last4` is ever
@@ -1364,11 +1366,16 @@ failure reads as a platform failure.
   `apiKeyResolver(costContext)` — apps/api wires it to read + decrypt the
   org's enabled key; `packages/llm` stays the only OpenRouter integration
   point (ADR-24) without learning about tenancy tables.
-- **Mid-call auth failure (401/403) on a BYOK key:** retry the call once
-  on the platform key, record that call `byok=false`, disable the stored
-  key (`enabled=false`) so every later call skips straight to platform,
-  and surface a warning. Never hard-fail a build on a dead BYOK key; if
-  the platform fallback then trips the org budget, the existing
+- **Mid-call auth failure on a BYOK key:** retry the call once on the
+  platform key, record that call `byok=false`, and re-resolve the model —
+  the retry runs the platform DEFAULT, never the org's override pick
+  (ADR-71's "platform pays → platform picks" holds on the fallback path
+  too). A **401** additionally disables the stored key (`enabled=false`,
+  routing cache dropped) so later calls skip straight to platform; a
+  **403** does NOT disable — OpenRouter uses 403 for per-model/policy
+  denials on otherwise funded keys, and one such call must not flip the
+  whole org onto platform billing. Never hard-fail a build on a dead BYOK
+  key; if the platform fallback then trips the org budget, the existing
   budget-escalation path pauses the run (ADR-31) — no new run state.
 - **Budget split:** the per-org rolling window (`sumForOrgWindow`) counts
   only `byok = false` spend — that ceiling exists to cap the platform's

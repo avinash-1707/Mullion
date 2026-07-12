@@ -65,16 +65,18 @@ describe("model allowlist (ADR-71)", () => {
   });
 });
 
+const byokResolver = async () => ({ apiKey: "org-own-key", byok: true });
+
 describe("resolveModel with org overrides (ADR-71)", () => {
-  it("uses the override when allowlisted and the BYOK key is enabled", async () => {
+  it("uses the override when allowlisted and the call is BYOK-funded", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(completionResponse());
     const client = new OpenRouterClient({
       apiKey: "platform-key",
       db: queueDb([
         [{ modelSlug: ALLOWED }], // model_overrides
-        [{ enabled: true }], // byok_keys
       ]),
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKeyResolver: byokResolver,
     });
     await client.completeChat(baseArgs);
     const body = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
@@ -91,22 +93,22 @@ describe("resolveModel with org overrides (ADR-71)", () => {
         [routingRow], // model_routing
       ]),
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKeyResolver: byokResolver,
     });
     await client.completeChat(baseArgs);
     const body = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
     expect(body.model).toBe(DEFAULT);
   });
 
-  it("ignores the override when the BYOK key is disabled", async () => {
+  it("never reads overrides on a platform-funded call (platform pays → platform picks)", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(completionResponse());
     const client = new OpenRouterClient({
       apiKey: "platform-key",
-      db: queueDb([
-        [{ modelSlug: ALLOWED }], // model_overrides
-        [{ enabled: false }], // byok_keys — disabled
-        [routingRow], // model_routing
-      ]),
+      // ONLY the model_routing row queued: an override lookup would shift
+      // the queue and throw UnknownRoleError, failing this test.
+      db: queueDb([[routingRow]]),
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKeyResolver: async () => null,
     });
     await client.completeChat(baseArgs);
     const body = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
@@ -114,19 +116,16 @@ describe("resolveModel with org overrides (ADR-71)", () => {
   });
 
   it("keeps routing isolated between orgs (cache re-key)", async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(completionResponse());
-    fetchImpl.mockResolvedValueOnce(completionResponse());
+    const fetchImpl = vi.fn().mockImplementation(() => Promise.resolve(completionResponse()));
     const client = new OpenRouterClient({
       apiKey: "platform-key",
       db: queueDb([
-        // org-1: override + enabled key
-        [{ modelSlug: ALLOWED }],
-        [{ enabled: true }],
-        // org-2: no override, routing default
-        [],
-        [routingRow],
+        [{ modelSlug: ALLOWED }], // org-1: override, BYOK-funded
+        [routingRow], // org-2: platform-funded, routing default
       ]),
       fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKeyResolver: async (context) =>
+        context.organizationId === "org-1" ? { apiKey: "org-own-key", byok: true } : null,
     });
     await client.completeChat(baseArgs);
     await client.completeChat({ ...baseArgs, costContext: { organizationId: "org-2" } });
@@ -145,7 +144,7 @@ describe("BYOK key selection and fallback (ADR-70)", () => {
       apiKey: "platform-key",
       db: queueDb([[], [routingRow]], costInserts),
       fetchImpl: fetchImpl as unknown as typeof fetch,
-      apiKeyResolver: async () => ({ apiKey: "org-own-key", byok: true }),
+      apiKeyResolver: byokResolver,
     });
     await client.completeChat(baseArgs);
     const headers = (fetchImpl.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
@@ -158,7 +157,7 @@ describe("BYOK key selection and fallback (ADR-70)", () => {
     const costInserts: unknown[] = [];
     const client = new OpenRouterClient({
       apiKey: "platform-key",
-      db: queueDb([[], [routingRow]], costInserts),
+      db: queueDb([[routingRow]], costInserts),
       fetchImpl: fetchImpl as unknown as typeof fetch,
       apiKeyResolver: async () => null,
     });
@@ -168,7 +167,7 @@ describe("BYOK key selection and fallback (ADR-70)", () => {
     expect(costInserts[0]).toMatchObject({ byok: false });
   });
 
-  it("retries once on the platform key when the BYOK key fails auth", async () => {
+  it("retries once on the platform key when the BYOK key fails auth (401)", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 }))
@@ -177,7 +176,7 @@ describe("BYOK key selection and fallback (ADR-70)", () => {
     const onByokAuthFailure = vi.fn().mockResolvedValue(undefined);
     const client = new OpenRouterClient({
       apiKey: "platform-key",
-      db: queueDb([[], [routingRow]], costInserts),
+      db: queueDb([[], [routingRow], [routingRow]], costInserts),
       fetchImpl: fetchImpl as unknown as typeof fetch,
       apiKeyResolver: async () => ({ apiKey: "dead-key", byok: true }),
       onByokAuthFailure,
@@ -192,17 +191,123 @@ describe("BYOK key selection and fallback (ADR-70)", () => {
     expect(costInserts[0]).toMatchObject({ byok: false });
   });
 
+  it("re-resolves to the platform default model on fallback — never the override on platform money", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 }))
+      .mockResolvedValueOnce(completionResponse());
+    const client = new OpenRouterClient({
+      apiKey: "platform-key",
+      db: queueDb([
+        [{ modelSlug: ALLOWED }], // byok resolve: override applies
+        [routingRow], // platform re-resolve after the 401
+      ]),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKeyResolver: async () => ({ apiKey: "dead-key", byok: true }),
+    });
+    await client.completeChat(baseArgs);
+    const firstBody = JSON.parse((fetchImpl.mock.calls[0]![1] as RequestInit).body as string);
+    const retryBody = JSON.parse((fetchImpl.mock.calls[1]![1] as RequestInit).body as string);
+    expect(firstBody.model).toBe(ALLOWED);
+    expect(retryBody.model).toBe(DEFAULT);
+  });
+
+  it("falls back on a 403 for this call WITHOUT disabling the key", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "model not permitted" } }), { status: 403 }))
+      .mockResolvedValueOnce(completionResponse());
+    const onByokAuthFailure = vi.fn().mockResolvedValue(undefined);
+    const client = new OpenRouterClient({
+      apiKey: "platform-key",
+      db: queueDb([[], [routingRow], [routingRow]]),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKeyResolver: async () => ({ apiKey: "funded-but-restricted", byok: true }),
+      onByokAuthFailure,
+    });
+    const result = await client.completeChat(baseArgs);
+    expect(result.content).toBe("ok");
+    // A per-model/per-policy 403 on a funded key must not flip the org onto
+    // platform billing permanently (review finding).
+    expect(onByokAuthFailure).not.toHaveBeenCalled();
+  });
+
+  it("survives a throwing onByokAuthFailure — disabling the key must never fail the build", async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 }))
+      .mockResolvedValueOnce(completionResponse());
+    const client = new OpenRouterClient({
+      apiKey: "platform-key",
+      db: queueDb([[], [routingRow], [routingRow]]),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKeyResolver: async () => ({ apiKey: "dead-key", byok: true }),
+      onByokAuthFailure: vi.fn().mockRejectedValue(new Error("db down")),
+    });
+    const result = await client.completeChat(baseArgs);
+    expect(result.content).toBe("ok");
+  });
+
   it("does not retry an auth failure on the platform key itself", async () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(new Response(JSON.stringify({ error: { message: "nope" } }), { status: 401 }));
     const client = new OpenRouterClient({
       apiKey: "platform-key",
-      db: queueDb([[], [routingRow]]),
+      db: queueDb([[routingRow]]),
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
     await expect(client.completeChat(baseArgs)).rejects.toThrow(OpenRouterError);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("records byok on the tool-calling path too", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(completionResponse());
+    const costInserts: unknown[] = [];
+    const client = new OpenRouterClient({
+      apiKey: "platform-key",
+      db: queueDb([[], [routingRow]], costInserts),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKeyResolver: byokResolver,
+    });
+    await client.completeChatWithTools({
+      ...baseArgs,
+      tools: [
+        {
+          type: "function",
+          function: { name: "noop", description: "noop", parameters: { type: "object" } },
+        },
+      ],
+    });
+    const headers = (fetchImpl.mock.calls[0]![1] as RequestInit).headers as Record<string, string>;
+    expect(headers["Authorization"]).toBe("Bearer org-own-key");
+    expect(costInserts[0]).toMatchObject({ byok: true });
+  });
+
+  it("records byok on the streaming path", async () => {
+    const sse = [
+      `data: ${JSON.stringify({ id: "gen-1", model: DEFAULT, choices: [{ delta: { content: "hi" } }] })}`,
+      `data: ${JSON.stringify({ id: "gen-1", model: DEFAULT, choices: [{ delta: {}, finish_reason: "stop" }], usage: { prompt_tokens: 3, completion_tokens: 2, total_tokens: 5, cost: 0.001 } })}`,
+      "data: [DONE]",
+    ].join("\n");
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(new TextEncoder().encode(sse + "\n"), {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        }),
+      );
+    const costInserts: unknown[] = [];
+    const client = new OpenRouterClient({
+      apiKey: "platform-key",
+      db: queueDb([[], [routingRow]], costInserts),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      apiKeyResolver: byokResolver,
+    });
+    const result = await client.completeChatStream({ ...baseArgs, onDelta: () => undefined });
+    expect(result.content).toBe("hi");
+    expect(costInserts[0]).toMatchObject({ byok: true, promptTokens: 3, completionTokens: 2 });
   });
 });
 

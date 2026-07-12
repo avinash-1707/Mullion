@@ -835,6 +835,54 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       expect(otherBody.totals.llmCalls).toBe(0);
     });
 
+    it("excludes BYOK spend from the org budget window but not the per-run ceiling (ADR-70)", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const organizationId = await orgIdForCookie(cookie, ip);
+      const { schema } = await import("@mullion/db");
+      const { checkBudget } = await import("@mullion/agents");
+
+      await harness.db.insert(schema.costEvents).values([
+        { organizationId, source: "llm", role: "coder", cost: "5.00000000", byok: true },
+        { organizationId, source: "llm", role: "coder", cost: "5.00000000", byok: false },
+      ]);
+
+      // Org window sees only the platform-billed $5 — under the $8 ceiling.
+      const ok = await checkBudget(harness.db, {
+        organizationId,
+        config: { orgBudgetUsd: 8 },
+      });
+      expect(ok.ok).toBe(true);
+      expect(ok.spentUsd).toBeCloseTo(5, 6);
+
+      // Drop the ceiling below the platform-billed spend — now it trips.
+      const tripped = await checkBudget(harness.db, {
+        organizationId,
+        config: { orgBudgetUsd: 4 },
+      });
+      expect(tripped.ok).toBe(false);
+      expect(tripped.scope).toBe("org");
+    });
+
+    it("validates analytics bounds and model-override roles", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const headers = authedHeaders(cookie, ip);
+
+      for (const q of ["days=0", "days=91", "days=abc"]) {
+        const res = await harness.app.request(`/api/settings/analytics?${q}`, { headers });
+        expect(res.status).toBe(400);
+      }
+      const defaulted = await harness.app.request("/api/settings/analytics", { headers });
+      expect(defaulted.status).toBe(200);
+      expect(((await defaulted.json()) as { days: number }).days).toBe(30);
+
+      const badRole = await harness.app.request("/api/settings/models", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({ role: "wizard", modelSlug: null }),
+      });
+      expect(badRole.status).toBe(400);
+    });
+
     it("rate-limits key saves on a strict per-user window (ADR-70)", async () => {
       const { cookie, ip } = await signUp(harness.app);
       const spy = await stubValidateKey(true);
