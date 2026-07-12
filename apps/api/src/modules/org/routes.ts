@@ -225,7 +225,18 @@ const memberRoutes = new Hono<{ Variables: RequiredAuthVariables }>()
       if (!self) {
         throw new HTTPException(404, { message: "Membership not found" });
       }
-      if (isPersonalOrg(self.metadata)) {
+      // "Your personal workspace" ≠ "an org flagged personal" — in v1 every
+      // org is SOMEONE's personal org (users can't create orgs; invites land
+      // in the inviter's). Yours is the personal org that is also your
+      // oldest membership — the same row the deterministic default (ADR-72)
+      // resolves to, which is exactly why it must not be leavable.
+      const [oldest] = await tx
+        .select({ organizationId: schema.member.organizationId })
+        .from(schema.member)
+        .where(eq(schema.member.userId, user.id))
+        .orderBy(asc(schema.member.createdAt), asc(schema.member.id))
+        .limit(1);
+      if (isPersonalOrg(self.metadata) && oldest?.organizationId === organizationId) {
         throw new HTTPException(400, { message: "You can't leave your personal workspace" });
       }
       if (

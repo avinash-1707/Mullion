@@ -1011,9 +1011,11 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
 
       expect((await accept(invitee, invitationId)).status).toBe(200);
 
-      // Coexist-and-switch: accepting adds a membership, it does not steal
-      // the active org — the deterministic default stays the personal org.
-      expect(await activeOrgId(invitee)).toBe(inviteePersonalOrg);
+      // Auto-switch on accept (ADR-72): Better Auth's accept endpoint sets
+      // the joined org active server-side — "join" lands you in the thing
+      // you joined. The deterministic personal-first default applies to
+      // fresh logins, not to an explicit accept.
+      expect(await activeOrgId(invitee)).toBe(teamOrg);
 
       const adminView = await membersOf(admin);
       expect(adminView.canManage).toBe(true);
@@ -1044,7 +1046,9 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       });
       expect(leave.status).toBe(200);
       expect((await membersOf(admin)).members).toHaveLength(1);
-      // The leaver's healed session lands back on the personal org.
+      // Leave nulls the session's active org; the next org-scoped request
+      // heals it to the oldest remaining membership — the personal org.
+      expect((await membersOf(invitee)).canManage).toBe(true);
       expect(await activeOrgId(invitee)).toBe(inviteePersonalOrg);
     });
 
