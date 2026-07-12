@@ -12,7 +12,8 @@ import { ModelNotAllowedError } from "./errors.js";
  * serves select results from a FIFO queue.
  */
 
-const ALLOWED = "anthropic/claude-haiku-4.5";
+// Must be in the planner allowlist (baseArgs uses role "planner").
+const ALLOWED = "anthropic/claude-sonnet-4.6";
 const DEFAULT = "anthropic/claude-sonnet-4.5";
 
 function queueDb(selectResults: unknown[][], costInserts: unknown[] = []): Db {

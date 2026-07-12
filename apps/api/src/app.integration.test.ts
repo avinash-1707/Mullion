@@ -712,7 +712,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       const early = await harness.app.request("/api/settings/models", {
         method: "PUT",
         headers,
-        body: JSON.stringify({ role: "coder", modelSlug: "anthropic/claude-sonnet-4.5" }),
+        body: JSON.stringify({ role: "coder", modelSlug: "anthropic/claude-haiku-4.5" }),
       });
       expect(early.status).toBe(409);
 
@@ -745,7 +745,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
         const put = await harness.app.request("/api/settings/models", {
           method: "PUT",
           headers,
-          body: JSON.stringify({ role: "coder", modelSlug: "anthropic/claude-sonnet-4.5" }),
+          body: JSON.stringify({ role: "coder", modelSlug: "anthropic/claude-haiku-4.5" }),
         });
         expect(put.status).toBe(200);
         const models = (await (
@@ -756,7 +756,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
         };
         expect(models.byokEnabled).toBe(true);
         expect(models.roles.find((r) => r.role === "coder")?.overrideModelSlug).toBe(
-          "anthropic/claude-sonnet-4.5",
+          "anthropic/claude-haiku-4.5",
         );
 
         // "Platform default" (null) deletes the override row.

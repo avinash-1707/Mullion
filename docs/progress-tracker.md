@@ -1064,3 +1064,37 @@ components/settings,components/ui,hooks,lib}`, `docs/specs/04` (ADR-70/71).
 - Build-kickoff pre-flight `validateKey` probe not wired yet: the
   client-level fallback covers the failure mode, but an early block at
   kickoff would fail faster. Candidate for the next API touch.
+
+### [2026-07-12] BYOK fast-follows: member read-only UI, dev-mock probe skip, multi-family allowlist
+**Phase:** Phase 5 — fast-follow
+**Type:** Progress update
+**Summary:** Closed three follow-ups from the BYOK ship. (1) Non-admin org
+members now get a read-only settings surface: `canManage` (from the
+verified membership role) rides GET /byok and GET /models; members see
+masked key status and disabled model selects with an explanatory note —
+enforcement unchanged server-side. (2) The key-save probe is skipped when
+the dev `OPENROUTER_BASE_URL` loopback override is active (no `GET /key`
+there); production always probes. (3) `MODEL_ALLOWLIST` widened from
+Claude-only to multi-family, verified against OpenRouter's LIVE ZDR
+endpoint list (`/api/v1/endpoints/zdr`) on 2026-07-12 — provider policy
+pages alone don't count, and notably the newest flagship generation of
+every family (Opus 4.8, Sonnet 5, GPT-5.6, Gemini 3.x, Qwen 3.7, Kimi
+K2.6+, Mistral Medium 3.5+) plus the entire xAI Grok line have zero ZDR
+endpoints today. Per-role price bands by task complexity: planner
+frontier ($1.4–5/M in: Opus 4.7/4.6, Sonnet 4.6, GLM-5.2), analyst +
+reviewer mid-premium (Sonnet 4.6/4.5, Gemini 2.5 Pro, GLM-5.1 /
+DeepSeek-R1), coder mid-cheap (Haiku 4.5, GLM-4.7, DeepSeek v3.x),
+tester fast-cheap (Llama 3.3-70B/4-Scout, gpt-oss-120b, Mistral Small),
+devops cheapest (gpt-oss-20b, Gemini Flash-Lite, GPT-4.1-nano). Platform
+DEFAULT routing stays Claude-only (ADR-26 two-ZDR-provider failover
+rationale untouched). ADR-71 amended with the concrete ZDR-verification
+rule. Gates green incl. integration settings suite.
+**Files/areas touched:** `packages/llm/src/model-allowlist.ts`,
+`apps/api/src/modules/settings/routes.ts`, dashboard settings components
+(`byok-key-card`, `model-role-row`, `models-section`, `settings-api`),
+tests updated for role-appropriate slugs, `docs/specs/04` (ADR-71 note).
+**Related ADR:** ADR-70/71.
+**Follow-ups:**
+- Re-check `/api/v1/endpoints/zdr` when adding newest-gen flagships
+  (none ZDR-listed as of 2026-07-12).
+- Per-user keys, spend alerts, real-time meters remain v2 (ADR-70).
