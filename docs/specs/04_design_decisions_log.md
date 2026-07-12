@@ -1432,3 +1432,77 @@ into a build-breaker).
 **Doc:** `packages/llm/src/model-allowlist.ts`, `packages/llm/src/client.ts`
 (`resolveModel`), `packages/db/src/schema/app.ts` (`model_overrides`),
 `apps/api/src/modules/settings/routes.ts`
+
+### ADR-72 — Org roles v1: admin/member collapse, coexist-and-switch multi-org, invite flow
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** Billing and team usage both need "org" to hold multiple
+people, but the personal-org model (ADR-36/37) has kept it a disguised
+synonym for "user": every user owns exactly one org, there is no invite
+flow, and the only role gate is `canManageBilling`. The day the first
+invite is accepted, every invitee holds two memberships — and both
+active-org resolution sites (`session.create.before` in `auth.ts`, the
+fallback in `middleware/session.ts`) pick `memberships[0]` with no
+`ORDER BY`, a coin flip per login that would make org-scoped work appear
+to vanish. Separately, Better Auth's stock `owner` role is a third tier
+the product doesn't want.
+**Decision:**
+- **Two roles only: `admin` and `member`.** Existing `owner` rows migrate
+  to `admin` (custom drizzle migration; `creatorRole: "admin"` +
+  `provisionPersonalOrg` insert both write `admin` going forward). Better
+  Auth 1.6.x's stock `admin` role already carries every needed permission
+  (member create/update/delete, invitation create/cancel,
+  organization update) and is denied only `organization:delete` and
+  owner-assignment — exactly the wanted surface, so **no custom
+  `createAccessControl`**. `canManage` keeps accepting the `"owner"`
+  string during the migration window; drop it once zero owner rows remain.
+  This supersedes ADR-70's owner-centric `canManageBilling` framing (same
+  predicate, promoted to shared middleware).
+- **Admin-only surface:** billing/BYOK/model config (ADR-70/71, as
+  before), member management (invite/remove/role change, revoke/resend),
+  org rename. Org DELETE stays out of scope (ADR-40 RESTRICT). Members
+  keep read access to settings and full product access — roles gate org
+  administration, not the product.
+- **Multi-org model: coexist and switch.** Accepting an invite adds a
+  membership; the personal org is never merged or retired. Default active
+  org is deterministic: oldest membership (`ORDER BY member.created_at,
+  id`) — always the personal org, since it predates any invite. Explicit
+  switching via the org plugin's `setActive`; login resets to the
+  deterministic default (last-active memory deferred).
+- **Invite flow rides Better Auth endpoints** (`inviteMember`,
+  `acceptInvitation`, `cancelInvitation`, re-invite with
+  `cancelPendingInvitationsOnReInvite: true` as "resend"), 48h expiry,
+  plain unbranded email (ADR-67 posture) through the `sendEmail` seam.
+  Role-enum integrity lives in `organizationHooks`
+  (`beforeCreateInvitation`/`beforeUpdateMemberRole`/`beforeAddMember`
+  assert `admin|member` — Better Auth's `parseRoles` would otherwise
+  accept `owner` or comma-joined role lists on raw calls) plus email
+  lowercase-normalization at invite creation.
+- **Last-admin invariant lives in custom Hono routes, not hooks.**
+  `PATCH/DELETE /api/org/members/:id` and `POST /api/org/leave` run the
+  check + mutation atomically under a per-org
+  `pg_advisory_xact_lock` — hook-based guards have a TOCTOU window, and
+  Better Auth's leave endpoint skips the remove hooks entirely (verified
+  against 1.6.23 source), so its built-in protection is inert once no
+  `owner` rows exist. Leave also rejects the personal org. A removed
+  member's in-flight session/build ages out (access severed on next
+  request; data stays org-scoped) — no cancel machinery.
+- **Accept lands you in the org you joined:** the accept page calls
+  `setActive` on success. The invite-preview endpoint
+  (`GET /api/org/invitations/:id/preview`) is deliberately
+  unauthenticated and minimal (org name, inviter name, invited email,
+  derived status) — acceptance itself still requires an authenticated
+  session whose email matches the invitation.
+**Alternatives considered:** three-tier owner/admin/member (a tier the
+product has no story for); custom `createAccessControl` roles (stock
+admin already matches); absorb-personal-org-on-accept (data migration
+under ADR-40 RESTRICT for zero user value); hook-based last-admin guard
+(TOCTOU + leave never fires hooks); per-org cancel-on-removal (new
+orchestrator surface for a rare event); metadata-flag-based default-org
+pick (oldest-membership is deterministic without parsing).
+**Doc:** `apps/api/src/modules/auth/auth.ts`,
+`apps/api/src/modules/auth/org.ts`, `apps/api/src/middleware/session.ts`,
+`apps/api/src/modules/org/routes.ts`,
+`apps/api/src/modules/email/templates.ts` (`renderInviteEmail`),
+`packages/db/drizzle/0009_owner-to-admin.sql`,
+`apps/dashboard/src/components/settings/members-section.tsx`,
+`apps/dashboard/src/app/invite/[id]/page.tsx`
