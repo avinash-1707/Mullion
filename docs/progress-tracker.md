@@ -1144,3 +1144,42 @@ tests updated for role-appropriate slugs, `docs/specs/04` (ADR-71 note).
 - Re-check `/api/v1/endpoints/zdr` when adding newest-gen flagships
   (none ZDR-listed as of 2026-07-12).
 - Per-user keys, spend alerts, real-time meters remain v2 (ADR-70).
+
+### [2026-07-12] Org RBAC v1: admin/member roles, invite flow, multi-org switch
+**Phase:** Phase 5 — feature
+**Type:** Progress update
+**Summary:** Orgs now hold real teams (ADR-72). Two roles only —
+admin/member; existing "owner" rows rewritten by migration 0009 and every
+new provisioning path writes "admin". Better Auth's stock admin role
+carries the whole wanted permission surface, so no custom access control.
+Full email invite flow: 48h expiry, plain invite email through the
+ADR-67 seam, unauthenticated preview endpoint, accept auto-switches into
+the joined org (server-side Better Auth behavior, test-pinned).
+Multi-org is coexist-and-switch: personal org stays, active-org
+resolution is deterministic (oldest membership) at both former
+`.limit(1)` coin-flip sites, dashboard gets a rail/drawer org switcher.
+Roster mutations that can change the admin count (role change, remove,
+leave) run in custom /api/org routes under a per-org advisory-lock
+transaction enforcing the last-admin invariant; the plugin's own
+leave/remove-member/update-member-role endpoints are dead-ended (leave
+skips remove hooks upstream). Leave blocks only the member's OWN
+personal org (personal + oldest membership — in v1 every org is
+someone's personal org). Members keep full product access and read-only
+settings; billing/BYOK/models/member-management/rename are admin-only via
+shared `canManage`/`requireOrgAdmin` middleware (promoted out of
+settings). Dashboard: Members settings tab (roster, optimistic role
+change, invite/resend/revoke, leave), /invite/[id] accept page with
+signed-out returnTo hand-off. Gates green: 37 unit + 75 integration
+tests, check-types, lint.
+**Files/areas touched:** `apps/api/src/modules/auth/{auth,org}.ts`,
+`apps/api/src/middleware/session.ts`, `apps/api/src/modules/org/routes.ts`
+(new), `apps/api/src/modules/email/templates.ts`, `apps/api/src/app.ts`,
+`packages/db/drizzle/0009_owner-to-admin.sql`, dashboard members tab +
+org switcher + invite accept surfaces, integration/unit tests,
+`docs/specs/04` (ADR-72).
+**Related ADR:** ADR-72 (new), supersedes ADR-70's owner framing.
+**Follow-ups:**
+- Drop "owner" from `canManage` once prod migration confirms zero rows.
+- Org-namespaced TanStack Query keys (v2 refinement; unqualified
+  invalidate on switch today).
+- Last-active-org memory across logins deferred (deterministic default).
