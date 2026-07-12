@@ -94,6 +94,20 @@ export function createApp(): Hono<{ Bindings: HttpBindings; Variables: AuthVaria
   // 10/min/IP window as the credential endpoints (ADR-66), on top of the
   // emailOTP plugin's own per-email limit.
   app.use("/api/auth/email-otp/*", credentialRateLimit);
+  // ADR-72: roster mutations that can change the org's admin count must run
+  // under the last-admin advisory-lock transaction in /api/org — the plugin's
+  // built-in endpoints would bypass it (leave never fires the remove hooks at
+  // all), so they are dead ends here. Registered before the /api/auth/*
+  // catch-all so they win the match.
+  for (const blocked of [
+    "/api/auth/organization/leave",
+    "/api/auth/organization/remove-member",
+    "/api/auth/organization/update-member-role",
+  ]) {
+    app.on(["POST", "GET"], blocked, () => {
+      throw new HTTPException(404, { message: "Use the /api/org endpoints for this operation" });
+    });
+  }
   app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
   app.route("/api/account", accountRoute);

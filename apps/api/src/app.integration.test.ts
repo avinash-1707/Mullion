@@ -905,4 +905,308 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       }
     });
   });
+
+  describe("org RBAC: roles, invites, last-admin (ADR-72)", () => {
+    interface HarnessUser {
+      cookie: string;
+      email: string;
+      ip: string;
+    }
+
+    function orgHeaders(user: HarnessUser): Record<string, string> {
+      return {
+        "Content-Type": "application/json",
+        Cookie: user.cookie,
+        Origin: DASHBOARD_ORIGIN,
+        "x-forwarded-for": user.ip,
+      };
+    }
+
+    /** The invitation id from the invite email's accept URL (console driver). */
+    async function waitForInviteId(email: string, sinceIndex = 0): Promise<string> {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const mails = logLines
+          .slice(sinceIndex)
+          .map((line) => {
+            try {
+              return JSON.parse(line) as { module?: string; to?: string; body?: string };
+            } catch {
+              return null;
+            }
+          })
+          .filter((line) => line?.module === "email" && line.to === email);
+        const body = mails.at(-1)?.body ?? "";
+        const match = /\/invite\/([A-Za-z0-9_-]+)/.exec(body);
+        if (match?.[1]) return match[1];
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      throw new Error(`no invite email captured for ${email}`);
+    }
+
+    async function activeOrgId(user: HarnessUser): Promise<string> {
+      const res = await harness.app.request("/api/auth/get-session", {
+        method: "GET",
+        headers: orgHeaders(user),
+      });
+      const body = (await res.json()) as { session?: { activeOrganizationId?: string | null } };
+      if (!body.session?.activeOrganizationId) {
+        throw new Error("session has no active organization");
+      }
+      return body.session.activeOrganizationId;
+    }
+
+    async function invite(
+      admin: HarnessUser,
+      email: string,
+      role: string,
+    ): Promise<{ res: Response; invitationId?: string }> {
+      const before = logLines.length;
+      const res = await harness.app.request("/api/auth/organization/invite-member", {
+        method: "POST",
+        headers: orgHeaders(admin),
+        body: JSON.stringify({ email, role }),
+      });
+      if (res.status !== 200) return { res };
+      return { res, invitationId: await waitForInviteId(email, before) };
+    }
+
+    async function accept(user: HarnessUser, invitationId: string): Promise<Response> {
+      return harness.app.request("/api/auth/organization/accept-invitation", {
+        method: "POST",
+        headers: orgHeaders(user),
+        body: JSON.stringify({ invitationId }),
+      });
+    }
+
+    async function membersOf(
+      user: HarnessUser,
+    ): Promise<{
+      canManage: boolean;
+      members: Array<{ id: string; email: string; role: string }>;
+      invitations: Array<{ id: string; status: string }>;
+    }> {
+      const res = await harness.app.request("/api/org/members", { headers: orgHeaders(user) });
+      expect(res.status).toBe(200);
+      return (await res.json()) as never;
+    }
+
+    it("runs the full invite lifecycle: preview, accept, member limits, leave", async () => {
+      const admin = await signUp(harness.app);
+      const invitee = await signUp(harness.app);
+      const inviteePersonalOrg = await activeOrgId(invitee);
+      const teamOrg = await activeOrgId(admin);
+
+      const { res, invitationId } = await invite(admin, invitee.email, "member");
+      expect(res.status).toBe(200);
+      if (!invitationId) throw new Error("no invitation id");
+
+      // Preview is deliberately unauthenticated — no cookie at all.
+      const preview = await harness.app.request(`/api/org/invitations/${invitationId}/preview`);
+      expect(preview.status).toBe(200);
+      expect(await preview.json()).toMatchObject({
+        status: "pending",
+        invitedEmail: invitee.email,
+        inviterName: "Harness User",
+      });
+
+      expect((await accept(invitee, invitationId)).status).toBe(200);
+
+      // Coexist-and-switch: accepting adds a membership, it does not steal
+      // the active org — the deterministic default stays the personal org.
+      expect(await activeOrgId(invitee)).toBe(inviteePersonalOrg);
+
+      const adminView = await membersOf(admin);
+      expect(adminView.canManage).toBe(true);
+      expect(adminView.members).toHaveLength(2);
+      expect(adminView.invitations.some((i) => i.status === "accepted")).toBe(true);
+
+      // Switch into the team org; a plain member reads but cannot manage.
+      const setActive = await harness.app.request("/api/auth/organization/set-active", {
+        method: "POST",
+        headers: orgHeaders(invitee),
+        body: JSON.stringify({ organizationId: teamOrg }),
+      });
+      expect(setActive.status).toBe(200);
+      const memberView = await membersOf(invitee);
+      expect(memberView.canManage).toBe(false);
+      const adminMemberId = adminView.members.find((m) => m.email === admin.email)?.id;
+      const forbidden = await harness.app.request(`/api/org/members/${adminMemberId}`, {
+        method: "PATCH",
+        headers: orgHeaders(invitee),
+        body: JSON.stringify({ role: "member" }),
+      });
+      expect(forbidden.status).toBe(403);
+
+      // A non-admin can leave; the roster shrinks back.
+      const leave = await harness.app.request("/api/org/leave", {
+        method: "POST",
+        headers: orgHeaders(invitee),
+      });
+      expect(leave.status).toBe(200);
+      expect((await membersOf(admin)).members).toHaveLength(1);
+      // The leaver's healed session lands back on the personal org.
+      expect(await activeOrgId(invitee)).toBe(inviteePersonalOrg);
+    });
+
+    it("accepts via sign-up when the invited address has no account yet", async () => {
+      const admin = await signUp(harness.app);
+      const email = `harness-${randomUUID()}@mullion.local`;
+      const { res, invitationId } = await invite(admin, email, "member");
+      expect(res.status).toBe(200);
+      if (!invitationId) throw new Error("no invitation id");
+
+      // Sign up with exactly the invited address, then accept.
+      const ip = nextIp();
+      const beforeSignup = logLines.length;
+      const signup = await harness.app.request("/api/auth/sign-up/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip },
+        body: JSON.stringify({ name: "Invited User", email, password: PASSWORD }),
+      });
+      expect(signup.status).toBe(200);
+      const otp = await waitForOtp(email, beforeSignup);
+      const verify = await harness.app.request("/api/auth/email-otp/verify-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: WEB_ORIGIN, "x-forwarded-for": ip },
+        body: JSON.stringify({ email, otp }),
+      });
+      expect(verify.status).toBe(200);
+      const invitedUser: HarnessUser = { cookie: sessionCookie(verify), email, ip };
+
+      expect((await accept(invitedUser, invitationId)).status).toBe(200);
+      expect((await membersOf(admin)).members).toHaveLength(2);
+    });
+
+    it("rejects role smuggling, wrong-email accepts, expiry, and reflects revocation", async () => {
+      const admin = await signUp(harness.app);
+      const bystander = await signUp(harness.app);
+
+      // Role-enum guard: the retired owner role and comma-joined lists die
+      // in beforeCreateInvitation regardless of caller.
+      for (const role of ["owner", "admin,member"]) {
+        const smuggled = await invite(admin, `smuggle-${randomUUID()}@mullion.local`, role);
+        expect(smuggled.res.status).toBe(400);
+      }
+
+      // Wrong email: the invite belongs to someone else's address.
+      const target = `target-${randomUUID()}@mullion.local`;
+      const wrongEmail = await invite(admin, target, "member");
+      expect(wrongEmail.res.status).toBe(200);
+      if (!wrongEmail.invitationId) throw new Error("no invitation id");
+      const stolen = await accept(bystander, wrongEmail.invitationId);
+      expect(stolen.status).toBeGreaterThanOrEqual(400);
+
+      // Expiry is enforced at accept time and derived in the preview.
+      const { schema } = await import("@mullion/db");
+      const { eq } = await import("drizzle-orm");
+      await harness.db
+        .update(schema.invitation)
+        .set({ expiresAt: new Date(Date.now() - 60_000) })
+        .where(eq(schema.invitation.id, wrongEmail.invitationId));
+      const expiredPreview = await harness.app.request(
+        `/api/org/invitations/${wrongEmail.invitationId}/preview`,
+      );
+      expect(await expiredPreview.json()).toMatchObject({ status: "expired" });
+
+      // Revoke (cancel) a fresh invite; preview reports it terminally.
+      const revokable = await invite(admin, `revoke-${randomUUID()}@mullion.local`, "member");
+      if (!revokable.invitationId) throw new Error("no invitation id");
+      const cancel = await harness.app.request("/api/auth/organization/cancel-invitation", {
+        method: "POST",
+        headers: orgHeaders(admin),
+        body: JSON.stringify({ invitationId: revokable.invitationId }),
+      });
+      expect(cancel.status).toBe(200);
+      const revokedPreview = await harness.app.request(
+        `/api/org/invitations/${revokable.invitationId}/preview`,
+      );
+      expect(await revokedPreview.json()).toMatchObject({ status: "revoked" });
+    });
+
+    it("never lets an org drop to zero admins", async () => {
+      const admin = await signUp(harness.app);
+      const roster = await membersOf(admin);
+      const selfId = roster.members[0]?.id;
+      if (!selfId) throw new Error("no member row");
+
+      // Sole admin: demote, remove, and leave are all blocked.
+      const demote = await harness.app.request(`/api/org/members/${selfId}`, {
+        method: "PATCH",
+        headers: orgHeaders(admin),
+        body: JSON.stringify({ role: "member" }),
+      });
+      expect(demote.status).toBe(409);
+      const remove = await harness.app.request(`/api/org/members/${selfId}`, {
+        method: "DELETE",
+        headers: orgHeaders(admin),
+      });
+      expect(remove.status).toBe(409);
+      // Leaving the personal org is refused outright, last admin or not.
+      const leave = await harness.app.request("/api/org/leave", {
+        method: "POST",
+        headers: orgHeaders(admin),
+      });
+      expect(leave.status).toBe(400);
+
+      // With a second admin on the roster, the same demote succeeds.
+      const second = await signUp(harness.app);
+      const { invitationId } = await invite(admin, second.email, "admin");
+      if (!invitationId) throw new Error("no invitation id");
+      expect((await accept(second, invitationId)).status).toBe(200);
+      const demoteWithBackup = await harness.app.request(`/api/org/members/${selfId}`, {
+        method: "PATCH",
+        headers: orgHeaders(admin),
+        body: JSON.stringify({ role: "member" }),
+      });
+      expect(demoteWithBackup.status).toBe(200);
+    });
+
+    it("dead-ends the Better Auth bypass endpoints for roster mutations", async () => {
+      const user = await signUp(harness.app);
+      for (const path of [
+        "/api/auth/organization/leave",
+        "/api/auth/organization/remove-member",
+        "/api/auth/organization/update-member-role",
+      ]) {
+        const res = await harness.app.request(path, {
+          method: "POST",
+          headers: orgHeaders(user),
+          body: JSON.stringify({}),
+        });
+        expect(res.status).toBe(404);
+      }
+    });
+
+    it("scopes member ids to the caller's active org (cross-org 404)", async () => {
+      const orgA = await signUp(harness.app);
+      const orgB = await signUp(harness.app);
+      const aMemberId = (await membersOf(orgA)).members[0]?.id;
+      // orgB is an admin — of their OWN org; someone else's member id must 404.
+      const res = await harness.app.request(`/api/org/members/${aMemberId}`, {
+        method: "PATCH",
+        headers: orgHeaders(orgB),
+        body: JSON.stringify({ role: "member" }),
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it("keeps legacy owner rows managing during the migration window", async () => {
+      const user = await signUp(harness.app);
+      const { schema } = await import("@mullion/db");
+      const { eq } = await import("drizzle-orm");
+      const orgId = await activeOrgId(user);
+      await harness.db
+        .update(schema.member)
+        .set({ role: "owner" })
+        .where(eq(schema.member.organizationId, orgId));
+      const view = await membersOf(user);
+      expect(view.canManage).toBe(true);
+      // The migration rewrite is exactly what 0009 runs in production.
+      await harness.db
+        .update(schema.member)
+        .set({ role: "admin" })
+        .where(eq(schema.member.role, "owner"));
+      expect((await membersOf(user)).members[0]?.role).toBe("admin");
+    });
+  });
 });
