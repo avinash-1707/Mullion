@@ -301,8 +301,13 @@ select:focus-visible,
  * direction is deliberate, not a bug: a CSS transition takes its
  * duration/delay from whichever ruleset is the *target* of the state
  * change, so declaring the fast, undelayed values on `:hover`/
- * `:focus-within` and the slower, delayed values on the resting selector
- * gives expand and collapse genuinely different pacing with no JS at all.
+ * `:has(:focus-visible)` and the slower, delayed values on the resting
+ * selector gives expand and collapse genuinely different pacing with no JS
+ * at all. `:has(:focus-visible)` rather than `:focus-within`: a clicked nav
+ * link keeps DOM focus after the route change, and `:focus-within` alone
+ * kept the rail pinned open with the mouse long gone — `:focus-visible`
+ * only matches the browser's own keyboard-focus heuristic, so a mouse click
+ * no longer wedges it open.
  */
 .mullion-rail {
   width: 60px;
@@ -316,7 +321,7 @@ select:focus-visible,
 }
 
 .mullion-rail:hover,
-.mullion-rail:focus-within {
+.mullion-rail:has(:focus-visible) {
   width: 300px;
   box-shadow: 8px 0 24px -8px rgba(0, 0, 0, 0.5);
   border-right-color: var(--color-border-strong);
@@ -337,7 +342,7 @@ select:focus-visible,
 }
 
 .mullion-rail:hover .mullion-rail-label,
-.mullion-rail:focus-within .mullion-rail-label {
+.mullion-rail:has(:focus-visible) .mullion-rail-label {
   opacity: 1;
   transform: translateX(0);
   transition:
@@ -365,6 +370,43 @@ select:focus-visible,
 .mullion-drawer.mullion-drawer-open {
   transform: translateX(0);
   transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Confirm-dialog (sign-out) enter/exit. Dedicated rules rather than
+ * `transition-swift` + Tailwind scale/translate utilities: Tailwind v4
+ * compiles `scale-*`/`translate-y-*` to the standalone `scale`/`translate`
+ * properties, which `transition-swift`'s property list (`transform`, not
+ * `scale`/`translate`) never animates — the panel faded but its
+ * scale/offset snapped. Animating one real `transform` here fixes that.
+ * Same asymmetric-timing trick as the rail/drawer above: enter arrives
+ * over 300ms from 8px below at 97% scale, exit is quicker (200ms) so the
+ * dismissal doesn't compete with wherever attention goes next.
+ */
+.mullion-dialog-scrim {
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mullion-dialog-open .mullion-dialog-scrim {
+  opacity: 1;
+  transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mullion-dialog-panel {
+  opacity: 0;
+  transform: translateY(8px) scale(0.97);
+  transition:
+    opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mullion-dialog-open .mullion-dialog-panel {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Anchor navigation glides (no Lenis here — that's a marketing-app thing). */

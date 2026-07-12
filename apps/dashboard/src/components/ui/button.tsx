@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes } from "react";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "md" | "sm";
 
 interface ButtonVariantsOptions {
@@ -15,11 +15,15 @@ const SIZES: Record<ButtonSize, string> = {
 };
 
 // Brand buttons read as mono uppercase labels (marketing recipe), square
-// corners throughout — see design-context.md "Buttons".
+// corners throughout — see design-context.md "Buttons". `danger` follows the
+// same solid-then-intensify shape as `primary`, just on the danger tokens —
+// for destructive confirmations (e.g. the sign-out dialog), never a one-off
+// className hack per call site.
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-accent text-fg hover:bg-accent-strong",
   secondary: "border border-border-strong bg-transparent text-fg hover:border-accent hover:text-accent-strong",
   ghost: "text-fg-muted hover:text-fg",
+  danger: "bg-danger-soft text-danger hover:bg-danger hover:text-fg",
 };
 
 // Shared with plain <Link> CTAs (buttonVariants) so a nav "Get started" link

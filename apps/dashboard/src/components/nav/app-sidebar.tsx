@@ -18,7 +18,7 @@ interface RailRowStyle extends CSSProperties {
 }
 
 // Desktop-only rail (`lg:` and up — see MobileNav for the small-viewport
-// equivalent). Expansion is pure CSS (`:hover`/`:focus-within` in
+// equivalent). Expansion is pure CSS (`:hover`/`:has(:focus-visible)` in
 // globals.css, `.mullion-rail` / `.mullion-rail-label`) — there is
 // deliberately no React state for it, so there's nothing to get out of
 // sync with the DOM and no re-render on every mouseenter/mouseleave. The
