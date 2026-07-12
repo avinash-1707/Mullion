@@ -29,6 +29,7 @@ import {
   LuMenu,
   LuX,
   LuLogOut,
+  LuBuilding2,
 } from "react-icons/lu";
 
 interface IconProps {
@@ -93,3 +94,5 @@ export const MenuIcon = wrapIcon(LuMenu, "MenuIcon");
 export const CloseIcon = wrapIcon(LuX, "CloseIcon");
 // nav: sign out
 export const SignOutIcon = wrapIcon(LuLogOut, "SignOutIcon");
+// nav: organization switcher
+export const OrgIcon = wrapIcon(LuBuilding2, "OrgIcon");

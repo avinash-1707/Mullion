@@ -7,6 +7,7 @@ import { MullionMark } from "@/components/mullion-mark";
 import { cn } from "@/lib/utils";
 import { CloseIcon, MenuIcon } from "@/components/planning/icons";
 import { AccountMenu } from "./account-menu";
+import { OrgSwitcher } from "./org-switcher";
 import { NAV_ITEMS, isActive } from "./nav-items";
 
 // Set once on the shell's <main> in RootLayout — the only thing this
@@ -164,6 +165,8 @@ export function MobileNav() {
             <CloseIcon className="h-5 w-5" />
           </button>
         </div>
+
+        <OrgSwitcher variant="drawer" />
 
         <nav aria-label="Primary" className="flex flex-col">
           {NAV_ITEMS.map((item) => {

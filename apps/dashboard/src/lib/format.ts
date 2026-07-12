@@ -30,3 +30,21 @@ export function formatDayLabel(day: string): string {
   const date = new Date(`${day}T00:00:00Z`);
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(date);
 }
+
+// Member roster "joined" date — an ISO timestamp, rendered as an absolute
+// date (unlike the invite expiry below, a join date is never close enough
+// to "now" for a relative label to read better).
+export function formatJoinedDate(iso: string): string {
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(new Date(iso));
+}
+
+// Invite expiry is a short (48h) window — a relative label ("Expires in
+// 6h") reads better here than an absolute date/time would.
+export function formatRelativeExpiry(iso: string): string {
+  const diffMs = new Date(iso).getTime() - Date.now();
+  if (diffMs <= 0) return "Expired";
+  const hours = Math.round(diffMs / (60 * 60_000));
+  if (hours < 1) return "Expires in <1h";
+  if (hours < 24) return `Expires in ${hours}h`;
+  return `Expires in ${Math.round(hours / 24)}d`;
+}

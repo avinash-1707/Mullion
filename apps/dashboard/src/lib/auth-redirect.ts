@@ -43,6 +43,20 @@ export function redirectToSignIn(): void {
   window.location.assign(target);
 }
 
+/**
+ * Same as redirectToSignIn but to /sign-up — used by the invite-accept page
+ * for a visitor who likely has no account yet. No email prefill: apps/web's
+ * sign-up/sign-in forms don't read an email query param today, and per
+ * scope this feature doesn't add one — the invitation preview already shows
+ * the invited email, so the visitor knows which address to use.
+ */
+export function redirectToSignUp(): void {
+  if (redirecting) return;
+  const target = `${webUrl()}/sign-up?returnTo=${encodeURIComponent(window.location.href)}`;
+  redirecting = true;
+  window.location.assign(target);
+}
+
 /** Post-sign-out landing: the marketing site root. */
 export function redirectToMarketing(): void {
   if (redirecting) return;

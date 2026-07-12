@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { MullionMark } from "@/components/mullion-mark";
 import { cn } from "@/lib/utils";
 import { AccountMenu } from "./account-menu";
+import { OrgSwitcher } from "./org-switcher";
 import { NAV_ITEMS, isActive } from "./nav-items";
 
 // Carries each row's position into CSS as `--row-index`, read by the
@@ -42,6 +43,8 @@ export function AppSidebar() {
           Mullion
         </span>
       </Link>
+
+      <OrgSwitcher variant="rail" />
 
       <nav aria-label="Primary" className="flex flex-col">
         {NAV_ITEMS.map((item, index) => {
