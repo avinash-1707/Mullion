@@ -57,6 +57,13 @@
       "when": 1783793063238,
       "tag": "0007_backfill-email-verified",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1783850371109,
+      "tag": "0008_byok-model-overrides",
+      "breakpoints": true
     }
   ]
 }

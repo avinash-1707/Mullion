@@ -494,6 +494,14 @@ export const costEvents = pgTable(
     // OpenRouter credits are fractional — numeric, never float.
     cost: numeric("cost", { precision: 12, scale: 8 }).notNull(),
     usage: jsonb("usage"),
+    // ADR-70: true when the call was paid by the org's own OpenRouter key.
+    // The org budget window filters on this; the per-run ceiling does not.
+    byok: boolean("byok").notNull().default(false),
+    // Denormalized from `usage` so the settings analytics query is plain
+    // SUM()s, not jsonb extraction (ADR-70). Null on sandbox rows and on
+    // LLM rows recorded before this column existed.
+    promptTokens: integer("prompt_tokens"),
+    completionTokens: integer("completion_tokens"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -502,6 +510,60 @@ export const costEvents = pgTable(
     index("cost_events_org_created_idx").on(t.organizationId, t.createdAt),
     // Per-run budget circuit breaker (02 §9).
     index("cost_events_run_idx").on(t.runId),
+  ],
+);
+
+/**
+ * ADR-70: one BYOK OpenRouter key per org, encrypted at rest with the same
+ * AES-256-GCM primitive Better Auth uses for OAuth tokens. Only key_last4
+ * ever leaves the API. `enabled` flips false when a call fails auth on this
+ * key mid-build — later calls then skip straight to the platform key.
+ */
+export const byokKeys = pgTable(
+  "byok_keys",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    // Who saved it — audit only, the key belongs to the org (ADR-70).
+    userId: text("user_id").references(() => user.id),
+    encryptedKey: text("encrypted_key").notNull(),
+    keyLast4: text("key_last4").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [uniqueIndex("byok_keys_org_uidx").on(t.organizationId)],
+);
+
+/**
+ * ADR-71: per-org, per-role model override. Absence of a row = the
+ * model_routing default (ADR-25). Slugs are validated against the static
+ * allowlist in packages/llm at write time AND re-checked at read time, so a
+ * stale row falls back instead of failing a build.
+ */
+export const modelOverrides = pgTable(
+  "model_overrides",
+  {
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    role: text("role", {
+      enum: ["analyst", "planner", "coder", "tester", "reviewer", "devops"],
+    }).notNull(),
+    modelSlug: text("model_slug").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    uniqueIndex("model_overrides_org_role_uidx").on(t.organizationId, t.role),
+    index("model_overrides_org_idx").on(t.organizationId),
   ],
 );
 
