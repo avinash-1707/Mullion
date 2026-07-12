@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { rateLimiter } from "hono-rate-limiter";
@@ -11,7 +10,12 @@ import { agentRoleSchema } from "@mullion/schemas";
 import { db } from "../../lib/db.js";
 import { llm } from "../../lib/llm.js";
 import { env } from "../../config/env.js";
-import { requireOrgMember, type RequiredAuthVariables } from "../../middleware/session.js";
+import {
+  canManage,
+  requireOrgAdmin,
+  requireOrgMember,
+  type RequiredAuthVariables,
+} from "../../middleware/session.js";
 import { encryptByokKey, getOrgByokStatus } from "./byok.js";
 
 const saveKeySchema = z.object({
@@ -39,26 +43,6 @@ const byokSaveRateLimit = rateLimiter<{ Variables: RequiredAuthVariables }>({
 });
 
 /**
- * ADR-70 (review finding): the mutating settings surface moves the org's
- * money — setting/removing the key flips billing source, model picks steer
- * per-call cost — so it is owner/admin only. Reads stay open to members.
- */
-function canManageBilling(orgRole: string): boolean {
-  return ["owner", "admin"].includes(orgRole);
-}
-
-const requireOrgAdmin = createMiddleware<{ Variables: RequiredAuthVariables }>(
-  async (c, next) => {
-    if (!canManageBilling(c.get("orgRole"))) {
-      throw new HTTPException(403, {
-        message: "Only an organization owner or admin can change billing settings",
-      });
-    }
-    await next();
-  },
-);
-
-/**
  * Org settings self-service (ADR-70/71): BYOK key lifecycle, per-role model
  * overrides, and the usage analytics behind the dashboard settings page.
  * Everything is org-scoped through requireOrgMember (ADR-36).
@@ -71,7 +55,7 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     const status = await getOrgByokStatus(db, organizationId);
     // canManage drives the UI's read-only state for plain members — the
     // server-side requireOrgAdmin gate on mutations is the real enforcement.
-    return c.json({ ...status, canManage: canManageBilling(c.get("orgRole")) });
+    return c.json({ ...status, canManage: canManage(c.get("orgRole")) });
   })
 
   .post("/byok", requireOrgAdmin, byokSaveRateLimit, zValidator("json", saveKeySchema), async (c) => {
@@ -141,7 +125,7 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     });
     return c.json({
       byokEnabled: byok.hasKey && byok.enabled,
-      canManage: canManageBilling(c.get("orgRole")),
+      canManage: canManage(c.get("orgRole")),
       roles,
     });
   })

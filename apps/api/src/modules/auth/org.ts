@@ -1,6 +1,22 @@
 import crypto from "node:crypto";
+import { APIError } from "better-auth";
 import { eq, sql } from "drizzle-orm";
 import { schema, type Db } from "@mullion/db";
+
+export const ORG_ROLES = ["admin", "member"] as const;
+export type OrgRole = (typeof ORG_ROLES)[number];
+
+/**
+ * ADR-72: admin and member are the only org roles. Better Auth's
+ * parseRoles accepts arbitrary strings and comma-joined lists on raw
+ * invite/update calls, so every role that enters the system must pass
+ * this gate — it is the enforcement, not the zod enums on custom routes.
+ */
+export function assertOrgRole(role: string): asserts role is OrgRole {
+  if (!(ORG_ROLES as readonly string[]).includes(role)) {
+    throw new APIError("BAD_REQUEST", { message: "Role must be admin or member" });
+  }
+}
 
 function personalOrgSlug(name: string): string {
   const base = name
@@ -52,7 +68,8 @@ export async function provisionPersonalOrg(
       id: crypto.randomUUID(),
       userId: user.id,
       organizationId: org.id,
-      role: "owner",
+      // ADR-72: two-role model — the creator is simply the first admin.
+      role: "admin",
     });
     return org.id;
   });

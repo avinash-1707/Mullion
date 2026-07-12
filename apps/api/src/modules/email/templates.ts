@@ -30,6 +30,29 @@ const COPY: Record<OtpEmailType, { subject: string; lead: string; note?: string 
 };
 
 /**
+ * Plain, unbranded invite email (same ADR-67 posture as the OTP mails).
+ * The accept URL carries only the invitation id — acceptance still requires
+ * a signed-in session whose email matches the invitation (ADR-72).
+ */
+export function renderInviteEmail(params: {
+  orgName: string;
+  inviterName: string;
+  acceptUrl: string;
+}): RenderedEmail {
+  const { orgName, inviterName, acceptUrl } = params;
+  const subject = `${inviterName} invited you to ${orgName} on Mullion`;
+  const lead = `${inviterName} invited you to join ${orgName} on Mullion. Open this link to accept:`;
+  const tail = "This invitation expires in 48 hours. If you weren't expecting it, ignore this email.";
+  const text = [lead, acceptUrl, tail].join("\n\n");
+  const html = [
+    `<p>${lead}</p>`,
+    `<p><a href="${acceptUrl}">${acceptUrl}</a></p>`,
+    `<p>${tail}</p>`,
+  ].join("\n");
+  return { subject, text, html };
+}
+
+/**
  * Plain, unbranded OTP email (branded/i18n templates deliberately deferred,
  * ADR-67). The OTP is the whole message — expiry and single-purpose framing
  * so a phished code is at least time-boxed.

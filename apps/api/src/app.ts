@@ -14,6 +14,7 @@ import { tracingMiddleware } from "./middleware/tracing.js";
 import { buildsRoute } from "./modules/builds/routes.js";
 import { devRoute } from "./modules/dev/routes.js";
 import { githubRoute } from "./modules/github/routes.js";
+import { orgRoute } from "./modules/org/routes.js";
 import { planningSessionsRoute } from "./modules/planning/routes.js";
 import { settingsRoute } from "./modules/settings/routes.js";
 
@@ -96,6 +97,7 @@ export function createApp(): Hono<{ Bindings: HttpBindings; Variables: AuthVaria
   app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 
   app.route("/api/account", accountRoute);
+  app.route("/api/org", orgRoute);
   app.route("/api/settings", settingsRoute);
   app.route("/api/sessions", planningSessionsRoute);
   app.route("/api/builds", buildsRoute);

@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { createMiddleware } from "hono/factory";
 import { HTTPException } from "hono/http-exception";
 import { schema } from "@mullion/db";
@@ -66,11 +66,14 @@ export const requireOrgMember = createMiddleware<{ Variables: RequiredAuthVariab
     if (!organizationId) {
       // The signup-time auth session is created before the personal-org
       // hook's rows are visible, so its activeOrganizationId lands null —
-      // fall back to the user's first membership and heal the session row.
+      // fall back to the user's OLDEST membership (deterministic, always
+      // the personal org — ADR-72) and heal the session row. Keep the
+      // ordering in sync with session.create.before in auth.ts.
       const memberships = await db
         .select({ organizationId: schema.member.organizationId, role: schema.member.role })
         .from(schema.member)
         .where(eq(schema.member.userId, user.id))
+        .orderBy(asc(schema.member.createdAt), asc(schema.member.id))
         .limit(1);
       organizationId = memberships[0]?.organizationId ?? null;
       orgRole = memberships[0]?.role ?? null;
@@ -78,8 +81,8 @@ export const requireOrgMember = createMiddleware<{ Variables: RequiredAuthVariab
         // Zero memberships = signup provisioning failed mid-flight. Without
         // this the account is permanently locked out — re-provision instead.
         organizationId = await provisionPersonalOrg(db, user);
-        // provisionPersonalOrg creates the membership as the org's owner.
-        orgRole = "owner";
+        // provisionPersonalOrg creates the membership as the org's admin.
+        orgRole = "admin";
       }
       await db
         .update(schema.session)
@@ -88,6 +91,27 @@ export const requireOrgMember = createMiddleware<{ Variables: RequiredAuthVariab
     }
     c.set("organizationId", organizationId);
     c.set("orgRole", orgRole ?? "member");
+    await next();
+  },
+);
+
+/**
+ * ADR-70/72: mutations that move the org's money or its roster are
+ * admin-only; reads stay open to every member. "owner" stays accepted
+ * until the owner→admin migration has provably zeroed those rows —
+ * drop it in the post-migration cleanup.
+ */
+export function canManage(orgRole: string): boolean {
+  return ["owner", "admin"].includes(orgRole);
+}
+
+export const requireOrgAdmin = createMiddleware<{ Variables: RequiredAuthVariables }>(
+  async (c, next) => {
+    if (!canManage(c.get("orgRole"))) {
+      throw new HTTPException(403, {
+        message: "Only an organization admin can do that",
+      });
+    }
     await next();
   },
 );

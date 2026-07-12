@@ -2,13 +2,13 @@ import { betterAuth, APIError } from "better-auth";
 import { childLogger } from "@mullion/logger";
 import { emailOTP, genericOAuth, organization } from "better-auth/plugins";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import { schema } from "@mullion/db";
 import { db } from "../../lib/db.js";
 import { env } from "../../config/env.js";
 import { sendEmail } from "../email/send.js";
-import { renderOtpEmail } from "../email/templates.js";
-import { provisionPersonalOrg } from "./org.js";
+import { renderInviteEmail, renderOtpEmail } from "../email/templates.js";
+import { assertOrgRole, provisionPersonalOrg } from "./org.js";
 import { isOtpSignInAttempt } from "./otp-signin-guard.js";
 import { isBlockedGitHubSignin } from "../github/signin-guard.js";
 
@@ -151,8 +151,43 @@ export const auth = betterAuth({
   },
   plugins: [
     // Personal org is the only ownership model in v1 (ADR-36) — users don't
-    // hand-create orgs, they get one at signup and invite into it.
-    organization({ allowUserToCreateOrganization: false }),
+    // hand-create orgs, they get one at signup and invite into it. Two-role
+    // model + invite flow per ADR-72; the stock admin role already carries
+    // every permission the product wants, so no custom access control.
+    organization({
+      allowUserToCreateOrganization: false,
+      creatorRole: "admin",
+      invitationExpiresIn: 60 * 60 * 48,
+      // "Resend" is re-invite: the pending row flips to canceled and a
+      // fresh 48h one is inserted — no dedicated resend endpoint exists.
+      cancelPendingInvitationsOnReInvite: true,
+      async sendInvitationEmail({ email, organization: org, inviter, invitation }) {
+        await sendEmail({
+          to: email,
+          ...renderInviteEmail({
+            orgName: org.name,
+            inviterName: inviter.user.name,
+            acceptUrl: `${env.DASHBOARD_ORIGIN}/invite/${invitation.id}`,
+          }),
+        });
+      },
+      organizationHooks: {
+        // Role-enum integrity for every path that can write a role,
+        // including raw client calls this API doesn't wrap (ADR-72).
+        beforeCreateInvitation: async ({ invitation }) => {
+          assertOrgRole(invitation.role);
+          // Accept matches session email case-insensitively; normalizing at
+          // the source keeps the pending-per-(org,email) unique index honest.
+          return { data: { ...invitation, email: invitation.email.trim().toLowerCase() } };
+        },
+        beforeUpdateMemberRole: async ({ newRole }) => {
+          assertOrgRole(newRole);
+        },
+        beforeAddMember: async ({ member }) => {
+          assertOrgRole(member.role);
+        },
+      },
+    }),
     // One OTP mechanism for email verification, password reset, and
     // (passwordless-only) sign-in — no link-based flows (ADR-66/67).
     emailOTP({
@@ -279,11 +314,15 @@ export const auth = betterAuth({
       create: {
         // Every auth session starts with an active org, so org-scoped
         // middleware never sees a null tenant for a signed-in user.
+        // Oldest membership = the personal org (it predates any invite) —
+        // deterministic default, per ADR-72; keep in sync with the
+        // requireOrgMember fallback in middleware/session.ts.
         before: async (session) => {
           const memberships = await db
             .select({ organizationId: schema.member.organizationId })
             .from(schema.member)
             .where(eq(schema.member.userId, session.userId))
+            .orderBy(asc(schema.member.createdAt), asc(schema.member.id))
             .limit(1);
           return {
             data: {
