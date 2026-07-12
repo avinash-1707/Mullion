@@ -29,24 +29,43 @@ const COPY: Record<OtpEmailType, { subject: string; lead: string; note?: string 
   },
 };
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 /**
  * Plain, unbranded invite email (same ADR-67 posture as the OTP mails).
  * The accept URL carries only the invitation id — acceptance still requires
  * a signed-in session whose email matches the invitation (ADR-72).
+ *
+ * orgName and inviterName are USER-CONTROLLED (display name, org rename) and
+ * land in an email sent from our domain — they must be HTML-escaped in the
+ * html body and kept header-safe in the subject, or any account becomes a
+ * phishing amplifier toward arbitrary addresses.
  */
 export function renderInviteEmail(params: {
   orgName: string;
   inviterName: string;
   acceptUrl: string;
 }): RenderedEmail {
-  const { orgName, inviterName, acceptUrl } = params;
+  const orgName = params.orgName.replaceAll(/[\r\n]+/g, " ");
+  const inviterName = params.inviterName.replaceAll(/[\r\n]+/g, " ");
+  const { acceptUrl } = params;
   const subject = `${inviterName} invited you to ${orgName} on Mullion`;
-  const lead = `${inviterName} invited you to join ${orgName} on Mullion. Open this link to accept:`;
   const tail = "This invitation expires in 48 hours. If you weren't expecting it, ignore this email.";
-  const text = [lead, acceptUrl, tail].join("\n\n");
+  const text = [
+    `${inviterName} invited you to join ${orgName} on Mullion. Open this link to accept:`,
+    acceptUrl,
+    tail,
+  ].join("\n\n");
   const html = [
-    `<p>${lead}</p>`,
-    `<p><a href="${acceptUrl}">${acceptUrl}</a></p>`,
+    `<p>${escapeHtml(inviterName)} invited you to join ${escapeHtml(orgName)} on Mullion. Open this link to accept:</p>`,
+    `<p><a href="${escapeHtml(acceptUrl)}">${escapeHtml(acceptUrl)}</a></p>`,
     `<p>${tail}</p>`,
   ].join("\n");
   return { subject, text, html };

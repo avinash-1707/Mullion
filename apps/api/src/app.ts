@@ -98,11 +98,14 @@ export function createApp(): Hono<{ Bindings: HttpBindings; Variables: AuthVaria
   // under the last-admin advisory-lock transaction in /api/org — the plugin's
   // built-in endpoints would bypass it (leave never fires the remove hooks at
   // all), so they are dead ends here. Registered before the /api/auth/*
-  // catch-all so they win the match.
+  // catch-all so they win the match. delete is blocked too: org deletion is
+  // out of scope (ADR-40 RESTRICT), and a legacy "owner" row inside the
+  // migration window would otherwise hold the plugin's delete permission.
   for (const blocked of [
     "/api/auth/organization/leave",
     "/api/auth/organization/remove-member",
     "/api/auth/organization/update-member-role",
+    "/api/auth/organization/delete",
   ]) {
     app.on(["POST", "GET"], blocked, () => {
       throw new HTTPException(404, { message: "Use the /api/org endpoints for this operation" });

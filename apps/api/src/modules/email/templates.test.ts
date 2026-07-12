@@ -62,4 +62,24 @@ describe("renderInviteEmail (ADR-72)", () => {
       expect(body).toContain("ignore this email");
     }
   });
+
+  it("HTML-escapes the user-controlled inviter and org names", () => {
+    const hostile = renderInviteEmail({
+      orgName: '<img src=x onerror="alert(1)">',
+      inviterName: '<a href="https://phish.example">Support</a>',
+      acceptUrl: "http://localhost:3001/invite/inv-123",
+    });
+    expect(hostile.html).not.toContain("<img");
+    expect(hostile.html).not.toContain('<a href="https://phish.example"');
+    expect(hostile.html).toContain("&lt;img");
+  });
+
+  it("strips CR-LF from names so the subject stays header-safe", () => {
+    const sneaky = renderInviteEmail({
+      orgName: "Acme",
+      inviterName: "Ada\r\nBcc: victim@example.com",
+      acceptUrl: "http://localhost:3001/invite/inv-123",
+    });
+    expect(sneaky.subject).not.toMatch(/[\r\n]/);
+  });
 });

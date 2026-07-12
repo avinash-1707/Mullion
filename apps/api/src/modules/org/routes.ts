@@ -58,6 +58,30 @@ function isPersonalOrg(metadata: string | null): boolean {
 }
 
 /**
+ * Is this org `userId`'s own personal workspace? True when the org carries
+ * the personal flag AND is that user's oldest membership — the same row the
+ * deterministic default (ADR-72) resolves to. The workspace owner must stay
+ * present and admin: without this, a co-admin (or the owner themselves)
+ * could remove/demote the owner and orphan the tenant — its BYOK key,
+ * overrides and builds — behind a fresh re-provisioned empty org.
+ */
+async function isOwnPersonalWorkspace(
+  tx: Tx,
+  organizationId: string,
+  userId: string,
+  metadata: string | null,
+): Promise<boolean> {
+  if (!isPersonalOrg(metadata)) return false;
+  const [oldest] = await tx
+    .select({ organizationId: schema.member.organizationId })
+    .from(schema.member)
+    .where(eq(schema.member.userId, userId))
+    .orderBy(asc(schema.member.createdAt), asc(schema.member.id))
+    .limit(1);
+  return oldest?.organizationId === organizationId;
+}
+
+/**
  * Invite preview — deliberately UNAUTHENTICATED (ADR-72): the accept page
  * must render "who invited you, to what" before the sign-in wall (ADR-35).
  * Minimal payload, and acceptance itself still requires an authenticated
@@ -152,8 +176,14 @@ const memberRoutes = new Hono<{ Variables: RequiredAuthVariables }>()
       await db.transaction(async (tx) => {
         await lockOrgAdmins(tx, organizationId);
         const [target] = await tx
-          .select({ id: schema.member.id, role: schema.member.role })
+          .select({
+            id: schema.member.id,
+            userId: schema.member.userId,
+            role: schema.member.role,
+            metadata: schema.organization.metadata,
+          })
           .from(schema.member)
+          .innerJoin(schema.organization, eq(schema.member.organizationId, schema.organization.id))
           .where(
             and(eq(schema.member.id, memberId), eq(schema.member.organizationId, organizationId)),
           )
@@ -162,6 +192,14 @@ const memberRoutes = new Hono<{ Variables: RequiredAuthVariables }>()
           throw new HTTPException(404, { message: "Member not found" });
         }
         const demotingAdmin = canManage(target.role) && role === "member";
+        if (
+          demotingAdmin &&
+          (await isOwnPersonalWorkspace(tx, organizationId, target.userId, target.metadata))
+        ) {
+          throw new HTTPException(409, {
+            message: "The owner of a personal workspace stays an admin",
+          });
+        }
         if (demotingAdmin && (await remainingAdminCount(tx, organizationId, memberId)) === 0) {
           throw new HTTPException(409, {
             message: "An organization must keep at least one admin — promote someone else first",
@@ -179,14 +217,25 @@ const memberRoutes = new Hono<{ Variables: RequiredAuthVariables }>()
     await db.transaction(async (tx) => {
       await lockOrgAdmins(tx, organizationId);
       const [target] = await tx
-        .select({ id: schema.member.id, role: schema.member.role })
+        .select({
+          id: schema.member.id,
+          userId: schema.member.userId,
+          role: schema.member.role,
+          metadata: schema.organization.metadata,
+        })
         .from(schema.member)
+        .innerJoin(schema.organization, eq(schema.member.organizationId, schema.organization.id))
         .where(
           and(eq(schema.member.id, memberId), eq(schema.member.organizationId, organizationId)),
         )
         .limit(1);
       if (!target) {
         throw new HTTPException(404, { message: "Member not found" });
+      }
+      if (await isOwnPersonalWorkspace(tx, organizationId, target.userId, target.metadata)) {
+        throw new HTTPException(409, {
+          message: "The owner of a personal workspace can't be removed from it",
+        });
       }
       if (canManage(target.role) && (await remainingAdminCount(tx, organizationId, memberId)) === 0) {
         throw new HTTPException(409, {
@@ -227,16 +276,8 @@ const memberRoutes = new Hono<{ Variables: RequiredAuthVariables }>()
       }
       // "Your personal workspace" ≠ "an org flagged personal" — in v1 every
       // org is SOMEONE's personal org (users can't create orgs; invites land
-      // in the inviter's). Yours is the personal org that is also your
-      // oldest membership — the same row the deterministic default (ADR-72)
-      // resolves to, which is exactly why it must not be leavable.
-      const [oldest] = await tx
-        .select({ organizationId: schema.member.organizationId })
-        .from(schema.member)
-        .where(eq(schema.member.userId, user.id))
-        .orderBy(asc(schema.member.createdAt), asc(schema.member.id))
-        .limit(1);
-      if (isPersonalOrg(self.metadata) && oldest?.organizationId === organizationId) {
+      // in the inviter's). Only your own is unlivable.
+      if (await isOwnPersonalWorkspace(tx, organizationId, user.id, self.metadata)) {
         throw new HTTPException(400, { message: "You can't leave your personal workspace" });
       }
       if (

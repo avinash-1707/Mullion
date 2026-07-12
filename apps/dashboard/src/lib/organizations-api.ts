@@ -10,13 +10,21 @@ import { z } from "zod";
 export const ORG_ROLES = ["admin", "member"] as const;
 export type OrgRole = (typeof ORG_ROLES)[number];
 
+// Migration window (ADR-72): the API deliberately serves legacy "owner"
+// rows until 0009 has run everywhere — coerce them to admin here so the
+// Members tab renders instead of throwing on parse. Drop alongside the
+// server-side canManage "owner" acceptance in the post-migration cleanup.
+const roleSchema = z
+  .enum(["owner", ...ORG_ROLES])
+  .transform((role): OrgRole => (role === "owner" ? "admin" : role));
+
 export const orgMemberSchema = z.object({
   id: z.string(),
   userId: z.string(),
   name: z.string(),
   email: z.string(),
   image: z.string().nullable(),
-  role: z.enum(ORG_ROLES),
+  role: roleSchema,
   createdAt: z.string(),
 });
 export type OrgMember = z.infer<typeof orgMemberSchema>;
@@ -29,7 +37,7 @@ export const invitationStatusSchema = z.enum(["pending", "accepted", "rejected",
 export const orgInvitationSchema = z.object({
   id: z.string(),
   email: z.string(),
-  role: z.enum(ORG_ROLES),
+  role: roleSchema,
   status: invitationStatusSchema,
   expiresAt: z.string(),
   createdAt: z.string(),

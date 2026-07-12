@@ -990,7 +990,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       return (await res.json()) as never;
     }
 
-    it("runs the full invite lifecycle: preview, accept, member limits, leave", async () => {
+    it("runs the full invite lifecycle: preview, accept, role gates, leave", async () => {
       const admin = await signUp(harness.app);
       const invitee = await signUp(harness.app);
       const inviteePersonalOrg = await activeOrgId(invitee);
@@ -1003,11 +1003,12 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       // Preview is deliberately unauthenticated — no cookie at all.
       const preview = await harness.app.request(`/api/org/invitations/${invitationId}/preview`);
       expect(preview.status).toBe(200);
-      expect(await preview.json()).toMatchObject({
-        status: "pending",
-        invitedEmail: invitee.email,
-        inviterName: "Harness User",
-      });
+      const previewBody = (await preview.json()) as { status: string; invitedEmail: string; inviterName: string };
+      expect(previewBody).toMatchObject({ status: "pending", invitedEmail: invitee.email });
+      expect(previewBody.inviterName.length).toBeGreaterThan(0);
+      // Unknown invitation ids 404 rather than leaking existence semantics.
+      const missing = await harness.app.request(`/api/org/invitations/${randomUUID()}/preview`);
+      expect(missing.status).toBe(404);
 
       expect((await accept(invitee, invitationId)).status).toBe(200);
 
@@ -1021,6 +1022,11 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       expect(adminView.canManage).toBe(true);
       expect(adminView.members).toHaveLength(2);
       expect(adminView.invitations.some((i) => i.status === "accepted")).toBe(true);
+
+      // A used invitation is terminal: preview reports it, re-accept errors.
+      const usedPreview = await harness.app.request(`/api/org/invitations/${invitationId}/preview`);
+      expect(await usedPreview.json()).toMatchObject({ status: "accepted" });
+      expect((await accept(invitee, invitationId)).status).toBeGreaterThanOrEqual(400);
 
       // Switch into the team org; a plain member reads but cannot manage.
       const setActive = await harness.app.request("/api/auth/organization/set-active", {
@@ -1038,6 +1044,15 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
         body: JSON.stringify({ role: "member" }),
       });
       expect(forbidden.status).toBe(403);
+      // Rename rides Better Auth's own endpoint — its permission model must
+      // refuse a plain member too (organization:update is admin-held).
+      const renameForbidden = await harness.app.request("/api/auth/organization/update", {
+        method: "POST",
+        headers: orgHeaders(invitee),
+        body: JSON.stringify({ organizationId: teamOrg, data: { name: "Hijacked" } }),
+      });
+      expect(renameForbidden.status).toBeGreaterThanOrEqual(400);
+      expect(renameForbidden.status).toBeLessThan(500);
 
       // A non-admin can leave; the roster shrinks back.
       const leave = await harness.app.request("/api/org/leave", {
@@ -1098,7 +1113,9 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       expect(wrongEmail.res.status).toBe(200);
       if (!wrongEmail.invitationId) throw new Error("no invitation id");
       const stolen = await accept(bystander, wrongEmail.invitationId);
+      // Pin the class: email mismatch is a 4xx authz refusal, never a 500.
       expect(stolen.status).toBeGreaterThanOrEqual(400);
+      expect(stolen.status).toBeLessThan(500);
 
       // Expiry is enforced at accept time and derived in the preview.
       const { schema } = await import("@mullion/db");
@@ -1152,17 +1169,81 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       });
       expect(leave.status).toBe(400);
 
-      // With a second admin on the roster, the same demote succeeds.
+      // Bring in a second admin; demote/promote of a NON-owner works freely.
       const second = await signUp(harness.app);
       const { invitationId } = await invite(admin, second.email, "admin");
       if (!invitationId) throw new Error("no invitation id");
       expect((await accept(second, invitationId)).status).toBe(200);
-      const demoteWithBackup = await harness.app.request(`/api/org/members/${selfId}`, {
+      const secondMemberId = (await membersOf(admin)).members.find(
+        (m) => m.email === second.email,
+      )?.id;
+      const demoteSecond = await harness.app.request(`/api/org/members/${secondMemberId}`, {
         method: "PATCH",
         headers: orgHeaders(admin),
         body: JSON.stringify({ role: "member" }),
       });
-      expect(demoteWithBackup.status).toBe(200);
+      expect(demoteSecond.status).toBe(200);
+      const promoteSecond = await harness.app.request(`/api/org/members/${secondMemberId}`, {
+        method: "PATCH",
+        headers: orgHeaders(admin),
+        body: JSON.stringify({ role: "admin" }),
+      });
+      expect(promoteSecond.status).toBe(200);
+      expect(
+        (await membersOf(admin)).members.find((m) => m.email === second.email)?.role,
+      ).toBe("admin");
+
+      // The personal-workspace owner is untouchable even with a backup
+      // admin — a co-admin must not be able to demote or evict them.
+      // `second`'s active org is still their own personal org; switch them
+      // into the team org so the mutation targets the right tenant.
+      const setActive = await harness.app.request("/api/auth/organization/set-active", {
+        method: "POST",
+        headers: orgHeaders(second),
+        body: JSON.stringify({ organizationId: await activeOrgId(admin) }),
+      });
+      expect(setActive.status).toBe(200);
+      const demoteOwner = await harness.app.request(`/api/org/members/${selfId}`, {
+        method: "PATCH",
+        headers: orgHeaders(second),
+        body: JSON.stringify({ role: "member" }),
+      });
+      expect(demoteOwner.status).toBe(409);
+      const evictOwner = await harness.app.request(`/api/org/members/${selfId}`, {
+        method: "DELETE",
+        headers: orgHeaders(second),
+      });
+      expect(evictOwner.status).toBe(409);
+
+      // Removing a NON-owner member is the green path.
+      const removeSecond = await harness.app.request(`/api/org/members/${secondMemberId}`, {
+        method: "DELETE",
+        headers: orgHeaders(admin),
+      });
+      expect(removeSecond.status).toBe(200);
+      expect((await membersOf(admin)).members).toHaveLength(1);
+    });
+
+    it("resend = re-invite: the old pending invite is revoked, one fresh one remains", async () => {
+      const admin = await signUp(harness.app);
+      const email = `resend-${randomUUID()}@mullion.local`;
+      const first = await invite(admin, email, "member");
+      expect(first.res.status).toBe(200);
+      if (!first.invitationId) throw new Error("no invitation id");
+      const second = await invite(admin, email, "member");
+      expect(second.res.status).toBe(200);
+      if (!second.invitationId) throw new Error("no invitation id");
+      expect(second.invitationId).not.toBe(first.invitationId);
+
+      const firstPreview = await harness.app.request(
+        `/api/org/invitations/${first.invitationId}/preview`,
+      );
+      expect(await firstPreview.json()).toMatchObject({ status: "revoked" });
+      const pending = (await membersOf(admin)).invitations.filter(
+        (i) => i.status === "pending",
+      );
+      expect(pending).toHaveLength(1);
+      expect(pending[0]?.id).toBe(second.invitationId);
     });
 
     it("dead-ends the Better Auth bypass endpoints for roster mutations", async () => {
@@ -1171,13 +1252,16 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
         "/api/auth/organization/leave",
         "/api/auth/organization/remove-member",
         "/api/auth/organization/update-member-role",
+        "/api/auth/organization/delete",
       ]) {
-        const res = await harness.app.request(path, {
-          method: "POST",
-          headers: orgHeaders(user),
-          body: JSON.stringify({}),
-        });
-        expect(res.status).toBe(404);
+        for (const method of ["POST", "GET"]) {
+          const res = await harness.app.request(path, {
+            method,
+            headers: orgHeaders(user),
+            ...(method === "POST" ? { body: JSON.stringify({}) } : {}),
+          });
+          expect(res.status).toBe(404);
+        }
       }
     });
 
@@ -1197,7 +1281,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     it("keeps legacy owner rows managing during the migration window", async () => {
       const user = await signUp(harness.app);
       const { schema } = await import("@mullion/db");
-      const { eq } = await import("drizzle-orm");
+      const { and, eq } = await import("drizzle-orm");
       const orgId = await activeOrgId(user);
       await harness.db
         .update(schema.member)
@@ -1205,11 +1289,12 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
         .where(eq(schema.member.organizationId, orgId));
       const view = await membersOf(user);
       expect(view.canManage).toBe(true);
-      // The migration rewrite is exactly what 0009 runs in production.
+      // The migration rewrite is exactly what 0009 runs in production —
+      // org-scoped here so a shared test DB's other rows stay untouched.
       await harness.db
         .update(schema.member)
         .set({ role: "admin" })
-        .where(eq(schema.member.role, "owner"));
+        .where(and(eq(schema.member.organizationId, orgId), eq(schema.member.role, "owner")));
       expect((await membersOf(user)).members[0]?.role).toBe("admin");
     });
   });

@@ -79,3 +79,32 @@ describe("redirectToMarketing", () => {
     expect(assign).toHaveBeenCalledExactlyOnceWith("http://localhost:3000");
   });
 });
+
+describe("redirectToSignUp", () => {
+  it("navigates to the web app's sign-up carrying the current URL as returnTo", async () => {
+    stubWindow("http://localhost:3001/invite/inv-1");
+    const { redirectToSignUp } = await loadFresh();
+    redirectToSignUp();
+    expect(assign).toHaveBeenCalledExactlyOnceWith(
+      `http://localhost:3000/sign-up?returnTo=${encodeURIComponent("http://localhost:3001/invite/inv-1")}`,
+    );
+  });
+
+  it("percent-encodes the full href so nothing is smuggled onto /sign-up", async () => {
+    const href = "http://localhost:3001/invite/x?next=https://evil.example#frag";
+    stubWindow(href);
+    const { redirectToSignUp } = await loadFresh();
+    redirectToSignUp();
+    const url = assign.mock.calls[0]?.[0] as string;
+    expect(url).toBe(`http://localhost:3000/sign-up?returnTo=${encodeURIComponent(href)}`);
+    expect(url.indexOf("?")).toBe(url.lastIndexOf("?"));
+    expect(url).not.toContain("#");
+  });
+
+  it("shares the one-navigation latch with the other redirects", async () => {
+    const { redirectToSignUp, redirectToSignIn } = await loadFresh();
+    redirectToSignUp();
+    redirectToSignIn();
+    expect(assign).toHaveBeenCalledTimes(1);
+  });
+});
