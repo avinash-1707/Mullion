@@ -26,14 +26,18 @@ interface ByokKeyCardProps {
 // transition.
 export function ByokKeyCard({ status }: ByokKeyCardProps) {
   const [editing, setEditing] = useState(!status.hasKey && status.canManage);
-  const [prevHasKey, setPrevHasKey] = useState(status.hasKey);
+  const [prevSync, setPrevSync] = useState(`${status.hasKey}:${status.canManage}`);
   const [apiKey, setApiKey] = useState("");
   const [removeOpen, setRemoveOpen] = useState(false);
   const saveKey = useSaveByokMutation();
   const removeKey = useRemoveByokMutation();
 
-  if (prevHasKey !== status.hasKey) {
-    setPrevHasKey(status.hasKey);
+  // canManage is part of the sync key: a member promoted mid-session
+  // (canManage false→true with no key on file) must land on the entry
+  // form, not the saved-key view.
+  const syncKey = `${status.hasKey}:${status.canManage}`;
+  if (prevSync !== syncKey) {
+    setPrevSync(syncKey);
     setEditing(!status.hasKey && status.canManage);
   }
 

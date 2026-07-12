@@ -6,7 +6,7 @@ import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 import { schema } from "@mullion/db";
-import { MODEL_ALLOWLIST, ModelNotAllowedError, assertAllowed } from "@mullion/llm";
+import { MODEL_ALLOWLIST, ModelNotAllowedError, assertAllowed, isModelAllowed } from "@mullion/llm";
 import { agentRoleSchema } from "@mullion/schemas";
 import { db } from "../../lib/db.js";
 import { llm } from "../../lib/llm.js";
@@ -125,12 +125,20 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
         .where(eq(schema.modelOverrides.organizationId, organizationId)),
     ]);
     const overrideByRole = new Map(overrides.map((o) => [o.role, o.modelSlug]));
-    const roles = defaults.map((d) => ({
-      role: d.role,
-      defaultModelSlug: d.modelSlug,
-      overrideModelSlug: overrideByRole.get(d.role) ?? null,
-      allowlist: MODEL_ALLOWLIST[d.role],
-    }));
+    const roles = defaults.map((d) => {
+      // Coerce through the allowlist so display matches runtime: a stored
+      // override whose slug was later removed from the curated list already
+      // resolves to the platform default (resolveModel's read-time
+      // fail-safe, ADR-71) — reporting the dead slug would render a blank
+      // <select> and show the UI disagreeing with what actually runs.
+      const override = overrideByRole.get(d.role);
+      return {
+        role: d.role,
+        defaultModelSlug: d.modelSlug,
+        overrideModelSlug: override && isModelAllowed(d.role, override) ? override : null,
+        allowlist: MODEL_ALLOWLIST[d.role],
+      };
+    });
     return c.json({
       byokEnabled: byok.hasKey && byok.enabled,
       canManage: canManageBilling(c.get("orgRole")),
