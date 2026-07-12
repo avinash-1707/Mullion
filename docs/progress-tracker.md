@@ -1022,3 +1022,45 @@ owner (hover-only, no persistence), no architectural decision.
   list its own scroll region.
 - Manual visual pass on the React Flow planning surface with the overlay
   expand is still worth an eyeball on a real session.
+
+### [2026-07-12] BYOK, per-role model selection, usage analytics, settings tabs
+**Phase:** Phase 5 — fast-follow (post v1 feature-complete)
+**Type:** Progress update
+**Summary:** Shipped ADR-70/71 end to end. Per-org BYOK OpenRouter key:
+encrypted at rest with better-auth's `symmetricEncrypt` (same posture as
+GitHub OAuth tokens), validated against OpenRouter's free `GET /key`
+probe before persist, saved via a 5/min per-user rate-limited endpoint,
+only `key_last4` ever returned. `OpenRouterClient` gained an injected
+`apiKeyResolver` + `onByokAuthFailure`: an org with an enabled key pays
+with it; a 401/403 on that key disables the row and retries once on the
+platform key (recorded `byok=false`) — a dead key degrades, never fails a
+build. Per-role model overrides live in `model_overrides`, validated at
+write AND read time against a static ZDR-verified allowlist in
+`packages/llm/src/model-allowlist.ts` (curated by PR); overrides apply
+only while a BYOK key is enabled (platform pays → platform picks);
+routing cache re-keyed to `org:role` to prevent cross-org leaks. Budget
+split per ADR-70: org 24h window now excludes BYOK spend, per-run ceiling
+counts everything. `cost_events` gained `byok` + denormalized
+`prompt_tokens`/`completion_tokens`; `GET /api/settings/analytics`
+aggregates totals/per-role/per-day on the fly. Dashboard `/settings`
+retrofitted to URL-driven tabs (Profile / Models / Analytics) with new
+hand-rolled `tabs`/`select`/`confirm-dialog` primitives, TanStack Query
+hooks, optimistic model-row saves, inline-SVG sparkline + role bars (no
+chart dependency). Migration 0008 (additive). Gates green: check-types,
+lint, test, plus API_INTEGRATION suite (5 new settings tests, 9 new LLM
+BYOK tests).
+**Files/areas touched:** `packages/db` (schema + 0008), `packages/llm`
+(client, model-allowlist, errors, byok.test), `packages/agents/budget.ts`,
+`apps/api/src/modules/settings/*` (new), `lib/llm.ts`, `worker.ts`,
+`app.ts`, `app.integration.test.ts`, `apps/dashboard/src/{app/settings,
+components/settings,components/ui,hooks,lib}`, `docs/specs/04` (ADR-70/71).
+**Related ADR:** ADR-70 (BYOK key lifecycle, budget split), ADR-71
+(per-role overrides, static allowlist).
+**Follow-ups:**
+- Per-user keys, spend alerts, real-time meters deliberately deferred
+  (see ADR-70 alternatives; `03` scope discipline).
+- Allowlist currently Claude-family only — widen via PR as ZDR coverage
+  of other families materializes.
+- Build-kickoff pre-flight `validateKey` probe not wired yet: the
+  client-level fallback covers the failure mode, but an early block at
+  kickoff would fail faster. Candidate for the next API touch.
