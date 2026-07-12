@@ -1404,7 +1404,14 @@ for.
   `assertAllowed(role, slug)` guard. Every entry is ZDR-verified by
   inclusion; curation is a human PR (ADR-61 posture), and model slugs stay
   inside `packages/llm` (CODING_STANDARDS §3). Not a DB table — a DB list
-  would move slug curation outside code review.
+  would move slug curation outside code review. "ZDR-verified" concretely:
+  the slug appears in OpenRouter's LIVE ZDR endpoint list
+  (`GET /api/v1/endpoints/zdr`) at PR time — provider policy pages are not
+  sufficient (several current flagships have ZDR-friendly providers but no
+  ZDR endpoint). Entries are price-banded per role by task complexity so a
+  pick within a role is a lateral cost move; single-ZDR-provider entries
+  are permitted for BYOK picks, with ADR-26 same-model failover existing
+  only on multi-provider entries.
 - **Overrides are per-org rows** (`model_overrides`, PK
   `(organization_id, role)`); "Platform default" deletes the row and
   `model_routing` (ADR-25) resolves as before.
