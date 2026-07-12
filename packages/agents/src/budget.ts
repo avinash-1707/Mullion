@@ -80,6 +80,10 @@ async function sumForOrgWindow(db: Db, organizationId: string, windowHours: numb
     .where(
       and(
         eq(schema.costEvents.organizationId, organizationId),
+        // ADR-70: the org window caps the PLATFORM's bill — spend on the
+        // org's own BYOK key doesn't count here. The per-run ceiling above
+        // keeps counting everything (runaway-loop brake is money-agnostic).
+        eq(schema.costEvents.byok, false),
         sql`${schema.costEvents.createdAt} >= now() - make_interval(hours => ${windowHours})`,
       ),
     );
