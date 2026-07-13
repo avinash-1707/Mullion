@@ -35,6 +35,7 @@ import {
   LuEllipsis,
   LuChartColumn,
   LuPlus,
+  LuArrowUp,
 } from "react-icons/lu";
 
 interface IconProps {
@@ -110,3 +111,5 @@ export const MoreIcon = wrapIcon(LuEllipsis, "MoreIcon");
 export const TrashIcon = wrapIcon(LuTrash2, "TrashIcon");
 // settings: analytics empty state
 export const ChartIcon = wrapIcon(LuChartColumn, "ChartIcon");
+// idea intake: compact submit trigger on the composer's toolbar
+export const SendIcon = wrapIcon(LuArrowUp, "SendIcon");
