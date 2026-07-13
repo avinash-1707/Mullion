@@ -34,7 +34,7 @@ export function AppSidebar() {
       <Link
         href="/"
         aria-label="Mullion dashboard"
-        className="flex h-16 shrink-0 items-center text-fg transition-swift hover:text-ember focus-visible:text-ember focus-visible:outline-none"
+        className="flex h-16 shrink-0 items-center border-b border-hairline text-fg transition-swift hover:text-ember focus-visible:text-ember focus-visible:outline-none"
       >
         <span className="flex h-16 w-[60px] shrink-0 items-center justify-center">
           <MullionMark className="h-6 w-6" />
@@ -46,7 +46,7 @@ export function AppSidebar() {
 
       <OrgDropdown variant="rail" />
 
-      <nav aria-label="Primary" className="flex flex-col">
+      <nav aria-label="Primary" className="flex flex-col gap-1 p-2">
         {NAV_ITEMS.map((item, index) => {
           const active = isActive(pathname, item);
           const style: RailRowStyle = { "--row-index": index };
@@ -59,12 +59,11 @@ export function AppSidebar() {
               aria-current={active ? "page" : undefined}
               style={style}
               className={cn(
-                "transition-swift relative flex h-11 items-center text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none",
+                "transition-swift flex h-11 items-center rounded-md text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none",
                 active && "bg-accent-soft text-fg",
               )}
             >
-              {active ? <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-accent" /> : null}
-              <span className="flex h-11 w-[60px] shrink-0 items-center justify-center">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center">
                 <item.Icon className={cn("h-4 w-4", active && "text-accent-strong")} />
               </span>
               <span className="mullion-rail-label flex-1 overflow-hidden whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.2em]">

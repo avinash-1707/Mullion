@@ -13,9 +13,10 @@ import { SignOutDialog } from "./sign-out-dialog";
 
 interface AccountMenuProps {
   /**
-   * `rail`: desktop sidebar footer — the avatar sits in the same fixed
-   * 60px icon slot every nav row uses; name/sign-out live in the
-   * hover-fade label region (`.mullion-rail-label`, globals.css).
+   * `rail`: desktop sidebar footer — the avatar sits in the same inset
+   * 44px icon slot every nav row uses (centered within the rail's 8px
+   * gutter); name/sign-out live in the hover-fade label region
+   * (`.mullion-rail-label`, globals.css).
    * `drawer`: mobile slide-over footer — always expanded, no fade.
    */
   variant: "rail" | "drawer";
@@ -61,15 +62,15 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
 
   if (isPending || !session) {
     return (
-      <div className="flex flex-col">
-        <div className={cn("flex items-center", isRail ? "h-11" : "h-12 gap-3 px-6")}>
-          <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-[60px]")}>
+      <div className={cn("flex flex-col", isRail && "gap-1 border-t border-hairline p-2")}>
+        <div className={cn("flex items-center", isRail ? "h-11 rounded-md" : "h-12 gap-3 px-6")}>
+          <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
             <Skeleton className="h-7 w-7" />
           </span>
           <Skeleton className={cn("h-3 w-24", isRail && "mullion-rail-label")} />
         </div>
-        <div className={cn("flex items-center", isRail ? "h-11" : "h-12 gap-3 px-6")}>
-          <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-[60px]")}>
+        <div className={cn("flex items-center", isRail ? "h-11 rounded-md" : "h-12 gap-3 px-6")}>
+          <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
             <Skeleton className="h-4 w-4" />
           </span>
           <Skeleton className={cn("h-3 w-16", isRail && "mullion-rail-label")} />
@@ -84,11 +85,11 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
   const title = rawName ? `${rawName} - ${email}` : email;
 
   return (
-    <div className="flex flex-col">
+    <div className={cn("flex flex-col", isRail && "gap-1 border-t border-hairline p-2")}>
       {/* Row 1: avatar + name as ONE link to /settings — the name is part
           of the hit target, not dead text next to it. Matches NAV_ITEMS'
-          row shape per variant (h-11 + fixed 60px icon slot on the rail;
-          h-12 inline row in the drawer). */}
+          row shape per variant (h-11 pill row + 44px icon slot inset in the
+          rail's p-2 gutter; h-12 inline row in the drawer). */}
       <Link
         href="/settings"
         onClick={() => onNavigate?.()}
@@ -96,10 +97,10 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
         title={title}
         className={cn(
           "transition-swift flex items-center text-fg hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none",
-          isRail ? "h-11" : "h-12 gap-3 px-6",
+          isRail ? "h-11 rounded-md" : "h-12 gap-3 px-6",
         )}
       >
-        <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-[60px]")}>
+        <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
           <Avatar name={session.user.name ?? ""} email={email} image={session.user.image} className="h-7 w-7" />
         </span>
         <span
@@ -113,9 +114,9 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
       </Link>
 
       {/* Row 2: sign out — its own full-row hit target below the profile
-          row, matching NAV_ITEMS' shape per variant (fixed 60px icon slot +
-          fade label on the rail; inline icon + gap-3 px-6 in the drawer)
-          rather than the old small icon-only button. */}
+          row, matching NAV_ITEMS' shape per variant (44px icon slot +
+          fade label inset in the rail's p-2 gutter; inline icon + gap-3
+          px-6 in the drawer) rather than the old small icon-only button. */}
       <button
         type="button"
         onClick={() => setConfirmOpen(true)}
@@ -123,12 +124,12 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
         aria-label="Sign out"
         className={cn(
           "transition-swift flex items-center text-fg-muted hover:bg-danger-soft hover:text-danger focus-visible:bg-danger-soft focus-visible:text-danger focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
-          isRail ? "h-11" : "h-12 gap-3 px-6",
+          isRail ? "h-11 rounded-md" : "h-12 gap-3 px-6",
         )}
       >
         {isRail ? (
           <>
-            <span className="flex h-11 w-[60px] shrink-0 items-center justify-center">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center">
               <SignOutIcon className="h-4 w-4" />
             </span>
             <span className="mullion-rail-label flex-1 overflow-hidden whitespace-nowrap px-1 text-left font-mono text-[11px] uppercase tracking-[0.2em]">

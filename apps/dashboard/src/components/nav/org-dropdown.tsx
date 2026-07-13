@@ -227,13 +227,13 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
           onKeyDown={handleTriggerKeyDown}
           className={cn(
             "transition-swift flex w-full items-center focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
-            // Rail: inset card — a faint ember fill and rounding against the
-            // full-bleed nav rows below, deliberately static on hover (the
-            // brand tint IS the identity treatment, not an interactive
-            // state; the chevron and cursor carry the affordance). Slot is
-            // w-11, not the rail's usual 60px: the p-2 wrapper eats 8px a
-            // side, so 44px is what keeps the monogram dead-center at the
-            // 60px resting width.
+            // Rail: inset card — a faint ember fill and rounding, same
+            // p-2-gutter/rounded-md language as the nav rows below,
+            // deliberately static on hover (the brand tint IS the identity
+            // treatment, not an interactive state; the chevron and cursor
+            // carry the affordance). Slot is w-11, not the rail's usual
+            // 60px: the p-2 wrapper eats 8px a side, so 44px is what keeps
+            // the monogram dead-center at the 60px resting width.
             isRail
               ? "h-11 rounded-md bg-accent-soft/70"
               : "h-12 gap-3 px-6 hover:bg-elevated focus-visible:bg-elevated",
