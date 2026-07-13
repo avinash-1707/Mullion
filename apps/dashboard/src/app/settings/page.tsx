@@ -23,12 +23,9 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-16 lg:py-20">
-      <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gilt">Settings</p>
-      <h1 className="mt-3 font-serif text-4xl leading-tight tracking-tight text-fg">Account</h1>
-      <p className="mt-2 text-sm text-fg-muted">
-        Manage your profile, password, connected accounts, models, and usage.
-      </p>
-
+      {/* Visible heading dropped by design — the tab list is the page's top
+          element; screen readers still get a page title. */}
+      <h1 className="sr-only">Settings</h1>
       <SettingsTabs />
     </div>
   );

@@ -46,7 +46,7 @@ export function SettingsTabs() {
   );
 
   return (
-    <div className="mt-14">
+    <div>
       <TabList items={TABS} value={activeTab} onChange={setActiveTab} idBase={idBase} />
 
       <TabPanel value="profile" activeValue={activeTab} idBase={idBase} className="flex flex-col gap-14 pt-14">
