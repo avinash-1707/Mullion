@@ -1,4 +1,4 @@
-import { and, desc, eq, notInArray } from "drizzle-orm";
+import { and, desc, eq, notInArray, sql } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
@@ -6,12 +6,14 @@ import { schema } from "@mullion/db";
 import {
   createBuildBodySchema,
   escalationDecisionBodySchema,
+  listBuildsQuerySchema,
   type BuildRun,
   type BuildTask,
 } from "@mullion/schemas";
 import { z } from "zod";
 import { escalationSignal, startBuildRun, workflowIdForRun, type EscalationDecision } from "@mullion/orchestrator";
 import { db } from "../../lib/db.js";
+import { decodeBuildsCursor, encodeBuildsCursor } from "./cursor.js";
 import { requireOrgMember, type RequiredAuthVariables } from "../../middleware/session.js";
 import { getTemporalClient } from "../../lib/temporal.js";
 import { streamEvents } from "../../lib/sse.js";
@@ -143,16 +145,38 @@ export const buildsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
 
     return c.json(toApiShape(run), 201);
   })
-  // Dashboard entry: the org's recent runs, newest first (02 §7.1).
-  .get("/", async (c) => {
+  // Dashboard entry: the org's runs, newest first, cursor-paginated
+  // (02 §7.1, ADR-77). Keyset on (created_at, id) — id breaks created_at
+  // ties — so concurrent inserts can't skip or duplicate rows the way an
+  // OFFSET walk would.
+  .get("/", zValidator("query", listBuildsQuerySchema), async (c) => {
     const organizationId = c.get("organizationId");
+    const { cursor: rawCursor, limit } = c.req.valid("query");
+    const cursor = rawCursor === undefined ? null : decodeBuildsCursor(rawCursor);
+    if (rawCursor !== undefined && cursor === null) {
+      throw new HTTPException(400, { message: "Invalid cursor" });
+    }
     const rows = await db
       .select()
       .from(schema.runs)
-      .where(eq(schema.runs.organizationId, organizationId))
-      .orderBy(desc(schema.runs.createdAt))
-      .limit(20);
-    return c.json(rows.map(toApiShape));
+      .where(
+        and(
+          eq(schema.runs.organizationId, organizationId),
+          // Row-value comparison, matching the composite ORDER BY exactly —
+          // two separate ANDed comparisons would drop same-timestamp rows.
+          cursor
+            ? sql`(${schema.runs.createdAt}, ${schema.runs.id}) < (${cursor.createdAt.toISOString()}::timestamptz, ${cursor.id}::uuid)`
+            : undefined,
+        ),
+      )
+      .orderBy(desc(schema.runs.createdAt), desc(schema.runs.id))
+      // One row past the page proves (or disproves) a next page without a
+      // separate COUNT.
+      .limit(limit + 1);
+    const items = rows.slice(0, limit);
+    const last = items[items.length - 1];
+    const nextCursor = rows.length > limit && last ? encodeBuildsCursor(last) : null;
+    return c.json({ items: items.map(toApiShape), nextCursor });
   })
   .get("/:id", async (c) => c.json(toApiShape(await loadRun(c))))
   // Task rows for the timeline — statuses update live via the run stream;

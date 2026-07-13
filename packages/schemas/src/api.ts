@@ -54,7 +54,29 @@ export const buildRunSchema = z.object({
 
 export type BuildRun = z.infer<typeof buildRunSchema>;
 
-export const buildRunListSchema = z.array(buildRunSchema);
+// Cursor-paginated list envelope (ADR-77). `nextCursor` is an opaque server
+// token (keyset on created_at+id) — null means the last page. The template
+// for future org-scoped lists (e.g. the planned LLM-calls log).
+export const buildRunListPageSchema = z.object({
+  items: z.array(buildRunSchema),
+  nextCursor: z.string().nullable(),
+});
+export type BuildRunListPage = z.infer<typeof buildRunListPageSchema>;
+
+export const listBuildsQuerySchema = z.object({
+  // max(256) bounds the decode work — a real cursor is ~82 chars, so
+  // anything larger is garbage; reject it at the schema, not the transport.
+  cursor: z.string().min(1).max(256).optional(),
+  // Above-cap limits clamp to 50 rather than 400 — a client asking for more
+  // just gets the max; garbage (non-numeric, zero, negative) still rejects.
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .default(20)
+    .transform((n) => Math.min(n, 50)),
+});
+export type ListBuildsQuery = z.infer<typeof listBuildsQuerySchema>;
 
 // Task rows as the dashboard timeline consumes them (02 §7.1) — result is
 // the TaskResult jsonb, passed through as unknown for the client to narrow.

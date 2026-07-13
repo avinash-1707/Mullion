@@ -311,7 +311,12 @@ export const runs = pgTable(
       .references(() => user.id),
     buildSpecId: uuid("build_spec_id").notNull(),
     status: runStatus("status").notNull().default("queued"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // precision 3 (ms), not the default µs: created_at is the keyset ordering
+    // column (ADR-77/78) and the opaque cursor round-trips through a JS Date,
+    // which only carries milliseconds — at µs precision a same-millisecond
+    // boundary row would compare below the truncated cursor and silently
+    // drop from the next page.
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow()
@@ -323,6 +328,10 @@ export const runs = pgTable(
       .on(t.userId)
       .where(sql`${t.status} NOT IN ('done', 'failed')`),
     index("runs_org_idx").on(t.organizationId),
+    // The dashboard's cursor-paginated list is a keyset scan ordered by
+    // (created_at, id) within an org (ADR-77) — the created_at suffix keeps
+    // it a range scan, same shape as cost_events_org_created_idx.
+    index("runs_org_created_idx").on(t.organizationId, t.createdAt),
     unique("runs_id_org_uq").on(t.id, t.organizationId),
     foreignKey({
       columns: [t.buildSpecId, t.organizationId],
