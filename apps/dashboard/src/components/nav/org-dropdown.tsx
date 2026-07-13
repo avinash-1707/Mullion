@@ -106,8 +106,13 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
   // pending placeholder always resolves into the real row.
   if (isPending || !organizations) {
     return (
-      <div className={cn("border-b border-hairline", isRail && "p-2")}>
-        <div className={cn("flex items-center", isRail ? "h-11 rounded-md bg-accent-soft/70" : "h-12 gap-3 px-6")}>
+      <div className="border-b border-hairline p-2">
+        <div
+          className={cn(
+            "flex items-center rounded-md bg-accent-soft/70",
+            isRail ? "h-11" : "h-12 gap-3 px-4",
+          )}
+        >
           <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
             <Skeleton className="h-7 w-7" />
           </span>
@@ -214,7 +219,7 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
   }
 
   return (
-    <div className={cn("flex flex-col border-b border-hairline", isRail && "p-2")}>
+    <div className="flex flex-col border-b border-hairline p-2">
       <div ref={rootRef} className="relative" data-menu-open={open || undefined}>
         <button
           ref={triggerRef}
@@ -226,17 +231,19 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
           onClick={handleTriggerClick}
           onKeyDown={handleTriggerKeyDown}
           className={cn(
-            "transition-swift flex w-full items-center focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
-            // Rail: inset card — a faint ember fill and rounding, same
-            // p-2-gutter/rounded-md language as the nav rows below,
-            // deliberately static on hover (the brand tint IS the identity
-            // treatment, not an interactive state; the chevron and cursor
-            // carry the affordance). Slot is w-11, not the rail's usual
-            // 60px: the p-2 wrapper eats 8px a side, so 44px is what keeps
-            // the monogram dead-center at the 60px resting width.
-            isRail
-              ? "h-11 rounded-md bg-accent-soft/70"
-              : "h-12 gap-3 px-6 hover:bg-elevated focus-visible:bg-elevated",
+            // Inset card — a faint ember fill and rounding, same
+            // p-2-gutter/rounded-md language as the nav rows below, shared
+            // by both variants (rail and drawer alike), deliberately static
+            // on hover (the brand tint IS the identity treatment, not an
+            // interactive state; the chevron and cursor carry the
+            // affordance).
+            "transition-swift flex w-full items-center rounded-md bg-accent-soft/70 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
+            // Rail: icon slot is w-11, not the rail's usual 60px — the p-2
+            // wrapper eats 8px a side, so 44px is what keeps the monogram
+            // dead-center at the 60px resting width. Drawer: no fixed slot,
+            // just an inline gap; px-4 (+ the wrapper's 8px) lines the text
+            // up at the same 24px inset the old full-bleed px-6 row had.
+            isRail ? "h-11" : "h-12 gap-3 px-4",
           )}
         >
           <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
@@ -258,10 +265,9 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
           aria-label="Switch workspace"
           inert={!open || undefined}
           className={cn(
-            "mullion-select-popup absolute top-[calc(100%+6px)] z-30 max-h-64 origin-top overflow-y-auto rounded-lg border border-hairline bg-elevated p-1 shadow-[0_20px_48px_-12px_rgba(0,0,0,0.6)]",
-            // Rail: the p-2 wrapper already insets the anchor 8px a side, so
-            // the panel spans it edge-to-edge.
-            isRail ? "left-0 right-0" : "left-6 right-6",
+            // The p-2 wrapper insets the anchor 8px a side for both
+            // variants now, so the panel spans it edge-to-edge either way.
+            "mullion-select-popup absolute inset-x-0 top-[calc(100%+6px)] z-30 max-h-64 origin-top overflow-y-auto rounded-lg border border-hairline bg-elevated p-1 shadow-[0_20px_48px_-12px_rgba(0,0,0,0.6)]",
             open && "mullion-select-open",
           )}
         >
@@ -322,7 +328,7 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
               </span>
             </>
           ) : (
-            <div className="flex min-w-0 items-center gap-2 px-6 py-2">
+            <div className="flex min-w-0 items-center gap-2 px-4 py-2">
               <WarningIcon className="h-3.5 w-3.5 shrink-0 text-danger" />
               <span className="truncate text-xs text-danger">
                 {setActiveOrg.error?.message ?? "Couldn't switch organizations."}

@@ -197,7 +197,7 @@ export function MobileNav() {
 
           <OrgDropdown variant="drawer" onNavigate={() => setOpen(false)} />
 
-          <nav aria-label="Primary" className="flex flex-col">
+          <nav aria-label="Primary" className="flex flex-col gap-1 p-2">
             {NAV_ITEMS.map((item) => {
               const active = isActive(pathname, item);
               return (
@@ -208,11 +208,10 @@ export function MobileNav() {
                   aria-current={active ? "page" : undefined}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    "transition-swift relative flex h-12 items-center gap-3 px-6 text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none",
+                    "transition-swift flex h-12 items-center gap-3 rounded-md px-4 text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none",
                     active && "bg-accent-soft text-fg",
                   )}
                 >
-                  {active ? <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-accent" /> : null}
                   <item.Icon className={cn("h-4 w-4", active && "text-accent-strong")} />
                   <span className="font-mono text-[11px] uppercase tracking-[0.2em]">{item.label}</span>
                 </Link>

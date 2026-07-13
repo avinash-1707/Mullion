@@ -62,14 +62,14 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
 
   if (isPending || !session) {
     return (
-      <div className={cn("flex flex-col", isRail && "gap-1 border-t border-hairline p-2")}>
-        <div className={cn("flex items-center", isRail ? "h-11 rounded-md" : "h-12 gap-3 px-6")}>
+      <div className={cn("flex flex-col gap-1 p-2", isRail && "border-t border-hairline")}>
+        <div className={cn("flex items-center rounded-md", isRail ? "h-11" : "h-12 gap-3 px-4")}>
           <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
             <Skeleton className="h-7 w-7" />
           </span>
           <Skeleton className={cn("h-3 w-24", isRail && "mullion-rail-label")} />
         </div>
-        <div className={cn("flex items-center", isRail ? "h-11 rounded-md" : "h-12 gap-3 px-6")}>
+        <div className={cn("flex items-center rounded-md", isRail ? "h-11" : "h-12 gap-3 px-4")}>
           <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
             <Skeleton className="h-4 w-4" />
           </span>
@@ -85,19 +85,22 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
   const title = rawName ? `${rawName} - ${email}` : email;
 
   return (
-    <div className={cn("flex flex-col", isRail && "gap-1 border-t border-hairline p-2")}>
+    <div className={cn("flex flex-col gap-1 p-2", isRail && "border-t border-hairline")}>
       {/* Row 1: avatar + name as ONE link to /settings — the name is part
           of the hit target, not dead text next to it. Matches NAV_ITEMS'
-          row shape per variant (h-11 pill row + 44px icon slot inset in the
-          rail's p-2 gutter; h-12 inline row in the drawer). */}
+          row shape per variant: h-11 pill + 44px icon slot inset in the
+          rail's p-2 gutter; h-12 inline pill inset in the drawer's own p-2
+          gutter (px-4, not the old full-bleed px-6 — the wrapper's 8px
+          gutter makes up the difference so the text lands at the same
+          24px inset as before). */}
       <Link
         href="/settings"
         onClick={() => onNavigate?.()}
         aria-label="Account settings"
         title={title}
         className={cn(
-          "transition-swift flex items-center text-fg hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none",
-          isRail ? "h-11 rounded-md" : "h-12 gap-3 px-6",
+          "transition-swift flex items-center rounded-md text-fg hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none",
+          isRail ? "h-11" : "h-12 gap-3 px-4",
         )}
       >
         <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
@@ -114,17 +117,18 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
       </Link>
 
       {/* Row 2: sign out — its own full-row hit target below the profile
-          row, matching NAV_ITEMS' shape per variant (44px icon slot +
-          fade label inset in the rail's p-2 gutter; inline icon + gap-3
-          px-6 in the drawer) rather than the old small icon-only button. */}
+          row, matching NAV_ITEMS' shape per variant (44px icon slot + fade
+          label inset in the rail's p-2 gutter; inline icon + gap-3 px-4
+          inset in the drawer's own p-2 gutter) rather than the old small
+          icon-only button. */}
       <button
         type="button"
         onClick={() => setConfirmOpen(true)}
         disabled={signOut.isPending}
         aria-label="Sign out"
         className={cn(
-          "transition-swift flex items-center text-fg-muted hover:bg-danger-soft hover:text-danger focus-visible:bg-danger-soft focus-visible:text-danger focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
-          isRail ? "h-11 rounded-md" : "h-12 gap-3 px-6",
+          "transition-swift flex items-center rounded-md text-fg-muted hover:bg-danger-soft hover:text-danger focus-visible:bg-danger-soft focus-visible:text-danger focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
+          isRail ? "h-11" : "h-12 gap-3 px-4",
         )}
       >
         {isRail ? (
