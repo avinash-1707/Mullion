@@ -112,7 +112,7 @@ export default function PlanningSessionPage() {
 
       {showResumedNotice ? (
         <div className="border-b border-border bg-elevated px-4 py-2 text-center text-xs text-fg-muted sm:px-6">
-          Resuming your active session — you already had one in progress.
+          Resuming your active session - you already had one in progress.
         </div>
       ) : null}
 

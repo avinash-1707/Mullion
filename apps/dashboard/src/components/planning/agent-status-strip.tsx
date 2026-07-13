@@ -47,7 +47,7 @@ export function AgentStatusStrip({ agentState, agentError, actor, isCreator, onR
           {isRetrying ? "Retrying…" : "Try again"}
         </Button>
       ) : (
-        <span className="text-xs text-danger/70">View only — waiting on the creator</span>
+        <span className="text-xs text-danger/70">View only - waiting on the creator</span>
       )}
     </div>
   );

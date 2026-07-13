@@ -105,7 +105,7 @@ export function usePlanningSession(sessionId: string): UsePlanningSessionResult 
         try {
           payload = JSON.parse(message.data);
         } catch {
-          console.error(`Malformed SSE payload for "${type}" — dropped.`);
+          console.error(`Malformed SSE payload for "${type}" - dropped.`);
           return;
         }
         const parsed = planningEventSchema.safeParse(payload);
@@ -194,7 +194,7 @@ export function usePlanningSession(sessionId: string): UsePlanningSessionResult 
       if (error instanceof ApiError && error.status === 409) {
         const parsed = confirmConflictSchema.safeParse(error.body);
         setConfirmConflict({
-          message: parsed.success ? parsed.data.error : "Confirmation was rejected — try again after re-checking the graph.",
+          message: parsed.success ? parsed.data.error : "Confirmation was rejected - try again after re-checking the graph.",
           issues: parsed.success ? parsed.data.issues : undefined,
         });
         return;

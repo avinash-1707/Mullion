@@ -61,7 +61,7 @@ export default function BuildsPage() {
           </span>
           <h2 className="font-serif text-xl text-fg">No builds yet</h2>
           <p className="max-w-sm text-sm text-fg-muted">
-            Builds start from a confirmed planning session — freeze an architecture, then choose &ldquo;Build it for us.&rdquo;
+            Builds start from a confirmed planning session - freeze an architecture, then choose &ldquo;Build it for us.&rdquo;
           </p>
           <Link href="/" className={buttonVariants({ variant: "primary", size: "sm" })}>
             Go to dashboard

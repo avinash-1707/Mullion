@@ -61,7 +61,7 @@ export function RequirementsDocumentCard({
         <section className="flex flex-col gap-2.5">
           <div className="flex items-baseline gap-2">
             <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted">Assumptions</h2>
-            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-accent">editable — unconfirmed</span>
+            <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-accent">editable - unconfirmed</span>
           </div>
           <ul className="flex flex-col gap-2">
             {doc.assumptions.map((a) => (
@@ -107,7 +107,7 @@ export function RequirementsDocumentCard({
             Edit answers
           </Button>
           <Button onClick={onProceed} disabled={disabled || isProceeding}>
-            {isProceeding ? "Starting the plan…" : "Looks good — plan the architecture"}
+            {isProceeding ? "Starting the plan…" : "Looks good - plan the architecture"}
           </Button>
         </div>
       ) : null}

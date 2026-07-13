@@ -72,12 +72,12 @@ export function useBuildRun(runId: string): UseBuildRunResult {
         try {
           payload = JSON.parse(message.data);
         } catch {
-          console.error(`Malformed SSE payload for "${type}" — dropped.`);
+          console.error(`Malformed SSE payload for "${type}" - dropped.`);
           return;
         }
         const event = parseBuildStreamEvent(type, payload);
         if (!event) {
-          console.error(`SSE event "${type}" failed schema validation — dropped.`);
+          console.error(`SSE event "${type}" failed schema validation - dropped.`);
           return;
         }
 

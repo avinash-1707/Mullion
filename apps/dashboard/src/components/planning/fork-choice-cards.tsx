@@ -49,7 +49,7 @@ export function ForkChoiceCards({ sessionId, buildSpecId }: ForkChoiceCardsProps
         <div>
           <h3 className="font-serif text-xl leading-snug text-fg">Export spec documents</h3>
           <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">
-            Requirements, architecture diagram, task graph, API contracts, and the full decision log — bundled as a
+            Requirements, architecture diagram, task graph, API contracts, and the full decision log - bundled as a
             downloadable archive. No build compute spent.
           </p>
         </div>

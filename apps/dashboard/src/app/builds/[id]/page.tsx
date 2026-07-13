@@ -160,7 +160,7 @@ export default function BuildRunPage() {
           {delivery ? (
             <BuildDeliveryPanel deliveries={delivery.deliveries} isPartial={delivery.isPartial} />
           ) : (
-            <p className="text-center text-xs text-fg-faint">The run finished — waiting on the delivery summary.</p>
+            <p className="text-center text-xs text-fg-faint">The run finished - waiting on the delivery summary.</p>
           )}
         </div>
       ) : null}

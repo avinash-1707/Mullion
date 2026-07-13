@@ -48,7 +48,7 @@ export function HeroIdeaForm() {
           className="block w-full resize-none overflow-y-auto bg-transparent px-6 pt-6 pb-16 text-lg leading-relaxed text-ink outline-none placeholder:text-ink-faint sm:text-xl"
         />
         {/* Floats inside the same surface, chat-composer style, instead of
-            sitting in a separated footer row — the textarea's own pb-16
+            sitting in a separated footer row - the textarea's own pb-16
             reserves the corner so typed text never runs under it. */}
         <button
           type="submit"

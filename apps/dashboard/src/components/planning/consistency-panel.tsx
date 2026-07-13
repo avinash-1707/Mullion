@@ -37,7 +37,7 @@ export function ConsistencyPanel({
   let helper: string;
   let canConfirm = false;
   if (agentState === "working") {
-    helper = "The agent is still working — confirm unlocks once it settles.";
+    helper = "The agent is still working - confirm unlocks once it settles.";
   } else if (agentState === "error") {
     helper = "Resolve the error above before confirming.";
   } else if (!consistency) {

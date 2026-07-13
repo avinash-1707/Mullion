@@ -37,7 +37,7 @@ export function OrgRenameField({ canManage }: OrgRenameFieldProps) {
   }
 
   if (!canManage) {
-    return <p className="text-sm text-fg">{activeOrg?.name ?? "—"}</p>;
+    return <p className="text-sm text-fg">{activeOrg?.name ?? "-"}</p>;
   }
 
   return (

@@ -19,7 +19,7 @@ export function createMetadata({
   path = "/",
   noIndex = false,
 }: PageMetadataOptions = {}): Metadata {
-  const ogTitle = title ? `${title} · ${siteConfig.name}` : `${siteConfig.name} — ${siteConfig.tagline}`;
+  const ogTitle = title ? `${title} · ${siteConfig.name}` : `${siteConfig.name} - ${siteConfig.tagline}`;
 
   return {
     ...(title ? { title } : {}),
@@ -39,7 +39,7 @@ export function createMetadata({
           url: siteConfig.ogImage,
           width: 1200,
           height: 630,
-          alt: `${siteConfig.name} — ${siteConfig.tagline}`,
+          alt: `${siteConfig.name} - ${siteConfig.tagline}`,
         },
       ],
     },

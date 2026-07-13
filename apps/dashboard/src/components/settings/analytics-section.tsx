@@ -47,7 +47,7 @@ function AnalyticsContent({ data }: { data: AnalyticsResponse }) {
       <div className="rounded-lg border border-hairline px-5 py-10 text-center">
         <p className="font-serif text-xl text-fg">Nothing spent yet.</p>
         <p className="mt-2 text-sm text-fg-muted">
-          Usage shows up here once a session starts calling models — start a build from the dashboard to see it.
+          Usage shows up here once a session starts calling models - start a build from the dashboard to see it.
         </p>
       </div>
     );

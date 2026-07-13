@@ -103,7 +103,7 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphFlowNode>) {
         </p>
       ) : null}
       {isRemoved ? (
-        <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-fg-faint">Removed — kept for history</p>
+        <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-fg-faint">Removed - kept for history</p>
       ) : null}
     </div>
   );

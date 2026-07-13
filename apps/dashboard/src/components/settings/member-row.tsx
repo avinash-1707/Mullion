@@ -123,7 +123,7 @@ export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
         onCancel={() => setSelfDemoteOpen(false)}
         onConfirm={handleConfirmSelfDemote}
         title="Change your own role?"
-        description="You'll lose admin access to this tab — someone else with admin will need to promote you back."
+        description="You'll lose admin access to this tab - someone else with admin will need to promote you back."
         confirmLabel="Change role"
         pendingLabel="Changing…"
       />

@@ -95,7 +95,7 @@ function ClarificationRow({
           </button>
         ))}
       </div>
-      {entry.answered ? <p className="text-[11px] text-accent-strong">Answered — waiting on the agent.</p> : null}
+      {entry.answered ? <p className="text-[11px] text-accent-strong">Answered - waiting on the agent.</p> : null}
     </div>
   );
 }
@@ -133,7 +133,7 @@ export function DecisionLogPanel({ decisions, clarifications, isCreator, agentBu
     <div className="flex h-full min-h-0 flex-col border border-border bg-bg">
       <div className="shrink-0 border-b border-border px-4 py-3">
         <h2 className="font-serif text-lg text-fg">Decision log</h2>
-        <p className="text-xs text-fg-faint">Every choice, with why — never silent.</p>
+        <p className="text-xs text-fg-faint">Every choice, with why - never silent.</p>
       </div>
       <div ref={scrollRef} onScroll={handleScroll} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
         {items.length === 0 ? (

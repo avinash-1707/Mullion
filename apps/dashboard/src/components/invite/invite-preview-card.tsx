@@ -65,7 +65,7 @@ export function InvitePreviewCard({ invitationId }: InvitePreviewCardProps) {
     return (
       <TerminalCard
         title="Invitation not found"
-        message="This link doesn't point to a real invitation — check you copied the whole URL."
+        message="This link doesn't point to a real invitation - check you copied the whole URL."
         signedIn={Boolean(session)}
       />
     );
@@ -200,7 +200,7 @@ export function InvitePreviewCard({ invitationId }: InvitePreviewCardProps) {
           href="/"
           className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted transition-swift hover:text-fg focus-visible:text-fg focus-visible:outline-none"
         >
-          Not now — go to dashboard
+          Not now - go to dashboard
         </Link>
       </div>
       {accept.error ? (

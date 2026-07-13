@@ -101,7 +101,7 @@ export function MembersSection() {
         <div>
           <h2 className="font-serif text-2xl leading-snug tracking-tight text-fg">Invitations</h2>
           <p className="mt-1 text-sm text-fg-muted">
-            Invite teammates by email — they&rsquo;ll join with the role you pick.
+            Invite teammates by email - they&rsquo;ll join with the role you pick.
           </p>
         </div>
 

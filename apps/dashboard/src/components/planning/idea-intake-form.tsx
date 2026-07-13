@@ -55,7 +55,7 @@ export function IdeaIntakeForm() {
           What do you want to build?
         </label>
         <p className="mt-1.5 text-sm text-fg-muted">
-          One line or a short paragraph — an analyst will ask a few clarifying questions next.
+          One line or a short paragraph - an analyst will ask a few clarifying questions next.
         </p>
 
         <textarea
@@ -81,7 +81,7 @@ export function IdeaIntakeForm() {
 
         {touched && !isValid ? (
           <p role="alert" className="mt-3 text-sm text-danger">
-            {tooLong ? "That's a lot — trim it under 10,000 characters." : "Describe what you want to build first."}
+            {tooLong ? "That's a lot - trim it under 10,000 characters." : "Describe what you want to build first."}
           </p>
         ) : null}
 

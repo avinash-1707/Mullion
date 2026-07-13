@@ -55,13 +55,13 @@ export function BuildEscalationGate({
             <WarningIcon className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-danger">Escalation — action needed</p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-danger">Escalation - action needed</p>
             <h2 className="mt-1 font-serif text-xl leading-snug text-fg">
               Task <span className="font-mono text-base text-danger">{specTaskId}</span> needs a decision
             </h2>
             <p className="mt-1.5 text-sm leading-relaxed text-fg">{reason}</p>
             <p className="mt-1.5 font-mono text-[11px] text-danger/75">
-              This gate expires automatically after 30 minutes — an unanswered gate abandons this task and the build
+              This gate expires automatically after 30 minutes - an unanswered gate abandons this task and the build
               continues with what exists.
             </p>
           </div>
@@ -79,7 +79,7 @@ export function BuildEscalationGate({
         {redirectOpen ? (
           <div className="flex flex-col gap-2.5 border border-danger/30 bg-bg/40 p-3">
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-danger/80">
-              Redirect — scoped to this task only
+              Redirect - scoped to this task only
             </p>
             <Textarea
               fieldId="escalation-redirect"
@@ -126,7 +126,7 @@ export function BuildEscalationGate({
               onClick={() => decide("approve", { specTaskId, decision: "approve" })}
               disabled={isSubmitting}
             >
-              {isSubmitting && pendingAction === "approve" ? "Approving…" : "Approve — continue without this task"}
+              {isSubmitting && pendingAction === "approve" ? "Approving…" : "Approve - continue without this task"}
             </Button>
             <Button type="button" variant="secondary" size="sm" onClick={() => setRedirectOpen(true)} disabled={isSubmitting}>
               Redirect this task
@@ -139,7 +139,7 @@ export function BuildEscalationGate({
               disabled={isSubmitting}
               className="border-danger/40 text-danger hover:border-danger hover:text-danger"
             >
-              {isSubmitting && pendingAction === "abandon" ? "Abandoning…" : "Abandon — finish with what exists"}
+              {isSubmitting && pendingAction === "abandon" ? "Abandoning…" : "Abandon - finish with what exists"}
             </Button>
           </div>
         )}

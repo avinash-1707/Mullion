@@ -155,7 +155,7 @@ function TimelineRow({ entry }: { entry: BuildTimelineEntry }) {
             <DownloadIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-strong" />
             <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
               <p className="text-xs text-fg">
-                Delivery ready — {event.deliveries.length} artifact{event.deliveries.length === 1 ? "" : "s"}
+                Delivery ready - {event.deliveries.length} artifact{event.deliveries.length === 1 ? "" : "s"}
                 {event.isPartial ? <span className="ml-1.5 text-accent-strong">(partial)</span> : null}
               </p>
               {time}

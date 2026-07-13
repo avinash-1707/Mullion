@@ -81,7 +81,7 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
   const email = session.user.email;
   const rawName = (session.user.name ?? "").trim();
   const displayName = resolveDisplayName(session.user.name ?? "", email);
-  const title = rawName ? `${rawName} — ${email}` : email;
+  const title = rawName ? `${rawName} - ${email}` : email;
 
   return (
     <div className="flex flex-col">

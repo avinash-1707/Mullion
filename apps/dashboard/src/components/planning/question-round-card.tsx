@@ -135,7 +135,7 @@ export function QuestionRoundRecap({ round }: QuestionRoundRecapProps) {
             <p className="text-sm font-medium text-fg">
               {answer
                 ? [...answer.selectedOptions, ...(answer.otherText ? [answer.otherText] : [])].join(", ")
-                : "—"}
+                : "-"}
             </p>
           </div>
         );

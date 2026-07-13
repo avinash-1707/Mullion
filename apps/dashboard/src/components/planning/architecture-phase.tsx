@@ -65,9 +65,9 @@ export function ArchitecturePhase({
   }
 
   let editDisabledMessage: string | null = null;
-  if (!isCreator) editDisabledMessage = "View only — created by someone else in your org.";
+  if (!isCreator) editDisabledMessage = "View only - created by someone else in your org.";
   else if (agentState === "error") editDisabledMessage = "Resolve the error above before sending another edit.";
-  else if (agentState === "working") editDisabledMessage = "The agent is working — one moment…";
+  else if (agentState === "working") editDisabledMessage = "The agent is working - one moment…";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

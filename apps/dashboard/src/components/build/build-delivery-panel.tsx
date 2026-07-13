@@ -99,7 +99,7 @@ export function BuildDeliveryPanel({ deliveries, isPartial }: BuildDeliveryPanel
       {isPartial ? (
         <div className="flex items-start gap-2 border border-accent/30 bg-accent-soft px-3.5 py-2.5 text-xs text-accent-strong">
           <WarningIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <p>Partial delivery — the build ended before every task completed. What was built ships anyway.</p>
+          <p>Partial delivery - the build ended before every task completed. What was built ships anyway.</p>
         </div>
       ) : null}
 
