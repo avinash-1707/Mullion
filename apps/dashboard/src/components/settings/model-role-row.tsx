@@ -13,45 +13,39 @@ interface ModelRoleRowProps {
   canManage: boolean;
 }
 
-// Sentinel <option> value for "no override" — distinct from any real model
-// slug so the platform-default row is unambiguous even if a slug were ever
-// spelled the same as this string.
-const PLATFORM_DEFAULT_VALUE = "__platform_default__";
-
 // One row per role (GET /models). Each row owns its own mutation instance,
 // so a slow/failed save on one role never blocks or misattributes state to
 // another row's select.
+//
+// No "Platform default" sentinel row: with no override the select simply
+// shows the default model as the selected value, and picking the default
+// slug is sent as modelSlug: null (clear the override) so "chose the
+// default explicitly" and "never overrode" stay the same server-side state.
 export function ModelRoleRow({ role, byokEnabled, canManage }: ModelRoleRowProps) {
   const updateModel = useUpdateModelMutation();
-  const selectedValue = role.overrideModelSlug ?? PLATFORM_DEFAULT_VALUE;
+  const selectedValue = role.overrideModelSlug ?? role.defaultModelSlug;
 
   function handleChange(nextValue: string) {
-    updateModel.mutate({ role: role.role, modelSlug: nextValue === PLATFORM_DEFAULT_VALUE ? null : nextValue });
+    if (nextValue === selectedValue) return;
+    updateModel.mutate({ role: role.role, modelSlug: nextValue === role.defaultModelSlug ? null : nextValue });
   }
 
   const customPickTitle = !canManage
     ? "Only an organization owner or admin can change models"
     : "Add an API key to pick your own model";
-  // Slug -> human name + brand icon (model-display.ts / provider-icons.tsx)
-  // so the dropdown never shows a raw OpenRouter slug to the user.
-  const options: SelectOption[] = [
-    {
-      value: PLATFORM_DEFAULT_VALUE,
-      label: `Platform default (${formatModelName(role.defaultModelSlug)})`,
-      icon: <ProviderIcon slug={role.defaultModelSlug} />,
-    },
-    ...role.allowlist.map((slug) =>
-      byokEnabled && canManage
-        ? { value: slug, label: formatModelName(slug), icon: <ProviderIcon slug={slug} /> }
-        : {
-            value: slug,
-            label: formatModelName(slug),
-            icon: <ProviderIcon slug={slug} />,
-            disabled: true,
-            title: customPickTitle,
-          },
-    ),
-  ];
+  const canPick = byokEnabled && canManage;
+  // Default first, then the allowlist minus the default so the same model
+  // never shows up twice. Slug -> human name + brand icon (model-display.ts
+  // / provider-icons.tsx) so the dropdown never shows a raw OpenRouter slug.
+  const slugs = [role.defaultModelSlug, ...role.allowlist.filter((slug) => slug !== role.defaultModelSlug)];
+  const options: SelectOption[] = slugs.map((slug) => ({
+    value: slug,
+    label: formatModelName(slug),
+    icon: <ProviderIcon slug={slug} />,
+    // The current selection stays enabled even without BYOK so the trigger
+    // renders it normally; committing it is a no-op (see handleChange).
+    ...(canPick || slug === selectedValue ? {} : { disabled: true, title: customPickTitle }),
+  }));
 
   return (
     <li className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">

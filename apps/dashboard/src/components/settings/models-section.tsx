@@ -30,7 +30,11 @@ export function ModelsSection() {
         <FormNote>{byok.error.message}</FormNote>
       ) : null}
 
-      <div className="border-t border-hairline pt-6">
+      <div className="flex flex-col gap-5 border-t border-hairline pt-6">
+        <p className="text-sm text-fg-muted">
+          Models are picked for you based on your subscription tier. Attach your own OpenRouter key above to choose a
+          different model per role.
+        </p>
         {models.isPending ? (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-14 w-full" />
