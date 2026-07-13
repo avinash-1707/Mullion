@@ -92,6 +92,18 @@ export function AnalyticsTabSkeleton() {
         </div>
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-32 w-full" />
+        {/* Per-run spend — label-width placeholder stands in for the
+            "Per-run spend · last 30 days" header, then three row-height
+            skeletons in place of the panel, matching AnalyticsRunRow's
+            h-12-ish resting height. */}
+        <div className="flex flex-col gap-4">
+          <Skeleton className="h-3 w-52" />
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1404,3 +1404,114 @@ analytics-section}.tsx`, `apps/dashboard/src/components/settings-skeleton.tsx`.
 **Related ADR:** none — loading-presentation only.
 **Follow-ups:**
 - Manual pass: reload directly on each ?tab= URL, confirm single-paint.
+
+## 2026-07-14 — Dashboard warmth pass: tokens shifted to brand temperature (ADR-76)
+
+Dashboard read cooler than the marketing dark bands even after the
+dark-hybrid restyle: secondary text was blue-leaning neutral gray,
+`elevated` grew bluer per elevation step, decorative hairline sat at
+0.18 alpha vs the landing's 0.22. Warm-shifted values in place, token
+names untouched (zero call-site changes, same move as the accent
+repoint): `fg-muted` #9a9ca5 → #9b9890 and `fg-faint` #83858e →
+#84817b (parchment flattened over ink at matched lightness),
+`elevated` #191927 → #181822 (constant ink-family blue offset),
+`hairline` gilt 0.18 → 0.22 (matches marketing `hairline-dark`).
+Untouched per ADR: `fg`, `border*`, `danger*`, `success*`, `node-*`,
+and the still-reserved `parchment*` tokens. design-context.md token
+table and "stayed functional" note updated.
+**Files/areas touched:** `apps/dashboard/src/app/globals.css`,
+`apps/dashboard/design-context.md`,
+`docs/specs/04_design_decisions_log.md`.
+**Related ADR:** ADR-76 (new).
+**Follow-ups:**
+- Manual pass: eyeball secondary text on bg/surface/elevated for
+  contrast comfort; skeletons and hover fills on the new `elevated`.
+
+## 2026-07-14 — Builds list: cursor pagination end-to-end, infinite scroll (ADR-77)
+
+GET /api/builds no longer truncates at a flat 20-row array: keyset
+pagination on (created_at DESC, id DESC) with an opaque base64url
+createdAt+id cursor, `{ items, nextCursor }` envelope, limit default
+20 / clamped at 50, invalid cursor → 400 (never 500). New
+`runs_org_created_idx` (organization_id, created_at) mirrors the
+cost_events precedent so every page is an index-backed range scan —
+migration 0010 generated (`drizzle-kit generate`); **apply is pending**
+(`pnpm db:migrate` was not run against the hosted Neon DB from the
+agent session). Schemas: `buildRunListPageSchema` +
+`listBuildsQuerySchema` added, flat `buildRunListSchema` removed (no
+remaining importers). Builds page switched to `useInfiniteQuery`
+(["builds","list"]) with an IntersectionObserver sentinel for infinite
+scroll, 3 skeleton rows while the next page is in flight, and an
+always-visible "Load more" fallback button; subline copy updated.
+Dashboard home stays a plain useQuery of page one at ?limit=3
+(["builds","recent"]). Integration suite updated for the envelope plus
+new cases: cursor walk (no overlap/gaps, tie-stable ordering via the id
+tiebreaker), invalid cursor → 400, limit clamp at 50.
+Gates green: check-types (schemas/db/api/dashboard), api unit (55),
+API_INTEGRATION suite (51, 3 new), dashboard test (38). Repo-wide
+dashboard lint currently fails on a pre-existing react-hooks/refs error
+in `planning/idea-intake-form.tsx` (another in-flight workstream's
+file); both files touched here lint clean.
+**Files/areas touched:** `apps/api/src/modules/builds/{routes,cursor}.ts`,
+`apps/api/src/app.integration.test.ts`, `packages/schemas/src/api.ts`,
+`packages/db/src/schema/app.ts`,
+`packages/db/drizzle/0010_runs-org-created-idx.sql`,
+`apps/dashboard/src/app/{builds/page,page}.tsx`.
+**Related ADR:** ADR-77 (new).
+**Follow-ups:**
+- Apply migration 0010: `pnpm --filter @mullion/db db:migrate`.
+- Manual pass: scroll the builds page against a >20-run org; confirm
+  the sentinel fetch and the Load more fallback both read right.
+
+## 2026-07-14 — Analytics per-run spend list: cursor-paginated, reconciles with tiles (ADR-78)
+
+**What:** New `GET /api/settings/analytics/runs` — per-run LLM spend for
+the settings analytics tab, windowed on `cost_events.created_at` (the
+tiles' window) so list sums reconcile with the totals above minus
+planning-session spend (`run_id IS NULL`, excluded and footnoted, never
+faked as a synthetic row). JOIN cost_events→runs org-scoped on both arms
+(ADR-36), GROUP BY run, keyset cursor on `(runs.created_at, id) DESC`
+reusing ADR-77's cursor helpers/envelope (`{days, items, nextCursor}`,
+limit 20 cap 50, bad cursor → 400). No new index — driving scan is
+`cost_events_org_created_idx` + runs PK join. Dashboard: app-local zod
+schemas (`analyticsRunSchema`/`analyticsRunsPageSchema` in
+`lib/settings-api.ts`), `useAnalyticsRunsQuery` infinite hook, new
+"Per-run spend · last 30 days" section under Daily spend — single
+bordered panel, grid-aligned columns (Run · Status · Started · Tokens ·
+Calls · Cost (30d)), ember cautionary outlier cue (>2× fetched median:
+2px ember left bar + ember semibold cost), IntersectionObserver +
+Load-more fallback, reconciliation footnote linking to /builds.
+Integration tests: `seedCostEvent`/`seedRun` helpers; reconciliation
+(epsilon), cursor walk, tampered cross-org cursor isolation, null-runId +
+sandbox exclusion, boundary-spanning run shows in-window slice only.
+**Files/areas touched:** `apps/api/src/modules/settings/routes.ts`,
+`apps/api/src/app.integration.test.ts`,
+`apps/dashboard/src/lib/settings-api.ts`,
+`apps/dashboard/src/hooks/use-analytics-runs.ts`,
+`apps/dashboard/src/components/settings/{analytics-section,analytics-run-row,tab-skeletons}.tsx`,
+`docs/specs/04_design_decisions_log.md`.
+**Related ADR:** ADR-78 (new).
+
+## 2026-07-14 — Review pass over hero + ADR-77/78: fixes applied
+
+**What:** Five-lens review (correctness, security, tests, perf, blast
+radius) over the three workstreams. Fixes: `runs.created_at` pinned to
+ms precision (migration 0011) so the keyset cursor and the column agree
+— µs precision could silently drop a same-millisecond boundary row;
+cursor query param capped at 256 chars; IntersectionObserver re-attaches
+after each page (short pages could stall auto-load); hero typewriter
+interval now idles off-screen/tab-hidden; `medianOf` extracted to
+`lib/median.ts` with unit tests. Test hardening: byok events in
+reconciliation, days/limit validation + clamp on /analytics/runs,
+sandbox-only run absence, failed-run row (ADR-33), terminal cursor on
+both routes, tied-timestamp walk, cross-org mis-attributed cost_event,
+anon 401 on the runs route. Gates green: check-types both apps, dashboard
+lint, dashboard unit 45, API integration 56.
+**Files/areas touched:** see the two entries above plus
+`apps/dashboard/src/lib/median{,.test}.ts`,
+`packages/db/drizzle/0011_runs-created-at-ms.sql`.
+**Related ADR:** ADR-77 addendum, ADR-78 scaling note.
+**Follow-ups:**
+- Apply migrations 0010 + 0011: `pnpm --filter @mullion/db db:migrate`
+  (blocked from the agent session; performance-only + precision change,
+  everything runs without them).

@@ -1643,3 +1643,174 @@ coexist-and-switch model).
 `apps/dashboard/src/hooks/use-organizations.ts`,
 `apps/dashboard/src/components/nav/create-org-dialog.tsx`,
 `apps/dashboard/src/components/nav/org-dropdown.tsx`
+
+### ADR-76 — Dashboard warmth pass: warm-shift the neutral tokens toward the brand's parchment/ink temperature
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** The dark-hybrid restyle (design-context.md pass 1) aligned
+the dashboard's base dark and accent family to the brand — bg is ink
+`#08080d`, accent is ember — but deliberately left the `fg` family,
+`border*`, and `elevated` untouched as "functional, not
+brand-decorative." The result reads visibly cooler than the marketing
+site's dark bands: secondary text is blue-leaning neutral gray
+(`fg-muted #9a9ca5`, `fg-faint #83858e`) where the landing uses warm
+parchment (cream at 72%/44%); `elevated #191927` carries a stronger
+blue offset than the ink family it sits in; and the decorative
+`hairline` runs gilt at 0.18 alpha vs the landing's 0.22. The owner
+confirmed the temperature mismatch as the thing that reads "off"
+between the two surfaces.
+**Decision:** Warm-shift values in place, keep every token name — the
+same zero-call-site-changes move as pass 1's accent repoint:
+- **`fg-muted` `#9a9ca5` → `#9b9890`, `fg-faint` `#83858e` → `#84817b`.**
+  Both derived by flattening parchment (`rgba(242,236,221)`) over ink
+  at ~63% / ~53% to hex, matched to the old values' lightness so
+  hierarchy and contrast ratios stay effectively unchanged. Solid hex,
+  not rgba: text tokens must not composite differently over `surface`
+  vs `elevated`.
+- **`elevated` `#191927` → `#181822`.** Keeps the ink family's blue
+  offset constant (surface `#10101a` is +10 blue over red; the old
+  elevated grew that to +14) instead of getting bluer with each
+  elevation step.
+- **`hairline` gilt alpha 0.18 → 0.22**, matching the landing's
+  `hairline-dark` exactly.
+- **Untouched:** `fg` (already warm cream-white), `border` /
+  `border-strong` (already near-cream neutral `rgba(232,230,224,…)`),
+  `danger*`, `success*`, `node-*` (state/kind semantics, per pass 1).
+  The unused `parchment` / `parchment-faint` tokens stay reserved for
+  prose surfaces — this ADR warms the defaults rather than migrating
+  call sites onto parchment.
+This amends pass 1's "fg family stays put" rule: the *roles* stay
+functional (no brand meaning, no call-site churn), but the *values* now
+live at the brand's temperature. design-context.md updated to match.
+**Alternatives considered:** migrating secondary copy to
+`parchment`/`parchment-faint` per call site (hundreds of class edits,
+and rgba text composites differently per surface); leaving it as
+documented intent (the mismatch is exactly what the eye catches moving
+between the two apps); warming `border*` too (it's already
+cream-derived and reads neutral by design — no perceptible gain).
+**Doc:** `apps/dashboard/src/app/globals.css`,
+`apps/dashboard/design-context.md`
+
+### ADR-77 — Cursor (keyset) pagination for org-scoped lists: opaque createdAt+id cursor, `{items, nextCursor}` envelope
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** GET `/api/builds` returned a flat array hard-capped at the 20
+newest runs — an org whose history outgrew that had no way to see run 21,
+and the dashboard's builds page had no way to ask for it. Extending the
+cap is not the fix: OFFSET pagination is unstable exactly where this
+product is busiest — a new run inserted between page fetches shifts every
+subsequent offset, so page 2 re-shows a row from page 1 (duplicate) or
+skips one entirely, and OFFSET N still scans-and-discards N rows per page.
+**Decision:**
+- **Keyset pagination on `(created_at DESC, id DESC)`** — `id` as the
+  tiebreaker, since `created_at` ties are possible. The page-2 WHERE
+  clause is a single row-value comparison
+  `(created_at, id) < (cursor.createdAt, cursor.id)` matching the
+  composite ORDER BY exactly (two separate ANDed comparisons would drop
+  same-timestamp rows).
+- **Opaque cursor:** base64url of `${createdAt.toISOString()}_${id}`,
+  decoded and zod-validated server-side; anything malformed answers 400,
+  never a 500. Opaque so clients can't hand-build one and grow a
+  dependency on its internals.
+- **Envelope `{ items: BuildRun[], nextCursor: string | null }`** replaces
+  the flat array (`buildRunListPageSchema` in packages/schemas). The
+  server fetches `limit + 1` rows — one row past the page proves or
+  disproves a next page without a COUNT; `nextCursor: null` means the end.
+- **`?limit=` defaults to 20, capped at 50** — above-cap values clamp to
+  50 rather than 400 (a stale client asking for more just gets the max);
+  non-numeric/zero/negative still reject.
+- **Composite index `runs_org_created_idx` on `(organization_id,
+  created_at)`** (migration 0010), mirroring the
+  `cost_events_org_created_idx` precedent — every page is an index-backed
+  range scan, never an org-wide sort.
+- **This is the template for future org-scoped lists** — the planned
+  LLM-calls log list adopts the same cursor scheme, envelope, and
+  `(org_id, created_at)` index shape rather than re-deciding any of it.
+- Frontend: the builds page walks pages with `useInfiniteQuery`
+  (IntersectionObserver sentinel for infinite scroll, plus an
+  always-visible "Load more" fallback the observer merely automates);
+  the dashboard home stays a plain `useQuery` of the first page at
+  `?limit=3` — it only ever shows three.
+**Alternatives considered:** offset/limit pagination (skips/duplicates
+rows under the concurrent inserts a build platform generates, and scans
+grow linearly with depth); `created_at`-only cursor (breaks on timestamp
+ties — two runs created in the same millisecond loop or skip); JSON
+cursor object in the query string (transparent structure invites clients
+to construct it); page-number + total-count envelope (COUNT per request,
+and page numbers drift under inserts exactly like offsets).
+**Doc:** `apps/api/src/modules/builds/{routes,cursor}.ts`,
+`packages/schemas/src/api.ts`, `packages/db/src/schema/app.ts`,
+`packages/db/drizzle/0010_runs-org-created-idx.sql`,
+`apps/dashboard/src/app/builds/page.tsx`
+**Addendum (review pass, same day):** `runs.created_at` pinned to
+`precision: 3` (migration 0011) — the cursor round-trips through a JS
+Date (ms), so a µs-precision column could silently drop a
+same-millisecond boundary row from the next page; ms precision makes the
+column and the cursor agree exactly. Cursor query param also capped at
+256 chars in `listBuildsQuerySchema` (decode-work bound).
+
+### ADR-78 — Analytics per-run spend list: own endpoint, windowed on cost-event date, footnoted reconciliation
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** The settings analytics tab showed only org-wide aggregates
+(totals, by-role, by-day) — a user could see *how much* was spent but not
+*on what*. The product need is cost attribution at the unit the user
+cares about (the run), for trust and outlier-spotting, not accounting.
+The dangerous part is reconciliation: a per-run list whose numbers don't
+sum to the tiles directly above it erodes exactly the trust it exists to
+build.
+**Decision:**
+- **New endpoint `GET /api/settings/analytics/runs`** rather than
+  extending `/analytics` (a single-shot three-aggregate body has no room
+  for a paginated envelope) or `/api/builds?include=costs` (the builds
+  list is not window-scoped; different concern). Nested under
+  `/analytics/` so the shared `days` window is explicit; inherits
+  `requireOrgMember` from the settings chain.
+- **Window on `cost_events.created_at`** — the SAME window the tiles use
+  — so the list reconciles with the totals by construction. Consequence
+  accepted knowingly: a boundary-spanning run shows only its in-window
+  slice, so the UI labels the column "Cost (30d)", never "run total".
+- **Planning-session spend (`run_id IS NULL`) is excluded, not faked:**
+  it is in the tiles but has no run row to attach to, so exact
+  tiles↔list equality is impossible without a synthetic row. Decision:
+  footnote-only reconciliation ("Sums to the totals above minus
+  planning-session spend"), no synthetic "Planning sessions" row —
+  owner-confirmed taste call.
+- **LLM-only (`source = 'llm'`)**, matching the tiles' deliberate
+  sandbox exclusion — per-run sums must tie out to the numbers above.
+- **Query:** JOIN `cost_events` → `runs` org-scoped on BOTH arms
+  (ADR-36), GROUP BY run, SUM(cost)/SUM(tokens)/COUNT(*); keyset cursor
+  on `(runs.created_at, runs.id) DESC` reusing ADR-77's cursor helpers
+  and envelope verbatim (`{days, items, nextCursor}`, limit 20 cap 50,
+  malformed cursor → 400). No new index: the driving scan is
+  `cost_events_org_created_idx` + the runs PK join; keyset here buys
+  stability (no skip/dupe under concurrent inserts), not an index seek —
+  fine at v1 volumes.
+- **Ordering: run start date** (newest first, "Started" column), not
+  last-spend activity — matches the builds page and keeps the cursor on
+  the grouped ordering columns. Owner-confirmed.
+- **Outlier cue: ember, cautionary** — rows costing > 2× the median of
+  fetched rows get a 2px ember left bar + ember semibold cost figure.
+  Never `danger` red: the same row carries a failed-status pill, and an
+  expensive-but-successful run must not misread as a failure.
+  Owner-confirmed.
+- **Client schemas stay app-local** (`lib/settings-api.ts`), per the
+  existing analytics split — no second caller exists (CODING_STANDARDS
+  §8).
+**Alternatives considered:** window on `runs.created_at` (whole-run costs,
+but a long-running old run's in-window spend would sit in the tiles yet
+be missing from the list — silently breaks reconciliation); synthetic
+planning row for exact sums (a fake, non-clickable row in a runs list);
+`/api/builds?include=costs` (couples the run archive to the spend
+window); last-activity ordering (different cursor key, "old run still
+burning money" surfacing deferred — revisit if users ask).
+**Doc:** `apps/api/src/modules/settings/routes.ts`,
+`apps/dashboard/src/lib/settings-api.ts`,
+`apps/dashboard/src/hooks/use-analytics-runs.ts`,
+`apps/dashboard/src/components/settings/{analytics-section,analytics-run-row,tab-skeletons}.tsx`,
+`apps/api/src/app.integration.test.ts`
+
+**Scaling note (ADR-78, recorded at review):** each page of
+`/analytics/runs` re-aggregates the org's full in-window LLM cost_events
+before sorting (the keyset trims groups, not the scan) — fine to roughly
+100k in-window events (~3-10k runs/30d); past that, invert the driver
+(keyset+LIMIT on runs first, lateral-join the sums) or pre-aggregate.
+Client side, `useInfiniteQuery` accumulates pages unbounded — set
+`maxPages` or virtualize if orgs routinely page deep.

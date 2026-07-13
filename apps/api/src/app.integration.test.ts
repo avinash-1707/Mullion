@@ -308,7 +308,520 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       headers: { Cookie: cookie, Origin: WEB_ORIGIN },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual([]);
+    expect(await res.json()).toEqual({ items: [], nextCursor: null });
+  });
+
+  describe("builds list pagination (ADR-77)", () => {
+    interface ListPage {
+      items: Array<{ id: string; createdAt: string }>;
+      nextCursor: string | null;
+    }
+
+    async function sessionIdentity(
+      cookie: string,
+      ip: string,
+    ): Promise<{ userId: string; organizationId: string }> {
+      const res = await harness.app.request("/api/auth/get-session", {
+        method: "GET",
+        headers: { Cookie: cookie, Origin: DASHBOARD_ORIGIN, "x-forwarded-for": ip },
+      });
+      const body = (await res.json()) as {
+        user?: { id: string };
+        session?: { activeOrganizationId?: string | null };
+      };
+      if (!body.user?.id || !body.session?.activeOrganizationId) {
+        throw new Error("session missing user or active organization");
+      }
+      return { userId: body.user.id, organizationId: body.session.activeOrganizationId };
+    }
+
+    /**
+     * Seed `count` terminal runs (status 'done' keeps ADR-29's one-active
+     * partial index out of play) through the real FK chain: planning session
+     * → frozen spec → runs. created_at DELIBERATELY ties in pairs so the
+     * list order exercises the id tiebreaker, not just timestamps.
+     */
+    async function seedRuns(cookie: string, ip: string, count: number): Promise<void> {
+      const { schema } = await import("@mullion/db");
+      const { userId, organizationId } = await sessionIdentity(cookie, ip);
+      const [session] = await harness.db
+        .insert(schema.planningSessions)
+        .values({ organizationId, userId, status: "confirmed", idea: "pagination harness idea" })
+        .returning();
+      if (!session) throw new Error("seed insert returned no session row");
+      const [spec] = await harness.db
+        .insert(schema.buildSpecs)
+        .values({
+          organizationId,
+          sessionId: session.id,
+          contentHash: `harness-${randomUUID()}`,
+          spec: {},
+        })
+        .returning();
+      if (!spec) throw new Error("seed insert returned no spec row");
+      const base = Date.parse("2026-01-01T00:00:00.000Z");
+      await harness.db.insert(schema.runs).values(
+        Array.from({ length: count }, (_, i) => ({
+          organizationId,
+          userId,
+          buildSpecId: spec.id,
+          status: "done" as const,
+          createdAt: new Date(base + Math.floor(i / 2) * 1000),
+        })),
+      );
+    }
+
+    async function listBuilds(cookie: string, ip: string, query = ""): Promise<Response> {
+      return harness.app.request(`/api/builds${query}`, {
+        method: "GET",
+        headers: { Cookie: cookie, Origin: WEB_ORIGIN, "x-forwarded-for": ip },
+      });
+    }
+
+    it("walks pages by cursor with stable ordering, no overlap, no gaps", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      await seedRuns(cookie, ip, 5);
+
+      // Single-fetch baseline (default limit 20 covers all 5).
+      const fullRes = await listBuilds(cookie, ip);
+      expect(fullRes.status).toBe(200);
+      const full = (await fullRes.json()) as ListPage;
+      expect(full.items).toHaveLength(5);
+      expect(full.nextCursor).toBeNull();
+
+      const walked: string[] = [];
+      let cursor: string | null = null;
+      let pages = 0;
+      do {
+        const query: string = cursor
+          ? `?limit=2&cursor=${encodeURIComponent(cursor)}`
+          : "?limit=2";
+        const res = await listBuilds(cookie, ip, query);
+        expect(res.status).toBe(200);
+        const page = (await res.json()) as ListPage;
+        expect(page.items.length).toBeLessThanOrEqual(2);
+        walked.push(...page.items.map((run) => run.id));
+        cursor = page.nextCursor;
+        pages += 1;
+      } while (cursor !== null && pages < 10);
+
+      expect(pages).toBe(3);
+      // No overlap, no gaps, same order as the one-shot fetch — the keyset
+      // (created_at, id) walk must agree with ORDER BY exactly, ties included.
+      expect(walked).toEqual(full.items.map((run) => run.id));
+      // Newest first.
+      const stamps = full.items.map((run) => Date.parse(run.createdAt));
+      expect([...stamps].sort((a, b) => b - a)).toEqual(stamps);
+
+      // One past the end: the oldest row's own cursor answers an empty page
+      // with a null cursor, not an error.
+      const lastRun = full.items[full.items.length - 1];
+      const terminal = Buffer.from(`${lastRun?.createdAt}_${lastRun?.id}`, "utf8").toString("base64url");
+      const endRes = await listBuilds(cookie, ip, `?cursor=${encodeURIComponent(terminal)}`);
+      expect(endRes.status).toBe(200);
+      const endPage = (await endRes.json()) as ListPage;
+      expect(endPage.items).toHaveLength(0);
+      expect(endPage.nextCursor).toBeNull();
+    });
+
+    it("rejects an invalid cursor with 400, never a 500", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      for (const cursor of [
+        "not-a-cursor",
+        Buffer.from("garbage-with-no-separator").toString("base64url"),
+        Buffer.from("2026-01-01T00:00:00.000Z_not-a-uuid").toString("base64url"),
+      ]) {
+        const res = await listBuilds(cookie, ip, `?cursor=${encodeURIComponent(cursor)}`);
+        expect(res.status, `cursor ${cursor}`).toBe(400);
+      }
+    });
+
+    it("clamps limit to 50 and rejects garbage limits", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      await seedRuns(cookie, ip, 55);
+
+      const res = await listBuilds(cookie, ip, "?limit=999");
+      expect(res.status).toBe(200);
+      const page = (await res.json()) as ListPage;
+      expect(page.items).toHaveLength(50);
+      expect(page.nextCursor).not.toBeNull();
+
+      // The remainder stays reachable from the clamped page's cursor.
+      const rest = await listBuilds(
+        cookie,
+        ip,
+        `?limit=999&cursor=${encodeURIComponent(page.nextCursor ?? "")}`,
+      );
+      expect(rest.status).toBe(200);
+      const restPage = (await rest.json()) as ListPage;
+      expect(restPage.items).toHaveLength(5);
+      expect(restPage.nextCursor).toBeNull();
+
+      for (const bad of ["limit=0", "limit=-1", "limit=abc"]) {
+        const badRes = await listBuilds(cookie, ip, `?${bad}`);
+        expect(badRes.status, bad).toBe(400);
+      }
+    });
+  });
+
+  describe("settings analytics: per-run spend list (ADR-78)", () => {
+    interface RunsPage {
+      days: number;
+      items: Array<{
+        runId: string;
+        status: string;
+        createdAt: string;
+        costUsd: number;
+        promptTokens: number;
+        completionTokens: number;
+        calls: number;
+      }>;
+      nextCursor: string | null;
+    }
+
+    interface AnalyticsTotals {
+      totals: { costUsd: number };
+    }
+
+    const EPSILON = 1e-6;
+
+    async function identity(cookie: string, ip: string): Promise<{ userId: string; organizationId: string }> {
+      const res = await harness.app.request("/api/auth/get-session", {
+        method: "GET",
+        headers: { Cookie: cookie, Origin: DASHBOARD_ORIGIN, "x-forwarded-for": ip },
+      });
+      const body = (await res.json()) as {
+        user?: { id: string };
+        session?: { activeOrganizationId?: string | null };
+      };
+      if (!body.user?.id || !body.session?.activeOrganizationId) {
+        throw new Error("session missing user or active organization");
+      }
+      return { userId: body.user.id, organizationId: body.session.activeOrganizationId };
+    }
+
+    /** Real FK chain (planning session → frozen spec) so runs can be seeded. */
+    async function seedSpec(
+      cookie: string,
+      ip: string,
+    ): Promise<{ userId: string; organizationId: string; buildSpecId: string }> {
+      const { schema } = await import("@mullion/db");
+      const { userId, organizationId } = await identity(cookie, ip);
+      const [session] = await harness.db
+        .insert(schema.planningSessions)
+        .values({ organizationId, userId, status: "confirmed", idea: "per-run spend harness idea" })
+        .returning();
+      if (!session) throw new Error("seed insert returned no session row");
+      const [spec] = await harness.db
+        .insert(schema.buildSpecs)
+        .values({ organizationId, sessionId: session.id, contentHash: `harness-${randomUUID()}`, spec: {} })
+        .returning();
+      if (!spec) throw new Error("seed insert returned no spec row");
+      return { userId, organizationId, buildSpecId: spec.id };
+    }
+
+    async function seedRun(
+      ctx: { userId: string; organizationId: string; buildSpecId: string },
+      createdAt: Date,
+      status: "done" | "failed" = "done",
+    ): Promise<string> {
+      const { schema } = await import("@mullion/db");
+      const [run] = await harness.db
+        .insert(schema.runs)
+        .values({
+          organizationId: ctx.organizationId,
+          userId: ctx.userId,
+          buildSpecId: ctx.buildSpecId,
+          status,
+          createdAt,
+        })
+        .returning();
+      if (!run) throw new Error("seed insert returned no run row");
+      return run.id;
+    }
+
+    /**
+     * Bulk variant for pagination cases: `count` terminal runs, each with one
+     * llm event. created_at ties in pairs (like the ADR-77 seed) so the
+     * grouped keyset exercises the id tiebreaker too.
+     */
+    async function seedRunsWithEvents(
+      ctx: { userId: string; organizationId: string; buildSpecId: string },
+      count: number,
+      base: number,
+    ): Promise<void> {
+      const { schema } = await import("@mullion/db");
+      const runs = await harness.db
+        .insert(schema.runs)
+        .values(
+          Array.from({ length: count }, (_, i) => ({
+            organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            buildSpecId: ctx.buildSpecId,
+            status: "done" as const,
+            createdAt: new Date(base + Math.floor(i / 2) * 1000),
+          })),
+        )
+        .returning();
+      await harness.db.insert(schema.costEvents).values(
+        runs.map((run) => ({
+          organizationId: ctx.organizationId,
+          runId: run.id,
+          source: "llm" as const,
+          cost: "0.01",
+          promptTokens: 1,
+          completionTokens: 1,
+        })),
+      );
+    }
+
+    /** One cost_events row; `cost` as string because the column is numeric. */
+    async function seedCostEvent(opts: {
+      organizationId: string;
+      runId?: string | null;
+      source?: "llm" | "sandbox";
+      cost: string;
+      promptTokens?: number | null;
+      completionTokens?: number | null;
+      byok?: boolean;
+      createdAt?: Date;
+    }): Promise<void> {
+      const { schema } = await import("@mullion/db");
+      await harness.db.insert(schema.costEvents).values({
+        organizationId: opts.organizationId,
+        runId: opts.runId ?? null,
+        source: opts.source ?? "llm",
+        cost: opts.cost,
+        promptTokens: opts.promptTokens ?? null,
+        completionTokens: opts.completionTokens ?? null,
+        byok: opts.byok ?? false,
+        ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
+      });
+    }
+
+    async function listRuns(cookie: string, ip: string, query = ""): Promise<Response> {
+      return harness.app.request(`/api/settings/analytics/runs${query}`, {
+        method: "GET",
+        headers: { Cookie: cookie, Origin: DASHBOARD_ORIGIN, "x-forwarded-for": ip },
+      });
+    }
+
+    it("reconciles with the tiles minus planning spend, excluding sandbox and null-run rows", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const ctx = await seedSpec(cookie, ip);
+      const run1 = await seedRun(ctx, new Date("2026-07-13T10:00:00.000Z"));
+      const run2 = await seedRun(ctx, new Date("2026-07-13T11:00:00.000Z"));
+      // ADR-33: partial/failed builds get identical treatment — a failed run
+      // with spend must be a normal row.
+      const failedRun = await seedRun(ctx, new Date("2026-07-13T12:00:00.000Z"), "failed");
+      // A run whose ONLY spend is sandbox must not appear at all (the
+      // source='llm' filter, not the join, is what keeps it out).
+      const sandboxOnlyRun = await seedRun(ctx, new Date("2026-07-13T13:00:00.000Z"));
+      const org = ctx.organizationId;
+      // Shared with the assertion below so seed and expectation can't drift.
+      const PLANNING_SPEND = 0.4;
+
+      await seedCostEvent({ organizationId: org, runId: run1, cost: "0.1", promptTokens: 100, completionTokens: 50 });
+      await seedCostEvent({ organizationId: org, runId: run1, cost: "0.2", promptTokens: 200, completionTokens: 100 });
+      // BYOK spend counts in the tiles' costUsd — it must count in the
+      // per-run sums identically, or reconciliation silently drifts.
+      await seedCostEvent({
+        organizationId: org,
+        runId: run1,
+        cost: "0.15",
+        promptTokens: 50,
+        completionTokens: 25,
+        byok: true,
+      });
+      await seedCostEvent({ organizationId: org, runId: run2, cost: "0.05", promptTokens: 10, completionTokens: 5 });
+      await seedCostEvent({ organizationId: org, runId: failedRun, cost: "0.02", promptTokens: 4, completionTokens: 2 });
+      // Planning-session spend: in the tiles, has no run → must NOT be a row.
+      await seedCostEvent({
+        organizationId: org,
+        runId: null,
+        cost: String(PLANNING_SPEND),
+        promptTokens: 1000,
+        completionTokens: 500,
+      });
+      // Sandbox spend: excluded from tiles AND list (source='llm' both sides).
+      await seedCostEvent({ organizationId: org, runId: run1, source: "sandbox", cost: "9.9" });
+      await seedCostEvent({ organizationId: org, runId: sandboxOnlyRun, source: "sandbox", cost: "3.3" });
+
+      const listRes = await listRuns(cookie, ip);
+      expect(listRes.status).toBe(200);
+      const page = (await listRes.json()) as RunsPage;
+      expect(page.days).toBe(30);
+      expect(page.items).toHaveLength(3);
+      expect(page.items.map((item) => item.runId)).not.toContain(sandboxOnlyRun);
+
+      // Newest run first; per-run sums are LLM-only and include byok rows.
+      const [first, , third] = page.items;
+      expect(first?.runId).toBe(failedRun);
+      expect(first?.status).toBe("failed");
+      expect(page.items[1]?.runId).toBe(run2);
+      expect(third?.runId).toBe(run1);
+      expect(third?.costUsd).toBeCloseTo(0.45, 6);
+      expect(third?.promptTokens).toBe(350);
+      expect(third?.completionTokens).toBe(175);
+      expect(third?.calls).toBe(3);
+
+      // Reconciliation: list total == tiles total − planning-session spend.
+      const tilesRes = await harness.app.request("/api/settings/analytics", {
+        method: "GET",
+        headers: { Cookie: cookie, Origin: DASHBOARD_ORIGIN, "x-forwarded-for": ip },
+      });
+      expect(tilesRes.status).toBe(200);
+      const tiles = (await tilesRes.json()) as AnalyticsTotals;
+      const listSum = page.items.reduce((sum, item) => sum + item.costUsd, 0);
+      expect(Math.abs(tiles.totals.costUsd - PLANNING_SPEND - listSum)).toBeLessThan(EPSILON);
+    });
+
+    it("validates days and limit on the runs route and clamps limit at 50", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const ctx = await seedSpec(cookie, ip);
+
+      for (const bad of ["days=0", "days=91", "days=abc", "limit=0", "limit=-1", "limit=abc"]) {
+        const res = await listRuns(cookie, ip, `?${bad}`);
+        expect(res.status, bad).toBe(400);
+      }
+
+      // days must actually flow into the window: an event ~2 days old is
+      // outside ?days=1 but inside the default 30.
+      const runId = await seedRun(ctx, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000));
+      await seedCostEvent({
+        organizationId: ctx.organizationId,
+        runId,
+        cost: "0.7",
+        promptTokens: 7,
+        completionTokens: 7,
+        createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+      });
+      await seedCostEvent({ organizationId: ctx.organizationId, runId, cost: "0.3", promptTokens: 3, completionTokens: 3 });
+
+      const narrow = (await (await listRuns(cookie, ip, "?days=1")).json()) as RunsPage;
+      expect(narrow.days).toBe(1);
+      expect(narrow.items).toHaveLength(1);
+      expect(narrow.items[0]?.costUsd).toBeCloseTo(0.3, 6);
+      expect(narrow.items[0]?.calls).toBe(1);
+
+      const wide = (await (await listRuns(cookie, ip)).json()) as RunsPage;
+      expect(wide.items[0]?.costUsd).toBeCloseTo(1.0, 6);
+      expect(wide.items[0]?.calls).toBe(2);
+
+      // Clamp: 55 runs; ?limit=999 answers 50 with the remainder reachable.
+      await seedRunsWithEvents(ctx, 55, Date.parse("2026-06-20T00:00:00.000Z"));
+      const clamped = (await (await listRuns(cookie, ip, "?limit=999")).json()) as RunsPage;
+      expect(clamped.items).toHaveLength(50);
+      expect(clamped.nextCursor).not.toBeNull();
+      const rest = (await (
+        await listRuns(cookie, ip, `?limit=999&cursor=${encodeURIComponent(clamped.nextCursor ?? "")}`)
+      ).json()) as RunsPage;
+      // 55 seeded + the 1 run from the days case above = 56 total, 6 left.
+      expect(rest.items).toHaveLength(6);
+      expect(rest.nextCursor).toBeNull();
+    });
+
+    it("walks pages by cursor with no overlap or gaps, ties included", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const ctx = await seedSpec(cookie, ip);
+      // Tied created_at pairs (via the bulk seeder) so the walk exercises the
+      // id tiebreaker on the grouped keyset, not just distinct timestamps.
+      await seedRunsWithEvents(ctx, 5, Date.parse("2026-07-10T00:00:00.000Z"));
+
+      const fullRes = await listRuns(cookie, ip);
+      const full = (await fullRes.json()) as RunsPage;
+      expect(full.items).toHaveLength(5);
+      expect(full.nextCursor).toBeNull();
+
+      const walked: string[] = [];
+      let cursor: string | null = null;
+      let pages = 0;
+      do {
+        const query: string = cursor ? `?limit=2&cursor=${encodeURIComponent(cursor)}` : "?limit=2";
+        const res = await listRuns(cookie, ip, query);
+        expect(res.status).toBe(200);
+        const p = (await res.json()) as RunsPage;
+        walked.push(...p.items.map((item) => item.runId));
+        cursor = p.nextCursor;
+        pages += 1;
+      } while (cursor !== null && pages < 10);
+
+      expect(pages).toBe(3);
+      expect(walked).toEqual(full.items.map((item) => item.runId));
+
+      // One past the end: the oldest row's own cursor answers an empty page
+      // with a null cursor, not an error.
+      const lastItem = full.items[full.items.length - 1];
+      const terminal = Buffer.from(`${lastItem?.createdAt}_${lastItem?.runId}`, "utf8").toString("base64url");
+      const endRes = await listRuns(cookie, ip, `?cursor=${encodeURIComponent(terminal)}`);
+      expect(endRes.status).toBe(200);
+      const endPage = (await endRes.json()) as RunsPage;
+      expect(endPage.items).toHaveLength(0);
+      expect(endPage.nextCursor).toBeNull();
+
+      const bad = await listRuns(cookie, ip, "?cursor=not-a-cursor");
+      expect(bad.status).toBe(400);
+    });
+
+    it("keeps orgs isolated even with a tampered cursor pointing at another org's run", async () => {
+      const userA = await signUp(harness.app);
+      const userB = await signUp(harness.app);
+      const ctxA = await seedSpec(userA.cookie, userA.ip);
+      const ctxB = await seedSpec(userB.cookie, userB.ip);
+      const runA = await seedRun(ctxA, new Date("2026-07-13T09:00:00.000Z"));
+      const runB = await seedRun(ctxB, new Date("2026-07-13T09:30:00.000Z"));
+      await seedCostEvent({ organizationId: ctxA.organizationId, runId: runA, cost: "0.1", promptTokens: 1, completionTokens: 1 });
+      await seedCostEvent({ organizationId: ctxB.organizationId, runId: runB, cost: "0.2", promptTokens: 1, completionTokens: 1 });
+      // Mis-attributed row: org A's event pointing at org B's run. The join
+      // re-asserts org on both arms (ADR-36), so it must join nowhere — not
+      // into A's list (run belongs to B) and not into B's sums (event
+      // belongs to A).
+      await seedCostEvent({ organizationId: ctxA.organizationId, runId: runB, cost: "5.5", promptTokens: 1, completionTokens: 1 });
+
+      const plain = await listRuns(userA.cookie, userA.ip);
+      const plainPage = (await plain.json()) as RunsPage;
+      expect(plainPage.items.map((item) => item.runId)).toEqual([runA]);
+
+      const plainB = await listRuns(userB.cookie, userB.ip);
+      const plainPageB = (await plainB.json()) as RunsPage;
+      expect(plainPageB.items.map((item) => item.runId)).toEqual([runB]);
+      expect(plainPageB.items[0]?.costUsd).toBeCloseTo(0.2, 6);
+
+      // A well-formed cursor naming org B's run — the cursor is a filter,
+      // never an authZ boundary, so org A still sees only its own rows.
+      const tampered = Buffer.from(`2027-01-01T00:00:00.000Z_${runB}`, "utf8").toString("base64url");
+      const res = await listRuns(userA.cookie, userA.ip, `?cursor=${encodeURIComponent(tampered)}`);
+      expect(res.status).toBe(200);
+      const page = (await res.json()) as RunsPage;
+      expect(page.items.map((item) => item.runId)).toEqual([runA]);
+    });
+
+    it("shows only the in-window slice for a boundary-spanning run", async () => {
+      const { cookie, ip } = await signUp(harness.app);
+      const ctx = await seedSpec(cookie, ip);
+      const fortyDaysAgo = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000);
+      const runId = await seedRun(ctx, fortyDaysAgo);
+      // Out-of-window spend: excluded from the sum even though the run shows.
+      await seedCostEvent({
+        organizationId: ctx.organizationId,
+        runId,
+        cost: "0.5",
+        promptTokens: 500,
+        completionTokens: 250,
+        createdAt: fortyDaysAgo,
+      });
+      // In-window spend: this alone is the row.
+      await seedCostEvent({ organizationId: ctx.organizationId, runId, cost: "0.25", promptTokens: 20, completionTokens: 10 });
+
+      const res = await listRuns(cookie, ip);
+      expect(res.status).toBe(200);
+      const page = (await res.json()) as RunsPage;
+      expect(page.items).toHaveLength(1);
+      expect(page.items[0]?.runId).toBe(runId);
+      expect(page.items[0]?.costUsd).toBeCloseTo(0.25, 6);
+      expect(page.items[0]?.calls).toBe(1);
+      expect(page.items[0]?.promptTokens).toBe(20);
+    });
   });
 
   it("does not create a user from an OAuth callback with no valid state", async () => {
@@ -866,7 +1379,12 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     }
 
     it("rejects anonymous access on every settings route", async () => {
-      for (const path of ["/api/settings/byok", "/api/settings/models", "/api/settings/analytics"]) {
+      for (const path of [
+        "/api/settings/byok",
+        "/api/settings/models",
+        "/api/settings/analytics",
+        "/api/settings/analytics/runs",
+      ]) {
         const res = await harness.app.request(path);
         expect(res.status).toBe(401);
       }

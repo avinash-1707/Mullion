@@ -3,10 +3,11 @@ import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { schema } from "@mullion/db";
 import { MODEL_ALLOWLIST, ModelNotAllowedError, assertAllowed, isModelAllowed } from "@mullion/llm";
-import { agentRoleSchema } from "@mullion/schemas";
+import { agentRoleSchema, listBuildsQuerySchema } from "@mullion/schemas";
+import { decodeBuildsCursor, encodeBuildsCursor } from "../builds/cursor.js";
 import { db } from "../../lib/db.js";
 import { llm } from "../../lib/llm.js";
 import { env } from "../../config/env.js";
@@ -32,6 +33,10 @@ const putModelSchema = z.object({
 const analyticsQuerySchema = z.object({
   days: z.coerce.number().int().min(1).max(90).default(30),
 });
+
+// The per-run list shares the tiles' window (days) and the builds list's
+// keyset paging contract (ADR-77: opaque cursor, limit default 20 cap 50).
+const analyticsRunsQuerySchema = analyticsQuerySchema.extend(listBuildsQuerySchema.shape);
 
 // ADR-70: each save is an outbound OpenRouter probe — much tighter than the
 // global per-user window, mirroring credentialRateLimit's posture.
@@ -170,6 +175,80 @@ export const settingsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
         set: { modelSlug },
       });
     return c.json({ ok: true });
+  })
+
+  // Per-run LLM spend for the analytics tab's runs list. Windowed on
+  // cost_events.createdAt — the SAME window the tiles use — so the list's
+  // sums reconcile with the totals above it by construction; what it cannot
+  // include is planning-session spend (run_id IS NULL — in the tiles, but
+  // there's no run row to attach it to), which the UI footnotes instead of
+  // faking a synthetic row. A boundary-spanning run therefore shows only its
+  // in-window slice, labeled "Cost (30d)", never "run total".
+  .get("/analytics/runs", zValidator("query", analyticsRunsQuerySchema), async (c) => {
+    const organizationId = c.get("organizationId");
+    const { days, cursor: rawCursor, limit } = c.req.valid("query");
+    const cursor = rawCursor === undefined ? null : decodeBuildsCursor(rawCursor);
+    if (rawCursor !== undefined && cursor === null) {
+      throw new HTTPException(400, { message: "Invalid cursor" });
+    }
+
+    const rows = await db
+      .select({
+        runId: schema.runs.id,
+        status: schema.runs.status,
+        createdAt: schema.runs.createdAt,
+        costUsd: sql<string>`sum(${schema.costEvents.cost})`,
+        promptTokens: sql<string>`coalesce(sum(${schema.costEvents.promptTokens}), 0)`,
+        completionTokens: sql<string>`coalesce(sum(${schema.costEvents.completionTokens}), 0)`,
+        calls: sql<string>`count(*)`,
+      })
+      .from(schema.costEvents)
+      // Org re-asserted on the join arm too (ADR-36) — the FK alone would
+      // let a mis-attributed event join across orgs.
+      .innerJoin(
+        schema.runs,
+        and(
+          eq(schema.runs.id, schema.costEvents.runId),
+          eq(schema.runs.organizationId, schema.costEvents.organizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(schema.costEvents.organizationId, organizationId),
+          eq(schema.costEvents.source, "llm"),
+          sql`${schema.costEvents.createdAt} >= now() - make_interval(days => ${days})`,
+          // Planning-session spend has no run — excluded here, footnoted in
+          // the UI (see the route comment above).
+          isNotNull(schema.costEvents.runId),
+          // Keyset on the grouped ordering columns — row-value comparison
+          // matching the composite ORDER BY, as in the builds list (ADR-77).
+          cursor
+            ? sql`(${schema.runs.createdAt}, ${schema.runs.id}) < (${cursor.createdAt.toISOString()}::timestamptz, ${cursor.id}::uuid)`
+            : undefined,
+        ),
+      )
+      .groupBy(schema.runs.id, schema.runs.status, schema.runs.createdAt)
+      .orderBy(desc(schema.runs.createdAt), desc(schema.runs.id))
+      .limit(limit + 1);
+
+    const page = rows.slice(0, limit);
+    const last = page[page.length - 1];
+    const nextCursor =
+      rows.length > limit && last ? encodeBuildsCursor({ createdAt: last.createdAt, id: last.runId }) : null;
+
+    return c.json({
+      days,
+      items: page.map((row) => ({
+        runId: row.runId,
+        status: row.status,
+        createdAt: row.createdAt.toISOString(),
+        costUsd: Number(row.costUsd),
+        promptTokens: Number(row.promptTokens),
+        completionTokens: Number(row.completionTokens),
+        calls: Number(row.calls),
+      })),
+      nextCursor,
+    });
   })
 
   .get("/analytics", zValidator("query", analyticsQuerySchema), async (c) => {

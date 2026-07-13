@@ -92,3 +92,26 @@ export const analyticsResponseSchema = z.object({
   byDay: z.array(analyticsByDaySchema),
 });
 export type AnalyticsResponse = z.infer<typeof analyticsResponseSchema>;
+
+// Per-run spend list (GET /api/settings/analytics/runs). `costUsd` is the
+// run's spend INSIDE the tab's window — cost_events are windowed on their
+// own createdAt, so a long-running run shows only its in-window slice and
+// the list reconciles with the tiles above (minus planning-session spend,
+// which has no run to attach to). Status union mirrors BuildRun["status"].
+export const analyticsRunSchema = z.object({
+  runId: z.string(),
+  status: z.enum(["queued", "building", "testing", "reviewing", "fixing", "shipping", "done", "failed"]),
+  createdAt: z.string(),
+  costUsd: z.number(),
+  promptTokens: z.number(),
+  completionTokens: z.number(),
+  calls: z.number(),
+});
+export type AnalyticsRun = z.infer<typeof analyticsRunSchema>;
+
+export const analyticsRunsPageSchema = z.object({
+  days: z.number(),
+  items: z.array(analyticsRunSchema),
+  nextCursor: z.string().nullable(),
+});
+export type AnalyticsRunsPage = z.infer<typeof analyticsRunsPageSchema>;
