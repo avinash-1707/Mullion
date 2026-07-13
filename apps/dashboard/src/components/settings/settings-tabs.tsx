@@ -3,9 +3,7 @@
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TabList, TabPanel, type TabItem } from "@/components/ui/tabs";
-import { ProfileSection } from "./profile-section";
-import { SecuritySection } from "./security-section";
-import { ConnectedAccountsSection } from "./connected-accounts-section";
+import { ProfileTab } from "./profile-tab";
 import { MembersSection } from "./members-section";
 import { ModelsSection } from "./models-section";
 import { AnalyticsSection } from "./analytics-section";
@@ -63,13 +61,7 @@ export function SettingsTabs() {
       <TabList items={TABS} value={activeTab} onChange={setActiveTab} idBase={idBase} />
 
       <TabPanel value="profile" activeValue={activeTab} idBase={idBase} enterFrom={enterFrom} className="flex flex-col gap-14 pt-14">
-        <ProfileSection />
-        <div className="border-t border-hairline pt-14">
-          <SecuritySection />
-        </div>
-        <div className="border-t border-hairline pt-14">
-          <ConnectedAccountsSection />
-        </div>
+        <ProfileTab />
       </TabPanel>
 
       <TabPanel value="members" activeValue={activeTab} idBase={idBase} enterFrom={enterFrom} className="pt-14">

@@ -1382,3 +1382,25 @@ Gates green: check-types, lint, test (38).
 **Related ADR:** none — visual-only pass.
 **Follow-ups:**
 - Manual pass: 320px-width tablist fit; pen buttons' hover/focus reads.
+
+## 2026-07-14 — Settings loading UX: whole-tab skeletons, analytics empty state centered
+
+Tabs no longer load piecemeal (static headings first, widget skeletons
+popping in behind). Each tab now has one pending gate returning a
+full-tab skeleton shaped to its real layout — new
+`settings/tab-skeletons.tsx` (Profile/Members/Models/Analytics +
+shared HeadingSkeleton). New `settings/profile-tab.tsx` gates
+Profile+Security+Connected accounts on the shared accounts query
+(same cache, no extra fetch); Members gates on the roster query,
+Models on byok+models, Analytics on its query (heading included).
+Inner per-widget skeletons removed. Page-level SettingsSkeleton fixed:
+4 tab pills (was 3), flex-1 below sm to mirror the full-width tablist,
+heading-shaped panel body. Analytics empty state vertically centered
+(min-h-[45vh] + justify-center).
+Gates green: check-types, lint, test (38).
+**Files/areas touched:** `apps/dashboard/src/components/settings/
+{tab-skeletons,profile-tab,settings-tabs,members-section,models-section,
+analytics-section}.tsx`, `apps/dashboard/src/components/settings-skeleton.tsx`.
+**Related ADR:** none — loading-presentation only.
+**Follow-ups:**
+- Manual pass: reload directly on each ?tab= URL, confirm single-paint.

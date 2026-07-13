@@ -1,7 +1,6 @@
 "use client";
 
 import { useAnalyticsQuery } from "@/hooks/use-analytics";
-import { Skeleton } from "@/components/ui/skeleton";
 import { StatTile } from "./stat-tile";
 import { RoleCostBars } from "./role-cost-bars";
 import { SpendSparkline } from "./spend-sparkline";
@@ -9,10 +8,16 @@ import { FormNote } from "./form-note";
 import { ChartIcon } from "@/components/planning/icons";
 import { formatCompactNumber, formatUsd } from "@/lib/format";
 import type { AnalyticsResponse } from "@/lib/settings-api";
+import { AnalyticsTabSkeleton } from "./tab-skeletons";
 
 export function AnalyticsSection() {
   const analytics = useAnalyticsQuery();
   const data = analytics.data;
+
+  // Whole-tab gate — heading included, so nothing paints before the data.
+  if (analytics.isPending) {
+    return <AnalyticsTabSkeleton />;
+  }
 
   return (
     <section className="flex flex-col gap-6">
@@ -21,17 +26,7 @@ export function AnalyticsSection() {
         <p className="mt-1 text-sm text-fg-muted">LLM usage across every role, last {data?.days ?? 30} days.</p>
       </div>
 
-      {analytics.isPending ? (
-        <div className="flex flex-col gap-6">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-          </div>
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-32 w-full" />
-        </div>
-      ) : data ? (
+      {data ? (
         <AnalyticsContent data={data} />
       ) : analytics.error ? (
         <FormNote>{analytics.error.message}</FormNote>
@@ -45,7 +40,9 @@ function AnalyticsContent({ data }: { data: AnalyticsResponse }) {
 
   if (isEmpty) {
     return (
-      <div className="animate-reveal flex flex-col items-center px-5 py-14 text-center">
+      // min-h + justify-center so the empty state sits centered in the
+      // panel's viewport area, not hugging the tab row.
+      <div className="animate-reveal flex min-h-[45vh] flex-col items-center justify-center px-5 py-14 text-center">
         <ChartIcon className="h-8 w-8 text-fg-faint" />
         <p className="mt-4 font-serif text-xl text-fg">Nothing spent yet.</p>
         <p className="mt-2 text-sm text-fg-muted">Start a build to see usage here.</p>

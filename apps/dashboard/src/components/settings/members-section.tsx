@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useOrgMembersQuery, useLeaveOrgMutation } from "@/hooks/use-org-members";
@@ -13,6 +12,7 @@ import { OrgRenameField } from "./org-rename-field";
 import { MemberRow } from "./member-row";
 import { InviteMemberForm } from "./invite-member-form";
 import { PendingInviteRow } from "./pending-invite-row";
+import { MembersTabSkeleton } from "./tab-skeletons";
 
 // Tab content composing org identity (rename) + roster + invite panel —
 // same composing role ModelsSection plays for ByokKeyCard + the role list:
@@ -46,6 +46,12 @@ export function MembersSection() {
     });
   }
 
+  // Whole-tab gate: one skeleton until the roster query lands, so headings
+  // and rows paint together instead of piecemeal.
+  if (membersQuery.isPending) {
+    return <MembersTabSkeleton />;
+  }
+
   return (
     <section className="flex flex-col gap-14">
       <div className="flex flex-col gap-6">
@@ -62,12 +68,7 @@ export function MembersSection() {
           <p className="mt-1 text-sm text-fg-muted">Everyone with access to this organization.</p>
         </div>
 
-        {membersQuery.isPending ? (
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-14 w-full" />
-            <Skeleton className="h-14 w-full" />
-          </div>
-        ) : data ? (
+        {data ? (
           <table className="w-full table-fixed border-collapse text-left">
             <thead>
               <tr className="border-b border-border">
@@ -141,11 +142,7 @@ export function MembersSection() {
 
         {data?.canManage ? <InviteMemberForm /> : null}
 
-        {membersQuery.isPending ? (
-          <Skeleton className="h-14 w-full" />
-        ) : data ? (
-          <PendingInvitesList invitations={data.invitations} canManage={data.canManage} />
-        ) : null}
+        {data ? <PendingInvitesList invitations={data.invitations} canManage={data.canManage} /> : null}
       </div>
 
       <ConfirmDialog

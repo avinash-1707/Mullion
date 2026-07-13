@@ -2,15 +2,20 @@
 
 import { useByokQuery } from "@/hooks/use-byok-mutations";
 import { useModelsQuery } from "@/hooks/use-model-settings";
-import { Skeleton } from "@/components/ui/skeleton";
 import { ByokKeyCard } from "./byok-key-card";
 import { ModelRoleRow } from "./model-role-row";
 import { FormNote } from "./form-note";
+import { ModelsTabSkeleton } from "./tab-skeletons";
 
 export function ModelsSection() {
   const byok = useByokQuery();
   const models = useModelsQuery();
   const modelsData = models.data;
+
+  // Whole-tab gate across both queries so the tab paints at once.
+  if (byok.isPending || models.isPending) {
+    return <ModelsTabSkeleton />;
+  }
 
   return (
     <section className="flex flex-col gap-6">
@@ -22,9 +27,7 @@ export function ModelsSection() {
         </p>
       </div>
 
-      {byok.isPending ? (
-        <Skeleton className="h-32 w-full" />
-      ) : byok.data ? (
+      {byok.data ? (
         <ByokKeyCard status={byok.data} />
       ) : byok.error ? (
         <FormNote>{byok.error.message}</FormNote>
@@ -37,13 +40,7 @@ export function ModelsSection() {
           Models are picked for you based on your subscription tier. Attach your own OpenRouter key above to choose a
           different model per role.
         </p>
-        {models.isPending ? (
-          <div className="flex flex-col gap-3">
-            <Skeleton className="h-14 w-full" />
-            <Skeleton className="h-14 w-full" />
-            <Skeleton className="h-14 w-full" />
-          </div>
-        ) : modelsData ? (
+        {modelsData ? (
           <ul className="flex flex-col divide-y divide-border">
             {modelsData.roles.map((role) => (
               <ModelRoleRow

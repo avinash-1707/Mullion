@@ -1,4 +1,5 @@
 import { Skeleton } from "./ui/skeleton";
+import { HeadingSkeleton } from "./settings/tab-skeletons";
 
 // Mirrors the real settings page's shape (tab row + panel body — the page
 // heading was dropped; the tab list is the page's top element now) so
@@ -9,12 +10,16 @@ import { Skeleton } from "./ui/skeleton";
 export function SettingsSkeleton() {
   return (
     <div className="mx-auto w-full max-w-3xl px-6 pb-16 pt-8 lg:pb-20 lg:pt-10">
+      {/* Four pills matching the four tabs; flex-1 below sm mirrors the
+          tablist's full-width distribution. */}
       <div className="flex gap-1 border-b border-border pb-3">
-        <Skeleton className="h-8 w-20" />
-        <Skeleton className="h-8 w-20" />
-        <Skeleton className="h-8 w-24" />
+        <Skeleton className="h-8 flex-1 sm:w-24 sm:flex-none" />
+        <Skeleton className="h-8 flex-1 sm:w-24 sm:flex-none" />
+        <Skeleton className="h-8 flex-1 sm:w-24 sm:flex-none" />
+        <Skeleton className="h-8 flex-1 sm:w-28 sm:flex-none" />
       </div>
-      <div className="pt-14">
+      <div className="flex flex-col gap-6 pt-14">
+        <HeadingSkeleton />
         <Skeleton className="h-40 w-full" />
       </div>
     </div>
