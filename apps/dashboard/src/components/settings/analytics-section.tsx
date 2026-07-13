@@ -46,16 +46,9 @@ function AnalyticsContent({ data }: { data: AnalyticsResponse }) {
   if (isEmpty) {
     return (
       <div className="animate-reveal flex flex-col items-center rounded-lg border border-hairline px-5 py-14 text-center">
-        {/* Chart glyph in a soft ring - same icon-badge recipe as the avatar
-            corner affordance (elevated disc on a hairline ring), scaled up
-            to carry an empty state instead of a control. */}
-        <span className="flex h-14 w-14 items-center justify-center rounded-full border border-hairline bg-elevated">
-          <ChartIcon className="h-6 w-6 text-fg-muted" />
-        </span>
-        <p className="mt-5 font-serif text-xl text-fg">Nothing spent yet.</p>
-        <p className="mt-2 max-w-sm text-sm text-fg-muted">
-          Usage shows up here once a session starts calling models - start a build from the dashboard to see it.
-        </p>
+        <ChartIcon className="h-8 w-8 text-fg-faint" />
+        <p className="mt-4 font-serif text-xl text-fg">Nothing spent yet.</p>
+        <p className="mt-2 text-sm text-fg-muted">Start a build to see usage here.</p>
       </div>
     );
   }
