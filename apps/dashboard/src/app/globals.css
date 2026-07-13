@@ -192,6 +192,57 @@ body {
   animation: reveal 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Hero artwork entrance — transform-only "settle," deliberately not the
+   opacity+blur recipe used everywhere else on this page. The image is the
+   LCP candidate (`preload`, full-bleed `fill`), and Chrome only marks an
+   LCP element "rendered" once it reaches full opacity — fading it in from
+   opacity:0 would push the recorded LCP timestamp out by this animation's
+   own duration. A pure scale carries no such penalty (LCP doesn't gate on
+   transform), so the "arriving" feel comes entirely from a slow zoom-
+   settle: starts very slightly enlarged, eases down to its resting size.
+   The hero section's `overflow-hidden` clips the starting overscan, so
+   there's never a gap at the edges and no layout shift. */
+@keyframes hero-settle {
+  from {
+    transform: scale(1.045);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.animate-hero-settle {
+  animation: hero-settle 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Recent-builds scroll reveal — same enter recipe as .animate-reveal
+   (opacity + translateY + blur), but a class-toggle + transition instead of
+   an autoplaying @keyframes animation. That section mounts with the rest of
+   the page (it's simply below the fold), so a keyframe would run and finish
+   before anyone scrolled there; this instead sits at rest until JS
+   (useInView, hooks/use-in-view.ts) adds `.in-view` the first time the
+   section crosses into the viewport, then stays there — a one-time
+   arrival, not a replay on every scroll pass. `--row-index` (set inline per
+   header/row, same mechanism as `.mullion-rail-label` above) staggers the
+   cascade; capped so a future longer list can't drift the last row past a
+   fast, deliberate reveal. */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(10px);
+  filter: blur(6px);
+  transition:
+    opacity 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 600ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: min(calc(var(--row-index, 0) * 90ms), 360ms);
+}
+
+.scroll-reveal.in-view {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
 /* Caret for the idea composer's typewriter placeholder — steps(1) so it
    blinks like a terminal cursor instead of fading. */
 @keyframes caret-blink {

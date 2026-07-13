@@ -1515,3 +1515,26 @@ lint, dashboard unit 45, API integration 56.
 - Apply migrations 0010 + 0011: `pnpm --filter @mullion/db db:migrate`
   (blocked from the agent session; performance-only + precision change,
   everything runs without them).
+
+## 2026-07-14 — Dashboard home entrance choreography
+
+**What:** Initial-load animations for the dashboard main page. Hero
+artwork gets a transform-only 900ms scale-settle (1.045 → 1) — no
+opacity fade so the LCP timestamp isn't pushed out. The flat
+`.animate-reveal` block was split so eyebrow → headline → subline →
+form → scroll cue cascade at 90ms steps; everything at rest by 960ms.
+Recent-builds section reveals once on scroll-into-view (new `useInView`
+IntersectionObserver hook + `.scroll-reveal` class-toggle transition,
+rows staggered by `--row-index`, capped at 360ms). Reduced-motion
+collapse covers the new keyframes via the existing global block.
+Incidental: hero `<Image>` `priority` → `preload` (deprecated in
+Next 16, confirmed against bundled docs). Follow-up in the same pass:
+dropped the page-level `DashboardSkeleton` from the home route — the
+hero is fully static, so it now paints (and the choreography starts)
+immediately instead of after auth resolves; only the recent-builds
+rows gate on the session (`runsQuery.isPending` keeps row skeletons up
+through auth + first fetch). Other routes keep the page skeleton.
+Gates green: dashboard check-types + lint.
+**Files/areas touched:** `apps/dashboard/src/app/{page.tsx,globals.css}`,
+`apps/dashboard/src/hooks/use-in-view.ts` (new).
+**Related ADR:** none — motion vocabulary extension, no new decision.
