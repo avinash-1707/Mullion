@@ -7,6 +7,7 @@ import {
   useState,
   type FocusEvent as ReactFocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
 import { cn } from "@/lib/utils";
 import { CheckIcon, ChevronIcon } from "@/components/planning/icons";
@@ -17,6 +18,9 @@ export interface SelectOption {
   disabled?: boolean;
   /** Shown as a tooltip on the option row (`title` attribute) — used for "why is this disabled". */
   title?: string;
+  /** Leading glyph (~16px), shown before the label in the trigger and the option row. Optional — existing
+   * consumers (org-switcher, invite form) that pass no icon render exactly as before. */
+  icon?: ReactNode;
 }
 
 interface SelectProps {
@@ -206,7 +210,10 @@ export function Select({
             className,
           )}
         >
-          <span className="truncate">{selected?.label ?? "Select…"}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            {selected?.icon ? <span className="shrink-0 text-fg-muted">{selected.icon}</span> : null}
+            <span className="truncate">{selected?.label ?? "Select…"}</span>
+          </span>
           <ChevronIcon
             className={cn("h-4 w-4 shrink-0 text-fg-muted transition-swift", open ? "-rotate-90" : "rotate-90")}
           />
@@ -243,7 +250,10 @@ export function Select({
                   isSelected ? "text-accent-strong" : "text-fg",
                 )}
               >
-                <span className="truncate">{option.label}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  {option.icon ? <span className="shrink-0 text-fg-muted">{option.icon}</span> : null}
+                  <span className="truncate">{option.label}</span>
+                </span>
                 {isSelected ? <CheckIcon className="h-3.5 w-3.5 shrink-0 text-accent-strong" /> : null}
               </li>
             );

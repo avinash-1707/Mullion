@@ -3,6 +3,8 @@
 import { Select, type SelectOption } from "@/components/ui/select";
 import { useUpdateModelMutation } from "@/hooks/use-model-settings";
 import { roleLabel, type ModelRoleConfig } from "@/lib/settings-api";
+import { formatModelName } from "@/lib/model-display";
+import { ProviderIcon } from "./provider-icons";
 import { FormNote } from "./form-note";
 
 interface ModelRoleRowProps {
@@ -30,12 +32,24 @@ export function ModelRoleRow({ role, byokEnabled, canManage }: ModelRoleRowProps
   const customPickTitle = !canManage
     ? "Only an organization owner or admin can change models"
     : "Add an API key to pick your own model";
+  // Slug -> human name + brand icon (model-display.ts / provider-icons.tsx)
+  // so the dropdown never shows a raw OpenRouter slug to the user.
   const options: SelectOption[] = [
-    { value: PLATFORM_DEFAULT_VALUE, label: `Platform default (${role.defaultModelSlug})` },
+    {
+      value: PLATFORM_DEFAULT_VALUE,
+      label: `Platform default (${formatModelName(role.defaultModelSlug)})`,
+      icon: <ProviderIcon slug={role.defaultModelSlug} />,
+    },
     ...role.allowlist.map((slug) =>
       byokEnabled && canManage
-        ? { value: slug, label: slug }
-        : { value: slug, label: slug, disabled: true, title: customPickTitle },
+        ? { value: slug, label: formatModelName(slug), icon: <ProviderIcon slug={slug} /> }
+        : {
+            value: slug,
+            label: formatModelName(slug),
+            icon: <ProviderIcon slug={slug} />,
+            disabled: true,
+            title: customPickTitle,
+          },
     ),
   ];
 
