@@ -1223,3 +1223,39 @@ tier not run this session.
 - Run API_INTEGRATION=1 tier to exercise the new avatar route tests.
 - Manual pass: real jpg upload → spinner → rounded-full in profile,
   account menu, member rows; remove → initials.
+
+## 2026-07-13 — Settings polish: members table, avatar modal, model picker icons
+Three dashboard-only changes, no API surface touched.
+Members tab: org name renders live off activeOrg (fixes blank name
+after hard refresh, where the resync keyed on org id fired before the
+org list resolved) and gets the profile-style view/edit toggle. Member
+list is now a semantic table (Member/Role/Joined/actions, table-fixed,
+Joined hidden below sm) with the role as a badge and a per-row
+ellipsis actions menu (promote/demote, remove; self-demote and remove
+keep their ConfirmDialogs). New reusable ui/dropdown-menu.tsx
+(WAI-ARIA menu-button, roving focus, 120-150ms open motion on the
+project curve, reduced-motion via the existing global block).
+Profile tab: clicking the avatar opens a modal (upload new / remove
+photo) replacing the direct file-picker click and the standalone
+Remove button; new avatar-upload-modal.tsx mirrors ConfirmDialog's
+portal/focus/Escape/scroll-lock mechanics and mullion-dialog CSS.
+Models tab: options show formatted model names instead of raw
+OpenRouter slugs (lib/model-display.ts formatter with generic
+fallback for unseen slugs) plus inlined colored provider brand SVGs
+(provider-icons.tsx, sourced from LobeHub's static set; Anthropic/
+OpenAI as currentColor, multicolor marks keep brand fills, gradient
+ids namespaced per-instance via useId). Select gains optional
+per-option icon, additive - other consumers unchanged.
+Gates green: check-types, lint. UI copy kept em-dash free.
+**Files/areas touched:** `apps/dashboard/src/components/settings/
+{members-section,member-row,org-rename-field,avatar-upload,
+avatar-upload-modal,model-role-row,provider-icons}.tsx`,
+`apps/dashboard/src/components/ui/{select,dropdown-menu}.tsx`,
+`apps/dashboard/src/lib/model-display.ts`,
+`apps/dashboard/src/components/planning/icons.tsx`,
+`apps/dashboard/src/app/globals.css`.
+**Related ADR:** none (UI-level judgment only, no new decisions).
+**Follow-ups:**
+- Manual pass: hard refresh on Members tab shows org name; ellipsis
+  menu keyboard nav; avatar modal upload/remove; model picker icons
+  in both trigger and options.
