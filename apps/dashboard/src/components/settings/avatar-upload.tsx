@@ -2,10 +2,9 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { CameraIcon } from "@/components/planning/icons";
 import { useUploadAvatarMutation, useRemoveAvatarMutation } from "@/hooks/use-account-mutations";
-import { FormNote } from "./form-note";
+import { AvatarUploadModal } from "./avatar-upload-modal";
 
 interface AvatarUploadProps {
   name: string;
@@ -18,12 +17,19 @@ const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 
 // Self-contained avatar block: composes the read-only <Avatar>, owns the
-// hover-to-upload interaction, the corner tap affordance for touch, and the
-// "Remove" action — profile-section.tsx just drops this in and renders the
-// same instance in both view and edit mode (the avatar itself is never
-// locked to name-edit state, per design spec).
+// hover-to-open affordance, the corner tap affordance for touch, and the
+// upload/remove modal — profile-section.tsx just drops this in and renders
+// the same instance in both view and edit mode (the avatar itself is never
+// locked to name-edit state, per design spec). Clicking the avatar no
+// longer opens the file picker directly: it opens AvatarUploadModal, which
+// offers "Upload new photo" (the file picker, via the same hidden input)
+// and — only once an image exists — "Remove photo". Errors (validation and
+// mutation) render inside the modal only; there's no standalone FormNote
+// fallback for when it's closed, so there's exactly one place an avatar
+// error can ever be seen, never two possibly-stale copies.
 export function AvatarUpload({ name, email, image }: AvatarUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const uploadAvatar = useUploadAvatarMutation();
   const removeAvatar = useRemoveAvatarMutation();
@@ -35,6 +41,16 @@ export function AvatarUpload({ name, email, image }: AvatarUploadProps) {
   // Precedence: a fresh client-side validation issue is the most relevant
   // thing to show; otherwise surface whichever mutation last failed.
   const errorMessage = validationError ?? uploadAvatar.error?.message ?? removeAvatar.error?.message ?? null;
+
+  // Closing (success, backdrop, Escape, or the panel's own Close button)
+  // always clears every error path too — reopening starts clean, and a
+  // just-succeeded mutation has nothing left to show anyway.
+  function closeModal() {
+    setValidationError(null);
+    uploadAvatar.reset();
+    removeAvatar.reset();
+    setModalOpen(false);
+  }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -57,17 +73,17 @@ export function AvatarUpload({ name, email, image }: AvatarUploadProps) {
       return;
     }
 
-    uploadAvatar.mutate(file);
+    uploadAvatar.mutate(file, { onSuccess: closeModal });
   }
 
   function handleRemove() {
     setValidationError(null);
     uploadAvatar.reset();
-    removeAvatar.mutate();
+    removeAvatar.mutate(undefined, { onSuccess: closeModal });
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <>
       <div className="group relative h-20 w-20 shrink-0">
         <Avatar name={name} email={email} image={image} className="h-20 w-20" />
 
@@ -84,7 +100,7 @@ export function AvatarUpload({ name, email, image }: AvatarUploadProps) {
           type="button"
           aria-label="Change avatar"
           disabled={busy}
-          onClick={() => inputRef.current?.click()}
+          onClick={() => setModalOpen(true)}
           className={`transition-swift absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-full focus-visible:outline-none disabled:cursor-not-allowed ${
             uploading
               ? "pointer-events-none bg-bg/80 opacity-100"
@@ -114,13 +130,20 @@ export function AvatarUpload({ name, email, image }: AvatarUploadProps) {
         </span>
       </div>
 
-      {hasImage ? (
-        <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={handleRemove}>
-          {removeAvatar.isPending ? "Removing…" : "Remove"}
-        </Button>
-      ) : null}
-
-      {errorMessage ? <FormNote>{errorMessage}</FormNote> : null}
-    </div>
+      <AvatarUploadModal
+        open={modalOpen}
+        pending={busy}
+        uploading={uploading}
+        removing={removeAvatar.isPending}
+        hasImage={hasImage}
+        errorMessage={errorMessage}
+        onCancel={closeModal}
+        onUploadClick={() => inputRef.current?.click()}
+        onRemove={handleRemove}
+        name={name}
+        email={email}
+        image={image}
+      />
+    </>
   );
 }

@@ -31,6 +31,8 @@ import {
   LuLogOut,
   LuBuilding2,
   LuCamera,
+  LuTrash2,
+  LuEllipsis,
 } from "react-icons/lu";
 
 interface IconProps {
@@ -99,3 +101,7 @@ export const SignOutIcon = wrapIcon(LuLogOut, "SignOutIcon");
 export const OrgIcon = wrapIcon(LuBuilding2, "OrgIcon");
 // settings: avatar upload trigger
 export const CameraIcon = wrapIcon(LuCamera, "CameraIcon");
+// settings: per-row actions trigger (ui/dropdown-menu.tsx)
+export const MoreIcon = wrapIcon(LuEllipsis, "MoreIcon");
+// settings: destructive remove-photo action
+export const TrashIcon = wrapIcon(LuTrash2, "TrashIcon");
