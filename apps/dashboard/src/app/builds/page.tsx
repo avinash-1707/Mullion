@@ -55,17 +55,16 @@ export default function BuildsPage() {
       </div>
 
       {runs.length === 0 ? (
-        <div className="mt-10 flex flex-col items-center gap-3 border border-hairline bg-surface px-6 py-16 text-center">
-          <span className="flex h-11 w-11 items-center justify-center bg-accent-soft text-accent-strong">
-            <BuildIcon className="h-5 w-5" />
-          </span>
-          <h2 className="font-serif text-xl text-fg">No builds yet</h2>
-          <p className="max-w-sm text-sm text-fg-muted">
+        // Same quiet empty state as settings' analytics tab: faint icon,
+        // serif line, muted sub-line — no card chrome. min-h + justify-center
+        // so it sits centered in the viewport area below the header, not
+        // hugging it.
+        <div className="animate-reveal flex min-h-[55vh] flex-col items-center justify-center px-5 py-14 text-center">
+          <BuildIcon className="h-8 w-8 text-fg-faint" />
+          <p className="mt-4 font-serif text-xl text-fg">No builds yet.</p>
+          <p className="mt-2 max-w-sm text-sm text-fg-muted">
             Builds start from a confirmed planning session - freeze an architecture, then choose &ldquo;Build it for us.&rdquo;
           </p>
-          <Link href="/" className={buttonVariants({ variant: "primary", size: "sm" })}>
-            Go to dashboard
-          </Link>
         </div>
       ) : (
         <div className="mt-8 flex flex-col gap-2.5">
