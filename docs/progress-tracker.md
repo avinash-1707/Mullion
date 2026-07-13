@@ -1538,3 +1538,51 @@ Gates green: dashboard check-types + lint.
 **Files/areas touched:** `apps/dashboard/src/app/{page.tsx,globals.css}`,
 `apps/dashboard/src/hooks/use-in-view.ts` (new).
 **Related ADR:** none — motion vocabulary extension, no new decision.
+
+## 2026-07-14 — Agent prompt hardening pass (ADR-79)
+
+**What:** Audit-then-improve pass over all seven agent prompts in
+`packages/agents`. Coder prompt rewritten (was the weakest): it now
+states the sandbox invariants (empty `/workspace`, Node 22 only, no
+network, command timeouts, no servers/REPLs) and its task message shows
+the runner's verify command with an instruction to run it and see it
+pass before `submit` — `buildCoderUserMessage` now takes
+`verifyCommand` as a required second argument. Planner gained a build
+environment contract (tasks must be stdlib-only, self-contained, no
+cross-task files; acceptanceCriteria machine-checkable via
+`node --test`) plus one worked JSONL example line shared by the
+initial-plan and edit prompts. All verbatim user text (idea, edit
+requests) is now wrapped in `<user_input>`/`<user_change_request>`
+delimiters with treat-as-data notes — defense-in-depth, not a trust
+boundary. Build reviewer got an explicit verdict rule (approved false
+iff ≥1 blocker; never flag omitted-for-size files) and the tester got
+exit-code semantics, a ≤10-failures cap folded by root cause, and a
+truncation-marker note. Consistency reviewer unchanged (already
+tight). Gates green: check-types + tests for agents and all
+dependents (orchestrator, evals, llm).
+**Files/areas touched:** `packages/agents/src/coder/{prompt,build-task}.ts`,
+`packages/agents/src/{planner,analyst}.ts`,
+`packages/agents/src/reviewer/reviewer.ts`,
+`packages/agents/src/tester/tester.ts`.
+**Related ADR:** ADR-79.
+
+## 2026-07-14 — Prompt efficiency pass (ADR-79 addendum)
+
+**What:** Follow-up token/code efficiency pass over the same agents.
+Compact `JSON.stringify` (no pretty-print) for the requirements doc and
+architecture graph blocks in planner initial, planner edit, and
+consistency-review prompts — these re-send on every planning turn and
+the indentation cost ~25% extra prompt tokens for nothing. Deduped the
+two identical middle-out truncators (coder loop's `truncate`, tester's
+`clip`) into shared `packages/agents/src/truncate.ts` (`truncateMiddle`
++ unit tests); tester's marker now carries the dropped-char count.
+Flagged but NOT built (needs research + its own ADR): OpenRouter prompt
+caching for the coder loop's resent prefix — biggest remaining cost
+lever, ZDR (ADR-27) interaction unverified. Gates green: check-types +
+78 tests across agents and dependents.
+**Files/areas touched:** `packages/agents/src/truncate.ts` (new),
+`packages/agents/src/truncate.test.ts` (new),
+`packages/agents/src/coder/build-task.ts`,
+`packages/agents/src/{planner,consistency}.ts`,
+`packages/agents/src/tester/{tester.ts,tester.test.ts}`.
+**Related ADR:** ADR-79 (addendum).

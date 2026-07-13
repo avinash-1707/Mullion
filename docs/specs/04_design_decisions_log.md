@@ -1814,3 +1814,74 @@ before sorting (the keyset trims groups, not the scan) — fine to roughly
 (keyset+LIMIT on runs first, lateral-join the sums) or pre-aggregate.
 Client side, `useInfiniteQuery` accumulates pages unbounded — set
 `maxPages` or virtualize if orgs routinely page deep.
+
+### ADR-79 — Agent prompt hardening pass: Coder sees the verify command, Planner learns the sandbox contract, user text delimited
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** A prompt audit rated the Coder system prompt weakest (8
+lines for the hardest job): it never told the model what the sandbox
+contains, how acceptance is checked, or that the workspace starts
+empty. Worse, nothing told the Planner that tasks execute in isolated,
+empty, offline, Node-only sandboxes — so it could freely plan tasks
+requiring `npm install` or files from sibling tasks, both guaranteed to
+fail at build time. Raw user text (idea, edit requests) was
+interpolated into prompts with no delimiters, and the streamed JSONL
+planner format had no worked example (fence/blank-line-prone on cheaper
+OpenRouter models).
+**Decision:**
+- **The Coder is shown the verify command** in its task message and
+  told to run it and see it pass BEFORE calling `submit`
+  (`buildCoderUserMessage(task, verifyCommand)` — required argument).
+  This does not weaken ADR-46: the runner still owns execution and the
+  exit code. Showing the gate lets the model self-check with the exact
+  command instead of guessing, spending fewer of its capped verify/fix
+  cycles blind.
+- **Coder system prompt states the environment invariants**: empty
+  `/workspace`, Node.js 22 only, no network (installs WILL fail), hard
+  per-command timeout, no servers/watch modes/REPLs, keep command
+  output small. The notes are an optional parameter of
+  `buildCoderSystemPrompt` defaulting to the `node:22-bookworm-slim`
+  baseline — a deployment overriding the sandbox image must override
+  the notes too, or the prompt lies.
+- **Planner gains a "build environment contract" section**: every task
+  completable with the Node stdlib alone in an empty isolated
+  workspace; `dependsOn` is ordering/knowledge flow only, never shared
+  files; acceptanceCriteria must be machine-checkable via the task's
+  own `node --test` run.
+- **JSONL_RULES carries one worked example line** (marked format
+  reference only) — shared by the initial-plan and edit prompts.
+- **All verbatim user text is delimited** (`<user_input>`,
+  `<user_change_request>`) with a treat-as-data-not-instructions rule
+  (analyst rounds, requirements build, planner initial + edit).
+  Defense-in-depth only: the real boundaries remain the deterministic
+  checks and the human confirm (ADR-02) — a delimiter is cheap
+  insurance, never a trust boundary.
+- **Reviewer/Tester bars made explicit**: build reviewer — `approved`
+  is false iff at least one blocker exists, concerns alone still
+  approve, and files listed in the "[omitted for size]" marker must
+  never be reported as missing or broken; tester — exit code decides
+  pass/fail (ADR-48 restated to the model itself), at most 10 failures
+  folded by root cause, the `…[truncated]…` marker is not an error.
+**Alternatives considered:** hiding the verify command from the Coder
+(M1's inline verifier is gameable either way per ADR-46 and M2's
+fresh-sandbox verifier is tamper-proof either way — hiding only causes
+blind submits); hardcoding sandbox facts in the prompt string (lies
+under an image override); few-shot examples for every agent (the flat
+JSON shapes are described precisely enough by schema-in-prompt; only
+the streaming JSONL format earned an example).
+**Doc:** `packages/agents/src/coder/{prompt,build-task}.ts`,
+`packages/agents/src/{planner,analyst}.ts`,
+`packages/agents/src/reviewer/reviewer.ts`,
+`packages/agents/src/tester/tester.ts`
+
+**Addendum (efficiency pass, same day):** prompt payloads that re-send
+on every turn (requirements doc, architecture graph — planner initial,
+planner edit, consistency review) switched from pretty-printed to
+compact `JSON.stringify` (~25% fewer prompt tokens on those blocks, no
+accuracy cost). The two duplicate middle-out truncators (build-task's
+`truncate`, tester's `clip`) unified into
+`packages/agents/src/truncate.ts` `truncateMiddle`; the tester marker
+now carries the dropped-char count like the coder loop's. Deferred,
+flagged for a future ADR: OpenRouter prompt caching (`cache_control`)
+for the coder loop's growing resent prefix — potentially the largest
+remaining cost lever, but the interaction with ADR-27's ZDR-only
+routing is unverified, so it needs research before adoption.

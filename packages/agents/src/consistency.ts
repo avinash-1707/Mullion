@@ -156,7 +156,7 @@ export const consistencyReviewAgent: AgentSpec<ConsistencyReviewInput, Consisten
       { role: "system", content: REVIEW_SYSTEM },
       {
         role: "user",
-        content: `Requirements Document:\n${JSON.stringify(input.requirements, null, 2)}\n\nArchitecture graph:\n${JSON.stringify(graph, null, 2)}`,
+        content: `Requirements Document:\n${JSON.stringify(input.requirements)}\n\nArchitecture graph:\n${JSON.stringify(graph)}`,
       },
     ];
   },

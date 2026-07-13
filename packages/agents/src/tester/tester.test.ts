@@ -46,6 +46,6 @@ describe("testerAgent", () => {
     const big = { ...input, stdout: "x".repeat(50_000) };
     const messages = testerAgent.buildMessages(big);
     expect(messages[1]!.content.length).toBeLessThan(40_000);
-    expect(messages[1]!.content).toContain("[truncated]");
+    expect(messages[1]!.content).toMatch(/\[truncated \d+ chars\]/);
   });
 });

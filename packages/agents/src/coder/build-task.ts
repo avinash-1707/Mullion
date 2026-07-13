@@ -16,6 +16,7 @@ import type {
 } from "@mullion/schemas";
 import { checkBudget, type BudgetConfig } from "../budget.js";
 import { withBackoff } from "../retry.js";
+import { truncateMiddle } from "../truncate.js";
 import { appendMessage, recordSandboxCost, setTaskStatus, type PersistContext } from "./persist.js";
 import { buildCoderSystemPrompt, buildCoderUserMessage, type CoderTaskInput } from "./prompt.js";
 import { CODER_TOOL_DEFINITIONS, parseToolCall } from "./tools.js";
@@ -98,11 +99,6 @@ const MAX_TOOL_CALLS_PER_TURN = 16;
 // bound (64KB) — otherwise a later read-validation would flag it corrupt.
 const MAX_ASSISTANT_CONTENT_CHARS = 60_000;
 
-function truncate(text: string, maxChars: number): string {
-  if (text.length <= maxChars) return text;
-  const half = Math.floor(maxChars / 2);
-  return `${text.slice(0, half)}\n…[truncated ${text.length - maxChars} chars]…\n${text.slice(-half)}`;
-}
 
 export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Promise<TaskResult> {
   const now = deps.now ?? Date.now;
@@ -170,7 +166,7 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
 
   const messages: ToolChatMessage[] = [
     { role: "system", content: buildCoderSystemPrompt() },
-    { role: "user", content: buildCoderUserMessage(input.task) },
+    { role: "user", content: buildCoderUserMessage(input.task, input.verifyCommand) },
   ];
 
   const pushToolResult = async (
@@ -180,7 +176,7 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
     content: string,
     extra?: { exitCode?: number; durationMs?: number },
   ): Promise<void> => {
-    const truncated = truncate(content, caps.maxToolResultChars);
+    const truncated = truncateMiddle(content, caps.maxToolResultChars);
     messages.push({ role: "tool", tool_call_id: toolCallId, content: truncated });
     await appendMessage(deps.db, ctx, {
       kind: "tool_result",
@@ -245,7 +241,7 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
     const persistedContent =
       completion.content === null
         ? null
-        : truncate(completion.content, MAX_ASSISTANT_CONTENT_CHARS);
+        : truncateMiddle(completion.content, MAX_ASSISTANT_CONTENT_CHARS);
     messages.push({
       role: "assistant",
       content: completion.content,
