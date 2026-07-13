@@ -81,7 +81,7 @@ export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
   return (
     <>
       <tr className="transition-swift border-t border-border first:border-t-0 hover:bg-elevated">
-        <td className="py-5 pr-4">
+        <td className="py-5 pl-4 pr-4 align-middle">
           <div className="flex min-w-0 items-center gap-3">
             <Avatar name={member.name} email={member.email} image={member.image} />
             <div className="min-w-0">
@@ -94,7 +94,7 @@ export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
           </div>
         </td>
 
-        <td className="py-5 pr-4">
+        <td className="py-5 pr-4 text-center align-middle">
           <span
             className={cn(
               "inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.2em]",
@@ -105,12 +105,12 @@ export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
           </span>
         </td>
 
-        <td className="hidden py-5 pr-4 font-mono text-xs text-fg-faint sm:table-cell">
+        <td className="hidden py-5 pr-4 text-center align-middle font-mono text-xs text-fg-faint sm:table-cell">
           {formatJoinedDate(member.createdAt)}
         </td>
 
         {canManage ? (
-          <td className="py-5 pl-4 text-right">
+          <td className="py-5 pl-4 pr-4 text-center align-middle">
             {menuItems.length > 0 ? (
               <DropdownMenu items={menuItems} triggerLabel={`Actions for ${member.name}`} disabled={busy} />
             ) : null}
@@ -120,7 +120,7 @@ export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
 
       {hasError ? (
         <tr>
-          <td colSpan={canManage ? 4 : 3} className="pb-4">
+          <td colSpan={canManage ? 4 : 3} className="px-4 pb-4">
             <div className="flex flex-col gap-2">
               {updateRole.isError ? <FormNote>{updateRole.error.message}</FormNote> : null}
               {removeMember.isError ? <FormNote>{removeMember.error.message}</FormNote> : null}

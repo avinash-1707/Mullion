@@ -70,10 +70,16 @@ export function MembersSection() {
           <table className="w-full table-fixed border-collapse text-left">
             <thead>
               <tr className="border-b border-border">
-                <th scope="col" className="py-3 pr-4 font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-fg-muted">
+                <th
+                  scope="col"
+                  className="py-3 pl-4 pr-4 align-middle font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-fg-muted"
+                >
                   Member
                 </th>
-                <th scope="col" className="w-32 py-3 pr-4 font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-fg-muted">
+                <th
+                  scope="col"
+                  className="w-32 py-3 pr-4 text-center align-middle font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-fg-muted"
+                >
                   Role
                 </th>
                 {/* Collapsed below sm rather than wrapped in an overflow-x-auto
@@ -81,12 +87,12 @@ export function MembersSection() {
                     reasonable viewport width, so there's nothing to scroll. */}
                 <th
                   scope="col"
-                  className="hidden w-36 py-3 pr-4 font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-fg-muted sm:table-cell"
+                  className="hidden w-36 py-3 pr-4 text-center align-middle font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-fg-muted sm:table-cell"
                 >
                   Joined
                 </th>
                 {data.canManage ? (
-                  <th scope="col" className="w-14 py-3 pl-4">
+                  <th scope="col" className="w-14 py-3 pl-4 pr-4 text-center align-middle">
                     <span className="sr-only">Actions</span>
                   </th>
                 ) : null}
