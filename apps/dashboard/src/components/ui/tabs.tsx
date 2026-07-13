@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export interface TabItem {
@@ -27,6 +27,35 @@ interface TabListProps {
 // row on mobile instead of reflowing into a stack.
 export function TabList({ items, value, onChange, idBase, className = "" }: TabListProps) {
   const listRef = useRef<HTMLDivElement>(null);
+
+  // Shared sliding underline, measured off the selected button. Layout
+  // effect so first paint is already in place; translateX+scaleX (not
+  // left/width) keeps the slide transform-only and interruptible.
+  const [indicator, setIndicator] = useState<{ left: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+
+    function measure() {
+      if (!list) return;
+      const activeButton = list.querySelector<HTMLButtonElement>('[role="tab"][aria-selected="true"]');
+      if (!activeButton) {
+        setIndicator(null);
+        return;
+      }
+      const next = { left: activeButton.offsetLeft, width: activeButton.offsetWidth };
+      setIndicator((prev) => (prev && prev.left === next.left && prev.width === next.width ? prev : next));
+    }
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    for (const button of list.querySelectorAll<HTMLButtonElement>('[role="tab"]')) {
+      observer.observe(button);
+    }
+    return () => observer.disconnect();
+  }, [value, items]);
 
   function focusTabAt(index: number) {
     const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
@@ -68,7 +97,7 @@ export function TabList({ items, value, onChange, idBase, className = "" }: TabL
       role="tablist"
       aria-orientation="horizontal"
       onKeyDown={handleKeyDown}
-      className={cn("flex gap-1 overflow-x-auto border-b border-border", className)}
+      className={cn("relative flex gap-1 overflow-x-auto border-b border-border", className)}
     >
       {items.map((item) => {
         const active = item.value === value;
@@ -88,12 +117,27 @@ export function TabList({ items, value, onChange, idBase, className = "" }: TabL
             )}
           >
             {item.label}
-            {active ? <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-accent" /> : null}
+            {/* Static underline fallback until hydration has measured. */}
+            {active && !indicator ? (
+              <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-0.5 bg-accent" />
+            ) : null}
           </button>
         );
       })}
+      {indicator ? (
+        <span
+          aria-hidden="true"
+          className="tab-indicator-slide pointer-events-none absolute bottom-0 left-0 h-0.5 w-px origin-left bg-accent"
+          style={{ transform: `translateX(${indicator.left}px) scaleX(${indicator.width})` }}
+        />
+      ) : null}
     </div>
   );
+}
+
+// CSSProperties is closed — extend for the custom property (RailRowStyle pattern).
+interface TabPanelStyle extends CSSProperties {
+  "--tab-enter-x"?: string;
 }
 
 interface TabPanelProps {
@@ -102,6 +146,8 @@ interface TabPanelProps {
   idBase: string;
   children: ReactNode;
   className?: string;
+  /** Side content slides in from on activation; null/omitted = no enter motion. */
+  enterFrom?: "left" | "right" | null;
 }
 
 // Every panel stays mounted regardless of which tab is active — matches
@@ -109,9 +155,15 @@ interface TabPanelProps {
 // toggle rather than a conditional unmount, so in-progress panel-local
 // state (a half-typed API key, a scrolled analytics chart) survives
 // switching tabs and back. `hidden` removes it from layout AND the
-// accessibility tree without tearing it down.
-export function TabPanel({ value, activeValue, idBase, children, className = "" }: TabPanelProps) {
+// accessibility tree without tearing it down. That same display toggle
+// replays the `tab-enter` animation on each unhide (animations reset
+// while undisplayed); the class stays on once set so re-renders can't
+// cancel it mid-flight.
+export function TabPanel({ value, activeValue, idBase, children, className = "", enterFrom = null }: TabPanelProps) {
   const active = value === activeValue;
+  const style: TabPanelStyle | undefined = enterFrom
+    ? { "--tab-enter-x": enterFrom === "right" ? "16px" : "-16px" }
+    : undefined;
   return (
     <div
       role="tabpanel"
@@ -119,7 +171,8 @@ export function TabPanel({ value, activeValue, idBase, children, className = "" 
       aria-labelledby={`${idBase}-tab-${value}`}
       hidden={!active}
       tabIndex={0}
-      className={className}
+      style={style}
+      className={cn(enterFrom && "animate-tab-enter", className)}
     >
       {children}
     </div>

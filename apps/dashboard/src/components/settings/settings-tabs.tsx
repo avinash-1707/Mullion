@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useId } from "react";
+import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TabList, TabPanel, type TabItem } from "@/components/ui/tabs";
 import { ProfileSection } from "./profile-section";
@@ -35,6 +35,19 @@ export function SettingsTabs() {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
   const activeTab: TabValue = isTabValue(requestedTab) ? requestedTab : "profile";
+  const activeIndex = TABS.findIndex((tab) => tab.value === activeTab);
+
+  // Panel slide direction, from the URL-driven index so back/forward
+  // animates too. Starts null (no slide on initial load); layout effect
+  // flips it pre-paint so the unhidden panel's first frame animates.
+  const [enterFrom, setEnterFrom] = useState<"left" | "right" | null>(null);
+  const previousIndexRef = useRef(activeIndex);
+  useLayoutEffect(() => {
+    const previousIndex = previousIndexRef.current;
+    if (activeIndex === previousIndex) return;
+    previousIndexRef.current = activeIndex;
+    setEnterFrom(activeIndex > previousIndex ? "right" : "left");
+  }, [activeIndex]);
 
   const setActiveTab = useCallback(
     (value: string) => {
@@ -49,7 +62,7 @@ export function SettingsTabs() {
     <div>
       <TabList items={TABS} value={activeTab} onChange={setActiveTab} idBase={idBase} />
 
-      <TabPanel value="profile" activeValue={activeTab} idBase={idBase} className="flex flex-col gap-14 pt-14">
+      <TabPanel value="profile" activeValue={activeTab} idBase={idBase} enterFrom={enterFrom} className="flex flex-col gap-14 pt-14">
         <ProfileSection />
         <div className="border-t border-hairline pt-14">
           <SecuritySection />
@@ -59,15 +72,15 @@ export function SettingsTabs() {
         </div>
       </TabPanel>
 
-      <TabPanel value="members" activeValue={activeTab} idBase={idBase} className="pt-14">
+      <TabPanel value="members" activeValue={activeTab} idBase={idBase} enterFrom={enterFrom} className="pt-14">
         <MembersSection />
       </TabPanel>
 
-      <TabPanel value="models" activeValue={activeTab} idBase={idBase} className="pt-14">
+      <TabPanel value="models" activeValue={activeTab} idBase={idBase} enterFrom={enterFrom} className="pt-14">
         <ModelsSection />
       </TabPanel>
 
-      <TabPanel value="analytics" activeValue={activeTab} idBase={idBase} className="pt-14">
+      <TabPanel value="analytics" activeValue={activeTab} idBase={idBase} enterFrom={enterFrom} className="pt-14">
         <AnalyticsSection />
       </TabPanel>
     </div>

@@ -1338,3 +1338,27 @@ Gates green: check-types, lint, test (38), build.
 **Follow-ups:**
 - Manual pass: drawer scrim blur + tap-to-close on a real device;
   rail hover-expand with the new inset rows.
+
+## 2026-07-13 — Settings tab motion: sliding underline + directional panel enter
+
+Settings tabs no longer hard-switch. The active underline is now one
+shared indicator that slides between tabs (transform-only translateX +
+scaleX on a 1px bar, measured via layout effect + ResizeObserver;
+per-button static underline kept as the pre-hydration fallback). Tab
+content gets a directional enter — new panel slides 16px in from the
+side of travel with the house fade+blur materialize (300ms,
+cubic-bezier(0.22,1,0.36,1), `backwards` fill so no lingering transform
+containing-block). Replay rides the existing `hidden` display toggle
+(animations reset while undisplayed), so panels stay mounted and no JS
+restart bookkeeping exists to get cancelled by re-renders. Direction is
+derived from the URL-driven tab index in SettingsTabs, so browser
+back/forward animates too; initial page load deliberately does not.
+Reduced motion covered by the existing global override.
+Gates green: check-types, lint, test (38).
+**Files/areas touched:** `apps/dashboard/src/components/ui/tabs.tsx`,
+`apps/dashboard/src/components/settings/settings-tabs.tsx`,
+`apps/dashboard/src/app/globals.css`.
+**Related ADR:** none — motion-only pass within existing conventions.
+**Follow-ups:**
+- Manual pass: rapid tab-clicking (underline should retarget
+  mid-slide), mobile overflow-scrolled tablist.
