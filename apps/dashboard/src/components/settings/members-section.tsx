@@ -67,16 +67,42 @@ export function MembersSection() {
             <Skeleton className="h-14 w-full" />
           </div>
         ) : data ? (
-          <ul className="flex flex-col divide-y divide-border">
-            {data.members.map((member) => (
-              <MemberRow
-                key={member.id}
-                member={member}
-                canManage={data.canManage}
-                isSelf={member.userId === currentUserId}
-              />
-            ))}
-          </ul>
+          <table className="w-full table-fixed border-collapse text-left">
+            <thead>
+              <tr className="border-b border-border">
+                <th scope="col" className="py-3 pr-4 font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-fg-muted">
+                  Member
+                </th>
+                <th scope="col" className="w-32 py-3 pr-4 font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-fg-muted">
+                  Role
+                </th>
+                {/* Collapsed below sm rather than wrapped in an overflow-x-auto
+                    container — Member/Role/Actions alone already fit any
+                    reasonable viewport width, so there's nothing to scroll. */}
+                <th
+                  scope="col"
+                  className="hidden w-36 py-3 pr-4 font-mono text-[11px] font-normal uppercase tracking-[0.2em] text-fg-muted sm:table-cell"
+                >
+                  Joined
+                </th>
+                {data.canManage ? (
+                  <th scope="col" className="w-14 py-3 pl-4">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                ) : null}
+              </tr>
+            </thead>
+            <tbody>
+              {data.members.map((member) => (
+                <MemberRow
+                  key={member.id}
+                  member={member}
+                  canManage={data.canManage}
+                  isSelf={member.userId === currentUserId}
+                />
+              ))}
+            </tbody>
+          </table>
         ) : membersQuery.error ? (
           <FormNote>{membersQuery.error.message}</FormNote>
         ) : null}

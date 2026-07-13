@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
-import { Select, type SelectOption } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+import { DropdownMenu, type DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { cn } from "@/lib/utils";
 import { formatJoinedDate } from "@/lib/format";
 import { roleLabel, type OrgMember, type OrgRole } from "@/lib/organizations-api";
 import { useUpdateMemberRoleMutation, useRemoveMemberMutation } from "@/hooks/use-org-members";
@@ -16,34 +16,39 @@ interface MemberRowProps {
   isSelf: boolean;
 }
 
-const ROLE_OPTIONS: SelectOption[] = [
-  { value: "admin", label: "Admin" },
-  { value: "member", label: "Member" },
-];
+// Subtle-but-distinct tint per role, both built from existing tokens rather
+// than a new color: admin borrows the accent/ember family (the one role
+// with elevated privileges), member stays neutral on border-strong/fg-muted
+// - the same "quiet unless it matters" restraint the rest of the surface
+// uses for anything non-destructive.
+const ROLE_BADGE_STYLES: Record<OrgRole, string> = {
+  admin: "border-accent/40 bg-accent-soft text-accent-strong",
+  member: "border-border-strong bg-transparent text-fg-muted",
+};
 
-// One row per member — structural sibling of model-role-row.tsx (own
-// mutation instances) and connected-accounts-section.tsx's row shape
-// (identity + status/control on the right). Every row gets the role Select
-// when canManage — there is no static "Owner" tag; roles are admin/member
-// only.
+// One row per member - table-row sibling of the list version this
+// replaces, same per-row mutation-instance convention as
+// model-role-row.tsx. Role is now a read-only badge for every viewer (never
+// a Select); the trailing ellipsis DropdownMenu is the only control, and it
+// only renders at all when canManage - carrying forward every semantic the
+// old inline Select + Remove button pair had (self-demote through
+// ConfirmDialog, remove hidden for self, busy disables the trigger), just
+// behind one WAI-ARIA menu-button instead of two exposed controls.
 export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
   const updateRole = useUpdateMemberRoleMutation();
   const removeMember = useRemoveMemberMutation();
   const [removeOpen, setRemoveOpen] = useState(false);
   const [selfDemoteOpen, setSelfDemoteOpen] = useState(false);
-  const [pendingSelfRole, setPendingSelfRole] = useState<OrgRole | null>(null);
   const busy = updateRole.isPending || removeMember.isPending;
 
-  function handleRoleChange(nextValue: string) {
-    const role = nextValue as OrgRole;
+  // Demoting yourself out of admin can take your own canManage rights away
+  // mid-tab - the one role change routed through a confirm instead of
+  // committing immediately, same exception the old Select's
+  // handleRoleChange carried. Only reachable for self since canManage
+  // implies you're currently admin.
+  function handleRoleChange(role: OrgRole) {
     if (role === member.role) return;
-    // Demoting yourself out of admin can take your own canManage rights
-    // away mid-tab — the one role change in this feature routed through a
-    // confirm instead of committing immediately (every other row follows
-    // useUpdateModelMutation's immediate-optimistic convention). Only
-    // reachable for self since canManage implies you're currently admin.
     if (isSelf && member.role === "admin" && role === "member") {
-      setPendingSelfRole(role);
       setSelfDemoteOpen(true);
       return;
     }
@@ -51,59 +56,77 @@ export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
   }
 
   function handleConfirmSelfDemote() {
-    if (!pendingSelfRole) return;
-    updateRole.mutate({ memberId: member.id, role: pendingSelfRole }, { onSuccess: () => setSelfDemoteOpen(false) });
+    updateRole.mutate({ memberId: member.id, role: "member" }, { onSuccess: () => setSelfDemoteOpen(false) });
   }
 
+  const menuItems: DropdownMenuItem[] = [];
+  if (canManage) {
+    menuItems.push(
+      member.role === "admin"
+        ? { key: "demote", label: "Demote to member", onSelect: () => handleRoleChange("member") }
+        : { key: "promote", label: "Promote to admin", onSelect: () => handleRoleChange("admin") },
+    );
+    if (!isSelf) {
+      menuItems.push({
+        key: "remove",
+        label: "Remove from organization",
+        destructive: true,
+        onSelect: () => setRemoveOpen(true),
+      });
+    }
+  }
+
+  const hasError = updateRole.isError || removeMember.isError;
+
   return (
-    <li className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <Avatar name={member.name} email={member.email} image={member.image} />
-        <div className="min-w-0">
-          <p className="truncate text-sm text-fg">
-            {member.name}
-            {isSelf ? <span className="text-fg-faint"> (you)</span> : null}
-          </p>
-          <p className="truncate font-mono text-xs text-fg-muted">{member.email}</p>
-        </div>
-      </div>
-
-      <div className="flex shrink-0 flex-wrap items-center gap-3 sm:gap-4">
-        <span className="font-mono text-xs text-fg-faint">Joined {formatJoinedDate(member.createdAt)}</span>
-
-        {canManage ? (
-          <div className="w-32">
-            <Select
-              fieldId={`member-role-${member.id}`}
-              aria-label={`Role for ${member.name}`}
-              value={member.role}
-              onChange={handleRoleChange}
-              disabled={busy}
-              options={ROLE_OPTIONS}
-            />
+    <>
+      <tr className="transition-swift border-t border-border first:border-t-0 hover:bg-elevated">
+        <td className="py-5 pr-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Avatar name={member.name} email={member.email} image={member.image} />
+            <div className="min-w-0">
+              <p className="truncate text-sm text-fg">
+                {member.name}
+                {isSelf ? <span className="text-fg-faint"> (you)</span> : null}
+              </p>
+              <p className="truncate font-mono text-xs text-fg-muted">{member.email}</p>
+            </div>
           </div>
-        ) : (
-          <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted">
+        </td>
+
+        <td className="py-5 pr-4">
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.2em]",
+              ROLE_BADGE_STYLES[member.role],
+            )}
+          >
             {roleLabel(member.role)}
           </span>
-        )}
+        </td>
 
-        {canManage && !isSelf ? (
-          <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => setRemoveOpen(true)}>
-            Remove
-          </Button>
+        <td className="hidden py-5 pr-4 font-mono text-xs text-fg-faint sm:table-cell">
+          {formatJoinedDate(member.createdAt)}
+        </td>
+
+        {canManage ? (
+          <td className="py-5 pl-4 text-right">
+            {menuItems.length > 0 ? (
+              <DropdownMenu items={menuItems} triggerLabel={`Actions for ${member.name}`} disabled={busy} />
+            ) : null}
+          </td>
         ) : null}
-      </div>
+      </tr>
 
-      {updateRole.isError ? (
-        <div className="sm:w-full">
-          <FormNote>{updateRole.error.message}</FormNote>
-        </div>
-      ) : null}
-      {removeMember.isError ? (
-        <div className="sm:w-full">
-          <FormNote>{removeMember.error.message}</FormNote>
-        </div>
+      {hasError ? (
+        <tr>
+          <td colSpan={canManage ? 4 : 3} className="pb-4">
+            <div className="flex flex-col gap-2">
+              {updateRole.isError ? <FormNote>{updateRole.error.message}</FormNote> : null}
+              {removeMember.isError ? <FormNote>{removeMember.error.message}</FormNote> : null}
+            </div>
+          </td>
+        </tr>
       ) : null}
 
       <ConfirmDialog
@@ -127,6 +150,6 @@ export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
         confirmLabel="Change role"
         pendingLabel="Changing…"
       />
-    </li>
+    </>
   );
 }

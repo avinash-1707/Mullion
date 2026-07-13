@@ -433,6 +433,31 @@ body {
     transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/*
+ * DropdownMenu popup (ui/dropdown-menu.tsx — per-row member actions) — same
+ * always-mounted, class-toggle-driven mechanism as .mullion-select-popup
+ * above, tuned faster: an ellipsis action menu fires far more often per
+ * session than a role Select, so per Emil's frequency rule the pop should
+ * read as closer to immediate. Origin top-right, not top-left — the trigger
+ * sits at a table row's right edge, so the panel must expand away from the
+ * viewport edge, never toward it.
+ */
+.mullion-dropdown-popup {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+  transition:
+    opacity 120ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mullion-dropdown-popup.mullion-dropdown-open {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 /* Anchor navigation glides (no Lenis here — that's a marketing-app thing). */
 html {
   scroll-behavior: smooth;
