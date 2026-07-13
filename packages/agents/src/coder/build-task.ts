@@ -227,6 +227,9 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
           // provider default is the only per-turn ceiling (Phase 3 audit).
           maxTokens: 16_000,
           costContext: input.costContext,
+          // ADR-80: the loop resends a growing prefix every turn — cache it.
+          // taskRowId keys sticky routing so all turns hit one provider.
+          cache: { sessionId: input.taskRowId },
         }),
       );
     } catch (error) {

@@ -1586,3 +1586,28 @@ lever, ZDR (ADR-27) interaction unverified. Gates green: check-types +
 `packages/agents/src/{planner,consistency}.ts`,
 `packages/agents/src/tester/{tester.ts,tester.test.ts}`.
 **Related ADR:** ADR-79 (addendum).
+
+## 2026-07-14 — Coder-loop prompt caching (ADR-80)
+
+**What:** Anthropic prompt caching for the coder tool loop through
+OpenRouter, under unchanged ZDR routing. Research (OpenRouter docs,
+cited in ADR-80) established: ZDR does not disable caching, but it
+excludes Anthropic-direct, so Bedrock/Vertex are the cache-bearing
+providers and only EXPLICIT per-block cache_control works on both.
+New `packages/llm/src/caching.ts` (pure `applyCacheBreakpoints`):
+breakpoints on system prompt, last tools entry, and the newest
+message's content block (advances each turn); cache_control always
+inside content blocks, assistant messages skipped. Opt-in via
+`CompleteChatWithToolsArgs.cache: {sessionId}` — coder loop passes
+`taskRowId`, which also pins OpenRouter sticky routing (`session_id`)
+so mid-loop provider flips don't cold-start the cache. Usage schema
+now parses `prompt_tokens_details` (cached_tokens/cache_write_tokens)
+into the result + otel span — the empirical "did caching engage"
+check. Budgets/cost_events unchanged: `usage.cost` is already net of
+cache discounts. Expected: ~80–90% off the loop's input-token cost.
+Gates green: check-types + 45 llm tests (5 new caching unit + 2 new
+client wire) + 78 agents tests + dependents.
+**Files/areas touched:** `packages/llm/src/{caching.ts,caching.test.ts}`
+(new), `packages/llm/src/{client.ts,response.ts,index.ts,tools.test.ts}`,
+`packages/agents/src/coder/build-task.ts`.
+**Related ADR:** ADR-80.

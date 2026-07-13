@@ -11,6 +11,7 @@ import {
   parseToolChatCompletion,
 } from "./response.js";
 import type { ToolCall, ToolChatMessage, ToolChoice, ToolDefinition } from "./tools.js";
+import { applyCacheBreakpoints, type CacheOptions } from "./caching.js";
 
 const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
 const ROUTING_CACHE_TTL_MS = 60_000;
@@ -115,6 +116,13 @@ export interface CompleteChatWithToolsArgs {
   maxTokens?: number | undefined;
   temperature?: number | undefined;
   costContext: CostContext;
+  /**
+   * ADR-80: opt-in Anthropic prompt caching via explicit cache_control
+   * breakpoints + sticky-routing session pin. Meant for agentic loops that
+   * resend a growing prefix every turn (the coder loop); one-shot calls
+   * gain nothing and should omit it.
+   */
+  cache?: CacheOptions | undefined;
 }
 
 export interface CompleteChatWithToolsResult {
@@ -125,7 +133,14 @@ export interface CompleteChatWithToolsResult {
   model: string;
   generationId: string;
   cost: number;
-  usage: { promptTokens: number; completionTokens: number; totalTokens: number };
+  usage: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    /** ADR-80 cache telemetry — absent when the call didn't opt into caching. */
+    cachedTokens?: number | undefined;
+    cacheWriteTokens?: number | undefined;
+  };
 }
 
 export interface CompleteChatResult {
@@ -360,6 +375,15 @@ export class OpenRouterClient {
       const result = await this.completeChatWithToolsImpl(args);
       setLlmResultAttributes(span, result);
       span.setAttribute("mullion.llm.tool_calls", result.toolCalls.length);
+      // ADR-80: the empirical caching check — cached_tokens stuck at 0
+      // across a loop means the cache never engaged (wrong endpoint,
+      // breakpoint dropped, or a byte-level invalidator in the prefix).
+      if (result.usage.cachedTokens !== undefined) {
+        span.setAttribute("mullion.llm.cached_tokens", result.usage.cachedTokens);
+      }
+      if (result.usage.cacheWriteTokens !== undefined) {
+        span.setAttribute("mullion.llm.cache_write_tokens", result.usage.cacheWriteTokens);
+      }
       return result;
     });
   }
@@ -386,8 +410,12 @@ export class OpenRouterClient {
             },
             body: JSON.stringify({
               model: slug,
-              messages: args.messages,
-              tools: args.tools,
+              ...(args.cache
+                ? // ADR-80: cache-annotated copies + provider pin. session_id
+                  // keeps every turn of one loop on the same endpoint so the
+                  // prefix written on turn N is readable on turn N+1.
+                  { ...applyCacheBreakpoints(args.messages, args.tools), session_id: args.cache.sessionId }
+                : { messages: args.messages, tools: args.tools }),
               tool_choice: args.toolChoice ?? "auto",
               ...(args.maxTokens !== undefined ? { max_tokens: args.maxTokens } : {}),
               ...(args.temperature !== undefined ? { temperature: args.temperature } : {}),
@@ -440,6 +468,8 @@ export class OpenRouterClient {
         promptTokens: parsed.usage.prompt_tokens,
         completionTokens: parsed.usage.completion_tokens,
         totalTokens: parsed.usage.total_tokens,
+        cachedTokens: parsed.usage.prompt_tokens_details?.cached_tokens,
+        cacheWriteTokens: parsed.usage.prompt_tokens_details?.cache_write_tokens,
       },
     };
   }

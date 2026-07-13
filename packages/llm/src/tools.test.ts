@@ -103,6 +103,70 @@ describe("completeChatWithTools", () => {
     expect(costInserts[0]).toMatchObject({ source: "llm", role: "coder", runId: "run-1" });
   });
 
+  it("applies cache breakpoints + session_id when cache is requested (ADR-80)", async () => {
+    const costInserts: unknown[] = [];
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: "gen-c",
+        model: "test/model",
+        choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+        usage: {
+          ...usage,
+          prompt_tokens_details: { cached_tokens: 4, cache_write_tokens: 1 },
+        },
+      }),
+    );
+    const client = new OpenRouterClient({
+      apiKey: "k",
+      db: fakeDb(costInserts),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const result = await client.completeChatWithTools({
+      ...baseArgs,
+      messages: [
+        { role: "system" as const, content: "sys" },
+        { role: "user" as const, content: "build it" },
+      ],
+      cache: { sessionId: "task-row-1" },
+    });
+
+    const body = JSON.parse((fetchImpl.mock.calls[0]?.[1] as RequestInit).body as string);
+    expect(body.session_id).toBe("task-row-1");
+    expect(body.messages[0].content[0].cache_control).toEqual({ type: "ephemeral" });
+    expect(body.messages[1].content[0].cache_control).toEqual({ type: "ephemeral" });
+    expect(body.tools[0].cache_control).toEqual({ type: "ephemeral" });
+    // ZDR stays hardcoded regardless of caching (ADR-27).
+    expect(body.provider).toEqual({ zdr: true });
+
+    expect(result.usage.cachedTokens).toBe(4);
+    expect(result.usage.cacheWriteTokens).toBe(1);
+  });
+
+  it("sends plain messages and no session_id when cache is not requested", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: "gen-nc",
+        model: "test/model",
+        choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+        usage,
+      }),
+    );
+    const client = new OpenRouterClient({
+      apiKey: "k",
+      db: fakeDb([]),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const result = await client.completeChatWithTools(baseArgs);
+
+    const body = JSON.parse((fetchImpl.mock.calls[0]?.[1] as RequestInit).body as string);
+    expect(body.session_id).toBeUndefined();
+    expect(body.messages).toEqual(baseArgs.messages);
+    expect(body.tools[0].cache_control).toBeUndefined();
+    expect(result.usage.cachedTokens).toBeUndefined();
+  });
+
   it("accepts a plain-text turn with no tool calls", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse({

@@ -14,6 +14,16 @@ export const openRouterUsageSchema = z
     // Non-negative floor: a negative cost row would DECREMENT the ADR-31
     // budget sums, manufacturing headroom (Phase 3 audit).
     cost: z.number().nonnegative(),
+    // ADR-80: cache hit/write telemetry. Optional — non-caching calls and
+    // non-Anthropic providers omit it; `usage.cost` is already net of the
+    // cache discount, so these are observability, never accounting inputs.
+    prompt_tokens_details: z
+      .object({
+        cached_tokens: z.number().optional(),
+        cache_write_tokens: z.number().optional(),
+      })
+      .loose()
+      .optional(),
   })
   .loose();
 

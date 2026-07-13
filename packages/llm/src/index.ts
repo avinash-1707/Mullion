@@ -20,6 +20,7 @@ export {
   type RecordReplayFetchOptions,
 } from "./replay.js";
 export type { ToolCall, ToolChatMessage, ToolChoice, ToolDefinition } from "./tools.js";
+export { applyCacheBreakpoints, type CacheOptions } from "./caching.js";
 export {
   LlmReplayMissError,
   MalformedLlmResponseError,

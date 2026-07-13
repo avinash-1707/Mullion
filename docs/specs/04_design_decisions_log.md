@@ -1885,3 +1885,79 @@ flagged for a future ADR: OpenRouter prompt caching (`cache_control`)
 for the coder loop's growing resent prefix — potentially the largest
 remaining cost lever, but the interaction with ADR-27's ZDR-only
 routing is unverified, so it needs research before adoption.
+
+### ADR-80 — Coder-loop prompt caching: explicit cache_control breakpoints + sticky session pin, under unchanged ZDR routing
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** The coder tool loop resends its full growing transcript to
+OpenRouter every turn — up to 16 turns, tool results up to 12k chars
+each, so late turns re-bill 100k+ chars of byte-identical prefix at
+full input price. Anthropic prompt caching prices reads at 0.1× and
+writes at 1.25× (5-min TTL), breaking even after two reads; the loop
+reuses its prefix up to 15 times. The blocker was ADR-27 (ZDR-only):
+research against OpenRouter's docs resolved it — ZDR does NOT disable
+caching (OpenRouter's stated stance: in-memory prompt caching is not
+"retaining" data), but ZDR excludes Anthropic's first-party endpoint,
+leaving Bedrock and Vertex (exactly ADR-27's "2 ZDR providers"). Bedrock
+does not support the top-level *automatic* cache_control form — sending
+it silently drops Bedrock from routing, halving the ADR-26 failover
+pool. Explicit per-block breakpoints work on both providers.
+**Decision:**
+- **Explicit breakpoints only, never the top-level automatic form**
+  (`packages/llm/src/caching.ts`). Three of the four allowed:
+  last block of the system prompt (static), last entry of the tools
+  array (static — tool definitions otherwise re-bill every turn), and
+  the last content block of the newest message, advancing each turn so
+  every call reads the longest previously written prefix. The spare
+  fourth breakpoint is reserved (candidate: planner edit-session
+  requirements+graph prefix, later).
+- **`cache_control` always inside a content block** — string content is
+  converted to a one-element `[{type:"text", ...}]` array on the wire
+  copy; the envelope-level placement on `role:"tool"` messages is a
+  known silently-dropped shape. Tool definitions are the documented
+  exception (field sits on the array entry). Assistant messages (null
+  content + tool_calls) are passed through unannotated — a skipped
+  breakpoint degrades cost, never correctness.
+- **Opt-in per call, not global:** `CompleteChatWithToolsArgs.cache?:
+  {sessionId}` — only the coder loop passes it (`taskRowId` as the
+  key). One-shot agent calls gain nothing from caching and don't pay
+  the 1.25× write premium.
+- **Sticky routing pinned via `session_id`** = taskRowId: keeps all
+  turns of one task on one provider endpoint so the cache written on
+  turn N is readable on turn N+1; also mitigates the ADR-26
+  mid-loop-failover cold-cache cost spike (correctness unaffected).
+- **ZDR posture unchanged:** `provider: {zdr: true}` stays hardcoded;
+  ADR-27 not touched. Rationale for accepting the one wording gap:
+  OpenRouter's ZDR carve-out names *implicit* caching and doesn't cite
+  Anthropic's explicit mechanism verbatim, but Bedrock and Vertex are
+  both ZDR-classified AND both documented to support explicit
+  breakpoints with no ZDR caveat, and the mechanism is the same
+  TTL-bounded ephemeral store. Flag for compliance sign-off if that
+  ever matters contractually.
+- **Accounting unchanged by construction:** OpenRouter's `usage.cost`
+  is already net of cache discounts, so ADR-31 budgets and cost_events
+  need no changes. New optional `prompt_tokens_details`
+  (cached_tokens / cache_write_tokens) parsed into the result and onto
+  the span (`mullion.llm.cached_tokens`) — the empirical check:
+  cached_tokens stuck at 0 across a loop means the cache never engaged
+  (wrong endpoint, dropped breakpoint, or a byte-level invalidator).
+  The raw usage object (with details) already lands in cost_events'
+  usage jsonb.
+- **5-min TTL default, no 1h tier:** loop turns are seconds apart
+  (60s command timeout, 8-min wall clock); the 1h tier's 2× write
+  premium needs ≥3 reads against idle gaps we don't have.
+**Known limits / watch items:** minimum cacheable prefix is
+model-dependent (1024–4096 tokens) — early cheap turns silently don't
+cache, expected; newly-launched Claude models are sometimes BYOK-only
+on Bedrock/Vertex, so check the model page when bumping the coder
+slug; the dev loopback mock must tolerate content-block arrays in
+messages (scripted-LLM paths are unaffected).
+**Alternatives considered:** top-level automatic cache_control
+(silently excludes Bedrock under ZDR); relaxing ADR-27 to reach
+Anthropic-direct caching (cost win never justifies weakening the ZDR
+guarantee); transcript compaction / eliding old tool results (risks
+the model losing context caching preserves for free); 1h TTL
+(economics wrong for sub-minute turn gaps); caching every role
+globally (one-shot calls pay 1.25× writes for zero reads).
+**Doc:** `packages/llm/src/{caching.ts,client.ts,response.ts,index.ts}`,
+`packages/llm/src/{caching.test.ts,tools.test.ts}`,
+`packages/agents/src/coder/build-task.ts`
