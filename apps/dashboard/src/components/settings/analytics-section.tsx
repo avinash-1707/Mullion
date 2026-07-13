@@ -45,7 +45,7 @@ function AnalyticsContent({ data }: { data: AnalyticsResponse }) {
 
   if (isEmpty) {
     return (
-      <div className="animate-reveal flex flex-col items-center rounded-lg border border-hairline px-5 py-14 text-center">
+      <div className="animate-reveal flex flex-col items-center px-5 py-14 text-center">
         <ChartIcon className="h-8 w-8 text-fg-faint" />
         <p className="mt-4 font-serif text-xl text-fg">Nothing spent yet.</p>
         <p className="mt-2 text-sm text-fg-muted">Start a build to see usage here.</p>
