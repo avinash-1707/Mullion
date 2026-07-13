@@ -22,7 +22,9 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-16 lg:py-20">
+    // Top padding tighter than the home page's py-16/20: no visible heading
+    // here, so the tab row sits closer to the header instead of floating.
+    <div className="mx-auto w-full max-w-3xl px-6 pb-16 pt-8 lg:pb-20 lg:pt-10">
       {/* Visible heading dropped by design — the tab list is the page's top
           element; screen readers still get a page title. */}
       <h1 className="sr-only">Settings</h1>

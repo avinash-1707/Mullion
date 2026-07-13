@@ -5,6 +5,7 @@ import { TextField } from "@/components/ui/text-field";
 import { Button } from "@/components/ui/button";
 import { useActiveOrganization, useActiveOrganizationId, useRenameOrgMutation } from "@/hooks/use-organizations";
 import { FormNote } from "./form-note";
+import { PencilIcon } from "./icons";
 
 interface OrgRenameFieldProps {
   canManage: boolean;
@@ -81,8 +82,16 @@ export function OrgRenameField({ canManage }: OrgRenameFieldProps) {
     return (
       <div className="flex items-center justify-between gap-4">
         <p className="min-w-0 truncate text-sm text-fg">{activeOrg?.name ?? "—"}</p>
-        <Button id={EDIT_BUTTON_ID} type="button" variant="secondary" size="sm" onClick={handleEdit}>
-          Edit
+        <Button
+          id={EDIT_BUTTON_ID}
+          type="button"
+          variant="secondary"
+          size="icon"
+          onClick={handleEdit}
+          aria-label="Edit workspace name"
+          title="Edit workspace name"
+        >
+          <PencilIcon />
         </Button>
       </div>
     );

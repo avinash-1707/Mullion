@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes } from "react";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-export type ButtonSize = "md" | "sm";
+export type ButtonSize = "md" | "sm" | "icon";
 
 interface ButtonVariantsOptions {
   variant?: ButtonVariant | undefined;
@@ -12,6 +12,8 @@ interface ButtonVariantsOptions {
 const SIZES: Record<ButtonSize, string> = {
   md: "h-11 px-5 text-xs",
   sm: "h-9 px-4 text-[11px]",
+  // Square, glyph-only — callers must pass aria-label.
+  icon: "h-9 w-9 px-0",
 };
 
 // Brand buttons read as mono uppercase labels (marketing recipe), slight

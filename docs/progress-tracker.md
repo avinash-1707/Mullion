@@ -1362,3 +1362,23 @@ Gates green: check-types, lint, test (38).
 **Follow-ups:**
 - Manual pass: rapid tab-clicking (underline should retarget
   mid-slide), mobile overflow-scrolled tablist.
+
+## 2026-07-14 — Settings polish: full-width mobile tabs, pen edit icons, tighter top padding
+
+Tablist no longer scrolls horizontally on mobile — tabs flex-1 across
+the full row at narrow widths (tighter 0.12em tracking, px-1; sm+ keeps
+natural widths/0.2em). Sliding underline adapts automatically via the
+existing measurement. Edit buttons ("Edit profile", org "Edit") are now
+icon-only pen buttons: new PencilIcon in settings/icons.tsx (Lucide
+LuPencil, shared wrap), new square `icon` Button size (h-9 w-9),
+aria-label + title preserved for a11y. Settings page top padding halved
+(pt-8/lg:pt-10, bottom kept 16/20) — no visible heading there, tab row
+floated below dead space; skeleton container matched so no load jump.
+Gates green: check-types, lint, test (38).
+**Files/areas touched:** `apps/dashboard/src/components/ui/{tabs,button}.tsx`,
+`apps/dashboard/src/components/settings/{icons,profile-section,org-rename-field}.tsx`,
+`apps/dashboard/src/app/settings/page.tsx`,
+`apps/dashboard/src/components/settings-skeleton.tsx`.
+**Related ADR:** none — visual-only pass.
+**Follow-ups:**
+- Manual pass: 320px-width tablist fit; pen buttons' hover/focus reads.

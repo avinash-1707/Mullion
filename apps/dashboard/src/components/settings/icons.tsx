@@ -1,5 +1,5 @@
 import type { IconType } from "react-icons";
-import { LuGithub } from "react-icons/lu";
+import { LuGithub, LuPencil } from "react-icons/lu";
 
 interface IconProps {
   className?: string;
@@ -20,6 +20,7 @@ function wrapIcon(Icon: IconType, displayName: string) {
 }
 
 export const GithubIcon = wrapIcon(LuGithub, "GithubIcon");
+export const PencilIcon = wrapIcon(LuPencil, "PencilIcon");
 
 // Lucide has no Google mark — a 4-color logo doesn't fit its single-stroke
 // vocabulary — so this is a hand-rolled outline glyph at the same

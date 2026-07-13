@@ -8,7 +8,7 @@ import { Skeleton } from "./ui/skeleton";
 // throughout, via Skeleton's own base treatment.
 export function SettingsSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-16 lg:py-20">
+    <div className="mx-auto w-full max-w-3xl px-6 pb-16 pt-8 lg:pb-20 lg:pt-10">
       <div className="flex gap-1 border-b border-border pb-3">
         <Skeleton className="h-8 w-20" />
         <Skeleton className="h-8 w-20" />

@@ -7,6 +7,7 @@ import { TextField } from "@/components/ui/text-field";
 import { Button } from "@/components/ui/button";
 import { AvatarUpload } from "./avatar-upload";
 import { FormNote } from "./form-note";
+import { PencilIcon } from "./icons";
 
 type Mode = "view" | "edit";
 
@@ -82,8 +83,16 @@ export function ProfileSection() {
             <p className="truncate font-mono text-xs text-fg-muted">{user?.email}</p>
           </div>
 
-          <Button id={EDIT_BUTTON_ID} type="button" variant="secondary" size="sm" onClick={handleEdit}>
-            Edit profile
+          <Button
+            id={EDIT_BUTTON_ID}
+            type="button"
+            variant="secondary"
+            size="icon"
+            onClick={handleEdit}
+            aria-label="Edit profile"
+            title="Edit profile"
+          >
+            <PencilIcon />
           </Button>
         </div>
       ) : (

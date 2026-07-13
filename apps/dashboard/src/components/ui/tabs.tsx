@@ -22,9 +22,9 @@ interface TabListProps {
 // tab reads as an accent bottom-border: the horizontal translation of
 // AppSidebar's vertical left-bar active treatment (app-sidebar.tsx,
 // `.mullion-rail` rows), same mono-uppercase label recipe as every other
-// section label in the product. Horizontally scrollable rather than
-// wrapping or shrinking at narrow widths, so this still reads as a single
-// row on mobile instead of reflowing into a stack.
+// section label in the product. At narrow widths the tabs distribute
+// equally across the full row (tighter tracking/padding) instead of
+// overflowing into a horizontal scrollbar; sm+ keeps natural widths.
 export function TabList({ items, value, onChange, idBase, className = "" }: TabListProps) {
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -97,7 +97,7 @@ export function TabList({ items, value, onChange, idBase, className = "" }: TabL
       role="tablist"
       aria-orientation="horizontal"
       onKeyDown={handleKeyDown}
-      className={cn("relative flex gap-1 overflow-x-auto border-b border-border", className)}
+      className={cn("relative flex gap-1 border-b border-border", className)}
     >
       {items.map((item) => {
         const active = item.value === value;
@@ -112,7 +112,7 @@ export function TabList({ items, value, onChange, idBase, className = "" }: TabL
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(item.value)}
             className={cn(
-              "transition-swift relative shrink-0 whitespace-nowrap px-4 py-3 font-mono text-[11px] uppercase tracking-[0.2em] focus-visible:outline-none",
+              "transition-swift relative flex-1 whitespace-nowrap px-1 py-3 font-mono text-[11px] uppercase tracking-[0.12em] focus-visible:outline-none sm:flex-none sm:px-4 sm:tracking-[0.2em]",
               active ? "text-fg" : "text-fg-muted hover:text-fg focus-visible:text-fg",
             )}
           >
