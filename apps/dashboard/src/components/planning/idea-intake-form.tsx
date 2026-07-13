@@ -48,10 +48,26 @@ export function IdeaIntakeForm() {
     ideaRef.current = idea;
   }, [idea]);
 
+  // The animation only earns its wakeups while it can be seen — track the
+  // form's viewport presence so the interval below can idle when the hero
+  // is scrolled away (the tab-hidden case is checked per-tick instead).
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const onScreenRef = useRef(true);
+  useEffect(() => {
+    const node = formRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver((entries) => {
+      onScreenRef.current = entries.some((entry) => entry.isIntersecting);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   // Typewriter loop, mirroring how a person uses an input: type the example
   // out, sit with it, backspace it away, start the next one. The machine
   // lives in locals and only syncs to state from inside the interval; the
-  // whole loop freezes while the user has content — no background churn.
+  // whole loop freezes while the user has content or the form is
+  // off-screen/tab-hidden — no background churn.
   // Reduced-motion users get whole examples swapping on a slow cadence.
   useEffect(() => {
     let index = 0;
@@ -60,7 +76,7 @@ export function IdeaIntakeForm() {
     let phase: "typing" | "holding" | "deleting" | "pausing" = "typing";
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const id = setInterval(() => {
-      if (ideaRef.current.length > 0) return;
+      if (ideaRef.current.length > 0 || !onScreenRef.current || document.hidden) return;
       const example = EXAMPLES[index] ?? "";
       if (reduced) {
         setTypedCount(example.length);
@@ -134,7 +150,7 @@ export function IdeaIntakeForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="w-full">
+    <form ref={formRef} onSubmit={handleSubmit} noValidate className="w-full">
       <div className="transition-swift relative rounded-lg border border-border-strong bg-surface/60 backdrop-blur-md hover:border-fg-faint focus-within:border-ember">
         <label htmlFor="idea" className="sr-only">
           What do you want to build?

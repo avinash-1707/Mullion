@@ -10,18 +10,25 @@
  * Restyle pass 1 (dark hybrid, see ../../design-context.md): the base darks
  * and accent family now match apps/web's brand instead of a parallel warm-
  * amber palette. Dense data UI stays dark for legibility; what changed is
- * which dark and which accent. fg/border/danger/success/node-* stay put —
+ * which dark and which accent. border/danger/success/node-* stay put —
  * they're functional, not brand-decorative.
+ *
+ * Warmth pass (ADR-76): fg-muted/fg-faint warm-shifted from blue-leaning
+ * neutral grays to parchment-over-ink equivalents at matched lightness;
+ * elevated pulled back to the ink family's constant blue offset instead
+ * of growing bluer per elevation step. Token roles unchanged — values
+ * moved to the brand's temperature so the product's secondary text and
+ * raised surfaces no longer read cooler than the marketing dark bands.
  */
 @theme {
   --color-bg: #08080d;
   --color-surface: #10101a;
-  --color-elevated: #191927;
+  --color-elevated: #181822;
   --color-border: rgba(232, 230, 224, 0.1);
   --color-border-strong: rgba(232, 230, 224, 0.2);
   --color-fg: #edece7;
-  --color-fg-muted: #9a9ca5;
-  --color-fg-faint: #83858e;
+  --color-fg-muted: #9b9890;
+  --color-fg-faint: #84817b;
   --color-accent: #c4552a;
   --color-accent-strong: #d96b3d;
   --color-accent-soft: rgba(196, 85, 42, 0.14);
@@ -41,7 +48,7 @@
   --color-gilt: #c99b2e;
   --color-parchment: rgba(242, 236, 221, 0.72);
   --color-parchment-faint: rgba(242, 236, 221, 0.44);
-  --color-hairline: rgba(201, 155, 46, 0.18);
+  --color-hairline: rgba(201, 155, 46, 0.22);
 
   /*
    * Phase 1 architecture diagram — one hue per node kind so "what is this"

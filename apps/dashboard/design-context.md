@@ -36,19 +36,19 @@ raw hex, in components.
 |---|---|---|---|
 | `bg` | `#08080d` | **changed** (was `#0a0b0d`) | Page background — brand ink |
 | `surface` | `#10101a` | **changed** (was `#141519`) | Cards, panels — brand ink-soft |
-| `elevated` | `#191927` | **changed** (was `#1a1c22`) | One step up from surface (modals, hover fills, skeletons) — same ink hue family, not neutral gray |
+| `elevated` | `#181822` | **warmed** (ADR-76; was `#191927`) | One step up from surface (modals, hover fills, skeletons) — keeps the ink family's constant blue offset instead of growing bluer per step |
 | `border` | `rgba(232,230,224,0.1)` | unchanged | Functional UI borders — inputs, dividers inside dense components |
 | `border-strong` | `rgba(232,230,224,0.2)` | unchanged | Emphasized functional borders (secondary button, focused card) |
 | `fg` | `#edece7` | unchanged | Primary text — already reads as warm cream-white, doubles as "cream text on ember" |
-| `fg-muted` | `#9a9ca5` | unchanged | Secondary text |
-| `fg-faint` | `#83858e` | unchanged | Tertiary text, disabled marks |
+| `fg-muted` | `#9b9890` | **warmed** (ADR-76; was `#9a9ca5`) | Secondary text — parchment-over-ink at matched lightness, no longer blue-leaning |
+| `fg-faint` | `#84817b` | **warmed** (ADR-76; was `#83858e`) | Tertiary text, disabled marks — same warm shift |
 | `accent` | `#c4552a` | **repointed** (was `#f2a65a` amber) | Now equals ember. Every existing `accent`/`accent-strong`/`accent-soft` usage inherited the brand automatically — no call-site changes needed |
 | `accent-strong` | `#d96b3d` | **repointed** | Hover state of accent |
 | `accent-soft` | `rgba(196,85,42,0.14)` | **repointed** | Soft fills (selected chips, active nav rows, the Select popup's highlighted row), `::selection`, scrollbar hover |
 | `ember` / `ember-strong` | `#c4552a` / `#d96b3d` | **new** | Same values as accent, named explicitly for when the brand color is the point (buttons, focus rings) rather than "the themeable accent" |
 | `gilt` | `#c99b2e` | **new** | Eyebrows, small labels, tags, borders on tags — never large fills |
 | `parchment` / `parchment-faint` | `rgba(242,236,221,0.72)` / `rgba(242,236,221,0.44)` | **new** | Reserve for prose-like body copy on dark that wants a warmer white than `fg`/`fg-muted`. Not yet used anywhere in this pass — available for passes 2–3 if a planning/build surface needs it |
-| `hairline` | `rgba(201,155,46,0.18)` | **new** | Decorative structural rules (section dividers, chrome borders) — gilt at low alpha, distinct from functional `border`/`border-strong` |
+| `hairline` | `rgba(201,155,46,0.22)` | **new** (alpha 0.18 → 0.22, ADR-76) | Decorative structural rules (section dividers, chrome borders) — gilt at low alpha, now matching marketing's `hairline-dark` exactly; distinct from functional `border`/`border-strong` |
 | `danger` / `danger-soft` | unchanged | unchanged | Functional — do not theme to brand |
 | `success` / `success-strong` / `success-soft` | unchanged | unchanged | Functional — do not theme to brand |
 | `node-datastore` / `node-external` (+ `-soft`) | unchanged | unchanged | Functional — Phase 2 diagram semantics, do not theme to brand |
@@ -69,7 +69,10 @@ tags).
 `node-external*`. These encode meaning (error, success, data store vs.
 external service) that must stay legible and distinct regardless of
 brand refresh — they are not decorative and passes 2–3 should not touch
-them either.
+them either. (ADR-76 later warm-shifted the *values* of `fg-muted` /
+`fg-faint` / `elevated` to the brand's parchment/ink temperature — the
+roles and this rule are unchanged: they stay functional tokens, and
+future passes still don't re-theme them.)
 
 ## Type recipes
 
