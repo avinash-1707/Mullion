@@ -1314,3 +1314,27 @@ org-dropdown.tsx,org-dropdown.test.tsx}`,
 - Manual pass: create flow end-to-end against the real API (jsdom
   mocks the mutation); confirm organizationLimit error message reads
   acceptably in the dialog alert.
+
+## 2026-07-13 — Nav polish: inset pill rows, partial-width mobile drawer
+Sidebar rail rows moved from full-bleed rectangles to inset rounded-md
+pills: p-2 gutter + gap-1, 44px icon slot (8+44 keeps the 60px
+resting-width icon alignment), hard 2px left active bar dropped in
+favor of the rounded bg-accent-soft fill, hairline dividers separating
+logo / org switcher / nav / account sections. Mobile drawer reworked
+from full-screen to a 70%-width (max-w-sm) left panel over a tappable
+bg-bg/70 backdrop-blur-sm scrim (own fade rule timed to the drawer's
+asymmetric 300/230ms pacing); hamburger moved to the header's left
+edge to match the slide-in side. Follow-up pass brought the drawer
+variants of the nav rows, org dropdown, and account menu to the same
+pill styling (px-4 rows inside the p-2 gutter preserve the old 24px
+text inset) — the accent-soft active-org card is now visible on
+mobile. Expansion/drawer animation mechanisms and a11y wiring
+untouched.
+Gates green: check-types, lint, test (38), build.
+**Files/areas touched:** `apps/dashboard/src/components/nav/
+{app-sidebar.tsx, mobile-nav.tsx, org-dropdown.tsx, account-menu.tsx}`,
+`apps/dashboard/src/app/globals.css`.
+**Related ADR:** none — visual-only pass, no new judgment calls.
+**Follow-ups:**
+- Manual pass: drawer scrim blur + tap-to-close on a real device;
+  rail hover-expand with the new inset rows.
