@@ -33,6 +33,7 @@ import {
   LuCamera,
   LuTrash2,
   LuEllipsis,
+  LuChartColumn,
 } from "react-icons/lu";
 
 interface IconProps {
@@ -105,3 +106,5 @@ export const CameraIcon = wrapIcon(LuCamera, "CameraIcon");
 export const MoreIcon = wrapIcon(LuEllipsis, "MoreIcon");
 // settings: destructive remove-photo action
 export const TrashIcon = wrapIcon(LuTrash2, "TrashIcon");
+// settings: analytics empty state
+export const ChartIcon = wrapIcon(LuChartColumn, "ChartIcon");
