@@ -62,9 +62,9 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
   if (isPending || !session) {
     return (
       <div className="flex flex-col">
-        <div className={cn("flex items-center", isRail ? "h-16" : "gap-3 px-3 py-3")}>
-          <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-16 w-[60px]")}>
-            <Skeleton className="h-8 w-8" />
+        <div className={cn("flex items-center", isRail ? "h-11" : "h-12 gap-3 px-6")}>
+          <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-[60px]")}>
+            <Skeleton className="h-7 w-7" />
           </span>
           <Skeleton className={cn("h-3 w-24", isRail && "mullion-rail-label")} />
         </div>
@@ -85,28 +85,32 @@ export function AccountMenu({ variant, onNavigate }: AccountMenuProps) {
 
   return (
     <div className="flex flex-col">
-      {/* Row 1: avatar + name, links to /settings — unchanged from before
-          apart from the label content itself (name, falling back to
-          email) and the sign-out button that used to live here. */}
-      <div className={cn("flex items-center", isRail ? "h-16" : "gap-1 px-2 py-2")}>
-        <Link
-          href="/settings"
-          onClick={() => onNavigate?.()}
-          aria-label="Account settings"
+      {/* Row 1: avatar + name as ONE link to /settings — the name is part
+          of the hit target, not dead text next to it. Matches NAV_ITEMS'
+          row shape per variant (h-11 + fixed 60px icon slot on the rail;
+          h-12 inline row in the drawer). */}
+      <Link
+        href="/settings"
+        onClick={() => onNavigate?.()}
+        aria-label="Account settings"
+        title={title}
+        className={cn(
+          "transition-swift flex items-center text-fg hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none",
+          isRail ? "h-11" : "h-12 gap-3 px-6",
+        )}
+      >
+        <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-[60px]")}>
+          <Avatar name={session.user.name ?? ""} email={email} image={session.user.image} className="h-7 w-7" />
+        </span>
+        <span
           className={cn(
-            "transition-swift flex shrink-0 items-center justify-center hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none",
-            isRail ? "h-16 w-[60px]" : "h-11 w-11",
+            "min-w-0 flex-1 truncate text-sm",
+            isRail && "mullion-rail-label overflow-hidden pr-1",
           )}
         >
-          <Avatar name={session.user.name ?? ""} email={email} image={session.user.image} />
-        </Link>
-
-        <div className={cn("flex min-w-0 flex-1 items-center", isRail && "mullion-rail-label overflow-hidden")}>
-          <span className="min-w-0 flex-1 truncate px-1 text-sm text-fg" title={title}>
-            {displayName}
-          </span>
-        </div>
-      </div>
+          {displayName}
+        </span>
+      </Link>
 
       {/* Row 2: sign out — its own full-row hit target below the profile
           row, matching NAV_ITEMS' shape per variant (fixed 60px icon slot +

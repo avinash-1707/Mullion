@@ -1259,3 +1259,35 @@ avatar-upload-modal,model-role-row,provider-icons}.tsx`,
 - Manual pass: hard refresh on Members tab shows org name; ellipsis
   menu keyboard nav; avatar modal upload/remove; model picker icons
   in both trigger and options.
+
+## 2026-07-13 — Sidebar org dropdown: always-visible identity row (ADR-74)
+Replaced the hide-when-<2-orgs OrgSwitcher with a bespoke OrgDropdown
+directly below the logo, both rail and drawer variants. Trigger shows a
+square ember monogram (2 initials, font-serif) plus org name in the
+rail's fade region; click opens a non-portaled role="menu" panel with
+menuitemradio rows (check on active), separator, and a "Create
+organization" item routing to settings members. Rail is held open while
+the menu is open via an additive `.mullion-rail:has([data-menu-open])`
+rule mirroring the hover-expanded geometry - React state stays on the
+menu only. Trigger disables during the switch mutation (double-switch
+guard); failures render an inline role="alert" line, trigger keeps
+showing the real active org. Sidebar footer also reworked: avatar+name
+one link at h-11 (was image-only link at h-16), footer border-t
+dropped, OrgSwitcher's skeleton-flash removed along with the component.
+Test infra added: jsdom + testing-library + @vitejs/plugin-react,
+vitest.config.ts with global jsdom env; 11 OrgDropdown tests cover
+open/close (click, Escape, outside), switch commit + close, active
+aria-checked, pending guard, roving focus wrap, create-org navigation,
+error alert, loading and 1-org render.
+Gates green: check-types, lint, test (33), build.
+**Files/areas touched:** `apps/dashboard/src/components/nav/
+{org-dropdown.tsx (new), org-switcher.tsx (deleted), app-sidebar.tsx,
+mobile-nav.tsx, account-menu.tsx}`, `apps/dashboard/src/app/globals.css`,
+`apps/dashboard/vitest.config.ts (new)`, `apps/dashboard/package.json`,
+`apps/dashboard/src/components/nav/org-dropdown.test.tsx (new)`.
+**Related ADR:** ADR-74 (always-visible org row, square ember monogram
+convention, :has rail-hold).
+**Follow-ups:**
+- Manual pass: mouse-open menu must hold the 300px rail open when the
+  pointer drifts off the aside; collapse animation on close; drawer
+  variant on mobile. (:has rail-hold is not jsdom-testable.)

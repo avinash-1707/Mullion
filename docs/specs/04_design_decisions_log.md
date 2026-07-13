@@ -1560,3 +1560,48 @@ transforms with cleanup job (deterministic overwrite makes both moot).
 `packages/config/src/env.ts`,
 `apps/dashboard/src/components/settings/avatar-upload.tsx`,
 `apps/dashboard/src/hooks/use-account-mutations.ts`
+
+### ADR-74 — Sidebar org identity: always-visible dropdown, square ember monogram
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** The sidebar `OrgSwitcher` rendered `null` for users with
+fewer than two orgs — the common case — so most users had no visible
+answer to "which org am I acting in?" even though budgets, sessions,
+and builds are all org-scoped (ADR-36/29). Switching was undiscoverable
+and org context ambiguous. Separately, the desktop rail expands purely
+via CSS `:hover`/`:has(:focus-visible)` with no React state, so a
+click-to-open menu must not collapse the rail underneath itself when
+the pointer leaves the aside.
+**Decision:**
+- **Always-visible `OrgDropdown` row directly below the logo**, both
+  variants (`rail`/`drawer`), replacing `OrgSwitcher` entirely. This
+  reverses the earlier hide-when-<2-orgs choice: persistent org
+  identity is the point, not just switching. One org = still a real
+  menu (never a dead-end — see Create item below).
+- **Menu stays inside the aside; the rail is held open by CSS only.**
+  The component sets `data-menu-open` while open and a new additive
+  `.mullion-rail:has([data-menu-open])` rule mirrors the hover-expanded
+  state exactly. React state lives on the menu alone; the rail keeps
+  its no-React-state expansion contract.
+- **Menu-button pattern with `menuitemradio` semantics** (roving real
+  focus, lifted from `ui/dropdown-menu.tsx`), not `Select`'s listbox:
+  switching is a commit-and-close command, and the active org is
+  exclusive-checked. Trigger disables while the switch mutation is
+  pending — the structural guard against double-switch races.
+- **"Create organization" item** below a separator, styled as
+  navigation (muted, no accent), routing to the existing settings
+  members surface — no inline creation UI.
+- **Org monogram: square (`rounded-md`), ember (`bg-accent-soft` /
+  `text-accent-strong`), `font-serif`, up to 2 initials.** New identity
+  convention: people are circles in neutral chrome (`ui/avatar.tsx`),
+  orgs are squares in brand accent — the two identity rows in the rail
+  read as different kinds at a glance.
+**Alternatives considered:** portal the menu to `document.body`
+(ConfirmDialog pattern — but the rail collapses to 60px behind the
+detached panel mid-interaction); keep the bare `Select` row and only
+show it always (persisted the wrong interaction grammar for a
+command menu); dialog-style modal switcher (overkill for a two-item
+list).
+**Doc:** `apps/dashboard/src/components/nav/org-dropdown.tsx`,
+`apps/dashboard/src/components/nav/app-sidebar.tsx`,
+`apps/dashboard/src/components/nav/mobile-nav.tsx`,
+`apps/dashboard/src/app/globals.css`
