@@ -1605,3 +1605,41 @@ list).
 `apps/dashboard/src/components/nav/app-sidebar.tsx`,
 `apps/dashboard/src/components/nav/mobile-nav.tsx`,
 `apps/dashboard/src/app/globals.css`
+
+### ADR-75 — User-created workspaces from the sidebar, capped at five
+**Status:** 🔧 Designed by Claude during Phase 5
+**Context:** ADR-36's v1 posture was "users don't hand-create orgs" —
+everyone gets a personal org at signup (ADR-37) and grows it via invites
+(ADR-72), so the API ran with `allowUserToCreateOrganization: false`.
+The sidebar org dropdown (ADR-74) shipped a "Create workspace" item on
+the assumption a creation surface existed; it didn't — the item routed
+to settings where nothing could be created.
+**Decision:**
+- **Users can create workspaces themselves** from the org dropdown: a
+  small portaled dialog (`CreateOrgDialog`, AvatarUploadModal mechanics)
+  takes just a name; on submit the workspace is created AND selected in
+  one mutation (`useCreateOrgMutation`: `organization.create` →
+  `organization.setActive` → unqualified TanStack invalidation, same
+  rationale as switching). A created-but-not-active workspace would read
+  as a silent failure, so activation failures surface as errors too.
+- **`allowUserToCreateOrganization: true` with `organizationLimit: 5`.**
+  The cap exists because budgets are per-org (ADR-36/70): unbounded
+  self-serve org creation would multiply budget ceilings without bound.
+  Five is a taste number — raise it when a real user hits it.
+- **Slugs are generated client-side, never shown:** same recipe as the
+  API's `personalOrgSlug` (slugified name + 4 random bytes), so two
+  workspaces can share a display name without surfacing slug collisions
+  in a UI that has no slug concept.
+- New workspaces carry no `metadata.personal` — only the signup-time
+  org is personal; hand-created ones are plain orgs.
+**Alternatives considered:** routing to a settings-based create form
+(heavier surface for a one-field action; the dropdown item's dead-end
+was the bug being fixed); server-generated slugs via a custom endpoint
+(Better Auth's create already validates slug uniqueness — no new API
+surface needed); leaving creation admin/support-only (contradicts the
+product's multi-workspace direction already implied by ADR-72's
+coexist-and-switch model).
+**Doc:** `apps/api/src/modules/auth/auth.ts`,
+`apps/dashboard/src/hooks/use-organizations.ts`,
+`apps/dashboard/src/components/nav/create-org-dialog.tsx`,
+`apps/dashboard/src/components/nav/org-dropdown.tsx`

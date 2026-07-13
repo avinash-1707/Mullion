@@ -14,7 +14,8 @@ const mocks = vi.hoisted(() => ({
   isPending: false,
   isError: false,
   error: null as Error | null,
-  push: vi.fn(),
+  createMutate: vi.fn(),
+  createPending: false,
 }));
 
 vi.mock("@/hooks/use-organizations", () => ({
@@ -26,10 +27,13 @@ vi.mock("@/hooks/use-organizations", () => ({
     isError: mocks.isError,
     error: mocks.error,
   }),
-}));
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mocks.push }),
+  useCreateOrgMutation: () => ({
+    mutate: mocks.createMutate,
+    isPending: mocks.createPending,
+    isError: false,
+    error: null,
+    reset: vi.fn(),
+  }),
 }));
 
 const ORGS = [
@@ -44,7 +48,8 @@ beforeEach(() => {
   mocks.isError = false;
   mocks.error = null;
   mocks.mutate.mockReset();
-  mocks.push.mockReset();
+  mocks.createMutate.mockReset();
+  mocks.createPending = false;
 });
 
 afterEach(cleanup);
@@ -61,11 +66,11 @@ describe("OrgDropdown", () => {
     expect(container.querySelector(".animate-skeleton, [class*='skeleton'], [class*='Skeleton']")).not.toBeNull();
   });
 
-  it("stays visible with a single org (reversal of the old <2-orgs null)", () => {
+  it("stays visible with a single org, showing the bare workspace name", () => {
     mocks.list = { data: [ORGS[0]], isPending: false };
     mocks.activeId = "org-personal";
     render(<OrgDropdown variant="rail" />);
-    expect(screen.getByRole("button", { name: /Avinash \(Personal\)/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Avinash/ })).toBeTruthy();
   });
 
   it("opens on click, sets data-menu-open, and closes on Escape refocusing the trigger", async () => {
@@ -115,7 +120,7 @@ describe("OrgDropdown", () => {
     const { container } = render(<OrgDropdown variant="rail" />);
     await user.click(trigger());
 
-    await user.click(screen.getByRole("menuitemradio", { name: /Avinash \(Personal\)/ }));
+    await user.click(screen.getByRole("menuitemradio", { name: /Avinash/ }));
     expect(mocks.mutate).toHaveBeenCalledExactlyOnceWith("org-personal");
     expect(container.querySelector("[data-menu-open]")).toBeNull();
   });
@@ -143,7 +148,7 @@ describe("OrgDropdown", () => {
 
     triggerButton.focus();
     await user.keyboard("{ArrowUp}");
-    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Create organization" }));
+    expect(document.activeElement).toBe(screen.getByRole("menuitem", { name: "Create workspace" }));
 
     await user.keyboard("{Escape}");
     await user.keyboard("{ArrowDown}");
@@ -170,7 +175,7 @@ describe("OrgDropdown", () => {
     mocks.activeId = null;
     render(<OrgDropdown variant="rail" />);
 
-    expect(trigger().textContent).toContain("Avinash (Personal)");
+    expect(trigger().textContent).toContain("Avinash");
     await user.click(trigger());
     for (const radio of screen.getAllByRole("menuitemradio")) {
       expect(radio.getAttribute("aria-checked")).toBe("false");
@@ -183,7 +188,7 @@ describe("OrgDropdown", () => {
     await user.click(trigger());
 
     const radios = screen.getAllByRole("menuitemradio");
-    const create = screen.getByRole("menuitem", { name: "Create organization" });
+    const create = screen.getByRole("menuitem", { name: "Create workspace" });
 
     expect(document.activeElement).toBe(radios[0]);
     await user.keyboard("{ArrowDown}");
@@ -200,16 +205,49 @@ describe("OrgDropdown", () => {
     expect(document.activeElement).toBe(create);
   });
 
-  it("create-organization navigates to settings, closes, and notifies the drawer", async () => {
+  it("create-workspace item closes the menu and opens the naming dialog on the name field", async () => {
     const user = userEvent.setup();
-    const onNavigate = vi.fn();
-    const { container } = render(<OrgDropdown variant="drawer" onNavigate={onNavigate} />);
+    const { container } = render(<OrgDropdown variant="rail" />);
     await user.click(trigger());
 
-    await user.click(screen.getByRole("menuitem", { name: "Create organization" }));
-    expect(mocks.push).toHaveBeenCalledExactlyOnceWith("/settings?tab=members");
-    expect(onNavigate).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("menuitem", { name: "Create workspace" }));
     expect(container.querySelector("[data-menu-open]")).toBeNull();
+    const dialog = screen.getByRole("dialog", { name: "Create workspace" });
+    expect(dialog).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByLabelText("Workspace name"));
+  });
+
+  it("submitting a name creates the workspace, closes the dialog, and notifies the drawer", async () => {
+    const user = userEvent.setup();
+    const onNavigate = vi.fn();
+    // The dialog closes only via the mutation's per-call onSuccess — fire it
+    // synchronously so success-path behavior is observable without a network.
+    mocks.createMutate.mockImplementation(
+      (_name: string, options?: { onSuccess?: () => void }) => options?.onSuccess?.(),
+    );
+    render(<OrgDropdown variant="drawer" onNavigate={onNavigate} />);
+    await user.click(trigger());
+    await user.click(screen.getByRole("menuitem", { name: "Create workspace" }));
+
+    await user.type(screen.getByLabelText("Workspace name"), "  New Team  ");
+    await user.click(screen.getByRole("button", { name: "Create workspace" }));
+
+    expect(mocks.createMutate).toHaveBeenCalledOnce();
+    expect(mocks.createMutate.mock.calls[0]?.[0]).toBe("New Team");
+    expect(onNavigate).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog", { name: "Create workspace" }).closest("[inert]")).not.toBeNull();
+  });
+
+  it("keeps the create submit disabled for a blank name", async () => {
+    const user = userEvent.setup();
+    render(<OrgDropdown variant="rail" />);
+    await user.click(trigger());
+    await user.click(screen.getByRole("menuitem", { name: "Create workspace" }));
+
+    const submit = screen.getByRole("button", { name: "Create workspace" }) as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+    await user.type(screen.getByLabelText("Workspace name"), "   ");
+    expect(submit.disabled).toBe(true);
   });
 
   it("surfaces a switch failure as an alert while the trigger keeps the real org", () => {

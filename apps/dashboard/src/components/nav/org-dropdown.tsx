@@ -1,38 +1,26 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { isPersonalOrg } from "@/lib/organizations-api";
 import { useOrganizationsList, useActiveOrganizationId, useSetActiveOrgMutation } from "@/hooks/use-organizations";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckIcon, ChevronIcon, WarningIcon } from "@/components/planning/icons";
+import { CheckIcon, ChevronIcon, PlusIcon, WarningIcon } from "@/components/planning/icons";
+import { CreateOrgDialog } from "./create-org-dialog";
 
 interface OrgDropdownProps {
   /** Mirrors AccountMenu's variant contract: `rail` sits in the desktop
    * sidebar's fixed 60px icon slot + hover-fade label region; `drawer` is
    * the mobile slide-over's always-expanded equivalent. */
   variant: "rail" | "drawer";
-  /** Drawer closes itself before the "Create organization" item navigates
-   * away; the rail has nothing that needs closing. */
+  /** Drawer closes itself once a new workspace is created and selected
+   * (CreateOrgDialog's onCreated); the rail has nothing that needs closing. */
   onNavigate?: () => void;
 }
 
-// Single source of truth for the display label — used by both the trigger
-// and every menu row, so the "(Personal)" suffix can never drift between
-// the two.
-function orgLabel(org: { name: string; metadata?: unknown }): string {
-  return isPersonalOrg(org.metadata) ? `${org.name} (Personal)` : org.name;
-}
-
-// First letters of the first two words, uppercased; a single-word name
-// falls back to its own first two characters. Mirrors ui/avatar.tsx's
+// First letter of the name, uppercased. Mirrors ui/avatar.tsx's
 // fallback-to-"?" convention for a blank name.
 function orgMonogram(name: string): string {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const source =
-    words.length >= 2 ? words.slice(0, 2).map((word) => word[0] ?? "").join("") : name.trim().slice(0, 2);
-  return source.toUpperCase() || "?";
+  return name.trim().slice(0, 1).toUpperCase() || "?";
 }
 
 // One square-badge recipe shared by the trigger (h-7) and menu rows (h-5)
@@ -55,7 +43,7 @@ function OrgMonogramBadge({ name, className }: { name: string; className: string
 // version collapsed to nothing below two orgs and relied on Select's
 // fake-focus combobox pattern (aria-activedescendant, trigger keeps DOM
 // focus). This one is always visible — even a single-org account still
-// needs a path to "Create organization" — and lifts ui/dropdown-menu.tsx's
+// needs a path to "Create workspace" — and lifts ui/dropdown-menu.tsx's
 // real roving-focus menu-button pattern instead: switching the active org
 // is a one-shot commit-and-close action, not a persisted combobox value.
 //
@@ -65,12 +53,12 @@ function OrgMonogramBadge({ name, className }: { name: string; className: string
 // to escape the rail/drawer's own stacking context.
 export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
   const isRail = variant === "rail";
-  const router = useRouter();
   const { data: organizations, isPending } = useOrganizationsList();
   const activeOrganizationId = useActiveOrganizationId();
   const setActiveOrg = useSetActiveOrgMutation();
 
   const [open, setOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const initialFocusRef = useRef<"first" | "last">("first");
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -118,17 +106,19 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
   // pending placeholder always resolves into the real row.
   if (isPending || !organizations) {
     return (
-      <div className={cn("flex items-center border-b border-hairline", isRail ? "h-11" : "h-12 gap-3 px-6")}>
-        <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-[60px]")}>
-          <Skeleton className="h-7 w-7" />
-        </span>
-        <Skeleton className={cn("h-3 w-20", isRail && "mullion-rail-label")} />
+      <div className={cn("border-b border-hairline", isRail && "p-2")}>
+        <div className={cn("flex items-center", isRail ? "h-11 rounded-md bg-accent-soft/70" : "h-12 gap-3 px-6")}>
+          <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
+            <Skeleton className="h-7 w-7" />
+          </span>
+          <Skeleton className={cn("h-3 w-20", isRail && "mullion-rail-label")} />
+        </div>
       </div>
     );
   }
 
   const activeOrg = organizations.find((org) => org.id === activeOrganizationId) ?? organizations[0];
-  const label = activeOrg ? orgLabel(activeOrg) : "";
+  const label = activeOrg ? activeOrg.name : "";
   const lastItemIndex = organizations.length;
 
   function handleTriggerClick() {
@@ -215,14 +205,16 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
     setOpen(false);
   }
 
+  // Menu closes, modal opens — the drawer (if any) stays put until the
+  // workspace is actually created and selected; CreateOrgDialog fires
+  // onCreated (wired to onNavigate) only on that success.
   function commitCreateOrg() {
     closeMenu();
-    onNavigate?.();
-    router.push("/settings?tab=members");
+    setCreateOpen(true);
   }
 
   return (
-    <div className="flex flex-col border-b border-hairline">
+    <div className={cn("flex flex-col border-b border-hairline", isRail && "p-2")}>
       <div ref={rootRef} className="relative" data-menu-open={open || undefined}>
         <button
           ref={triggerRef}
@@ -234,11 +226,20 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
           onClick={handleTriggerClick}
           onKeyDown={handleTriggerKeyDown}
           className={cn(
-            "transition-swift flex w-full items-center hover:bg-elevated focus-visible:bg-elevated focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
-            isRail ? "h-11" : "h-12 gap-3 px-6",
+            "transition-swift flex w-full items-center focus-visible:outline-none disabled:pointer-events-none disabled:opacity-45",
+            // Rail: inset card — a faint ember fill and rounding against the
+            // full-bleed nav rows below, deliberately static on hover (the
+            // brand tint IS the identity treatment, not an interactive
+            // state; the chevron and cursor carry the affordance). Slot is
+            // w-11, not the rail's usual 60px: the p-2 wrapper eats 8px a
+            // side, so 44px is what keeps the monogram dead-center at the
+            // 60px resting width.
+            isRail
+              ? "h-11 rounded-md bg-accent-soft/70"
+              : "h-12 gap-3 px-6 hover:bg-elevated focus-visible:bg-elevated",
           )}
         >
-          <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-[60px]")}>
+          <span className={cn("flex shrink-0 items-center justify-center", isRail && "h-11 w-11")}>
             <OrgMonogramBadge name={activeOrg?.name ?? ""} className="h-7 w-7 text-xs" />
           </span>
           <span
@@ -254,11 +255,13 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
         <div
           id={menuId}
           role="menu"
-          aria-label="Switch organization"
+          aria-label="Switch workspace"
           inert={!open || undefined}
           className={cn(
             "mullion-select-popup absolute top-[calc(100%+6px)] z-30 max-h-64 origin-top overflow-y-auto rounded-lg border border-hairline bg-elevated p-1 shadow-[0_20px_48px_-12px_rgba(0,0,0,0.6)]",
-            isRail ? "left-2 right-2" : "left-6 right-6",
+            // Rail: the p-2 wrapper already insets the anchor 8px a side, so
+            // the panel spans it edge-to-edge.
+            isRail ? "left-0 right-0" : "left-6 right-6",
             open && "mullion-select-open",
           )}
         >
@@ -278,7 +281,7 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
                 className="transition-swift flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-fg hover:bg-accent-soft focus:bg-accent-soft focus:outline-none"
               >
                 <OrgMonogramBadge name={org.name} className="h-5 w-5 text-[9px]" />
-                <span className="min-w-0 flex-1 truncate">{orgLabel(org)}</span>
+                <span className="min-w-0 flex-1 truncate">{org.name}</span>
                 {checked ? <CheckIcon className="h-3.5 w-3.5 shrink-0 text-accent-strong" /> : null}
               </button>
             );
@@ -294,9 +297,10 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
             role="menuitem"
             onClick={commitCreateOrg}
             onKeyDown={(event) => handleItemKeyDown(event, lastItemIndex)}
-            className="transition-swift flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-fg-muted hover:bg-accent-soft hover:text-fg focus:bg-accent-soft focus:text-fg focus:outline-none"
+            className="transition-swift flex w-full items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm text-fg-muted hover:bg-accent-soft hover:text-fg focus:bg-accent-soft focus:text-fg focus:outline-none"
           >
-            Create organization
+            <PlusIcon className="h-3.5 w-3.5 shrink-0" />
+            Create workspace
           </button>
         </div>
       </div>
@@ -310,7 +314,7 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
         <div role="alert" className="flex items-center">
           {isRail ? (
             <>
-              <span className="flex w-[60px] shrink-0 items-center justify-center py-2">
+              <span className="flex w-11 shrink-0 items-center justify-center py-2">
                 <WarningIcon className="h-3.5 w-3.5 text-danger" />
               </span>
               <span className="mullion-rail-label min-w-0 flex-1 truncate overflow-hidden pr-3 text-xs text-danger">
@@ -327,6 +331,8 @@ export function OrgDropdown({ variant, onNavigate }: OrgDropdownProps) {
           )}
         </div>
       ) : null}
+
+      <CreateOrgDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={onNavigate} />
     </div>
   );
 }

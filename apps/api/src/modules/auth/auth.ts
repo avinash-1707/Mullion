@@ -150,12 +150,14 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    // Personal org is the only ownership model in v1 (ADR-36) — users don't
-    // hand-create orgs, they get one at signup and invite into it. Two-role
-    // model + invite flow per ADR-72; the stock admin role already carries
-    // every permission the product wants, so no custom access control.
+    // Everyone gets a personal org at signup (ADR-36/37) and can hand-create
+    // more from the sidebar switcher (ADR-75, reverses the v1 no-hand-create
+    // posture) — capped so per-org budgets can't be multiplied without bound.
+    // Two-role model + invite flow per ADR-72; the stock admin role already
+    // carries every permission the product wants, so no custom access control.
     organization({
-      allowUserToCreateOrganization: false,
+      allowUserToCreateOrganization: true,
+      organizationLimit: 5,
       creatorRole: "admin",
       invitationExpiresIn: 60 * 60 * 48,
       // "Resend" is re-invite: the pending row flips to canceled and a

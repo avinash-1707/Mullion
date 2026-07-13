@@ -1291,3 +1291,26 @@ convention, :has rail-hold).
 - Manual pass: mouse-open menu must hold the 300px rail open when the
   pointer drifts off the aside; collapse animation on close; drawer
   variant on mobile. (:has rail-hold is not jsdom-testable.)
+
+## 2026-07-13 — Create workspace from the sidebar dropdown (ADR-75)
+The org dropdown's "Create workspace" item (previously a dead-end route
+to settings) now opens a portaled name-only dialog; submit creates the
+org and switches to it in one mutation, then closes and (on mobile)
+collapses the drawer. API flips allowUserToCreateOrganization to true
+with organizationLimit 5 (per-org budgets make unbounded creation an
+abuse vector). Client mirrors the API's slug recipe (name + random
+suffix, never shown). Dropdown polish in the same pass: bare workspace
+names (no "(Personal)" suffix), single-letter monogram, create item
+centered with a plus icon.
+Gates green: check-types + lint (dashboard and @mullion/api), test
+(38), build.
+**Files/areas touched:** `apps/api/src/modules/auth/auth.ts`,
+`apps/dashboard/src/hooks/use-organizations.ts`,
+`apps/dashboard/src/components/nav/{create-org-dialog.tsx (new),
+org-dropdown.tsx,org-dropdown.test.tsx}`,
+`apps/dashboard/src/components/planning/icons.tsx`.
+**Related ADR:** ADR-75 (supersedes ADR-36's no-hand-create posture).
+**Follow-ups:**
+- Manual pass: create flow end-to-end against the real API (jsdom
+  mocks the mutation); confirm organizationLimit error message reads
+  acceptably in the dialog alert.

@@ -34,6 +34,7 @@ import {
   LuTrash2,
   LuEllipsis,
   LuChartColumn,
+  LuPlus,
 } from "react-icons/lu";
 
 interface IconProps {
@@ -72,6 +73,7 @@ export const WarningIcon = wrapIcon(LuTriangleAlert, "WarningIcon");
 export const LockIcon = wrapIcon(LuLock, "LockIcon");
 // confirm / done state
 export const CheckIcon = wrapIcon(LuCheck, "CheckIcon");
+export const PlusIcon = wrapIcon(LuPlus, "PlusIcon");
 // copy-to-clipboard action
 export const CopyIcon = wrapIcon(LuCopy, "CopyIcon");
 // download archive action

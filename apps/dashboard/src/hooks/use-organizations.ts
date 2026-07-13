@@ -52,6 +52,45 @@ export function useSetActiveOrgMutation() {
   });
 }
 
+// Client-side twin of the API's personalOrgSlug (modules/auth/org.ts):
+// slugs are unique server-side, so the random suffix keeps "Acme" creatable
+// twice without surfacing slug collisions in a UI that never shows slugs.
+function orgSlug(name: string): string {
+  const base = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  const suffix = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${base || "workspace"}-${suffix}`;
+}
+
+// Create-and-select as one mutation: a created-but-not-active workspace
+// would look like a silent failure (the sidebar still shows the old org),
+// so the setActive round trip is part of the same success path. Same
+// unqualified invalidation rationale as useSetActiveOrgMutation above.
+export function useCreateOrgMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      const { data, error } = await authClient.organization.create({ name, slug: orgSlug(name) });
+      if (error || !data) {
+        throw new Error(error?.message ?? "Couldn't create the workspace.");
+      }
+      const { error: activateError } = await authClient.organization.setActive({ organizationId: data.id });
+      if (activateError) {
+        throw new Error(activateError.message ?? "Workspace created, but couldn't switch to it.");
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
+}
+
 interface RenameOrgInput {
   organizationId: string;
   name: string;
