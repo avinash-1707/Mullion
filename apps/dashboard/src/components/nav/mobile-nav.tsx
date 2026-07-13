@@ -15,11 +15,14 @@ import { NAV_ITEMS, isActive } from "./nav-items";
 // lives outside that subtree and can only reach it by id.
 const CONTENT_ID = "app-content";
 
-// Full-screen slide-over for viewports below `lg` (see AppSidebar for the
-// desktop rail). Always mounted, never conditionally rendered, so it has
-// something to transition — visibility is a class + `inert` toggle driven
-// entirely by `open` state, never gated on `transitionend`, so a rapid
-// open/close can't get stuck mid-animation.
+// Slide-over drawer (~70% viewport width, capped at max-w-sm) for
+// viewports below `lg` (see AppSidebar for the desktop rail) — not
+// full-screen: the remaining strip stays visible through a blurred scrim,
+// which is itself a tap target that closes the drawer. Always mounted,
+// never conditionally rendered, so it has something to transition —
+// visibility is a class + `inert` toggle driven entirely by `open` state,
+// never gated on `transitionend`, so a rapid open/close can't get stuck
+// mid-animation.
 export function MobileNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -114,13 +117,8 @@ export function MobileNav() {
         ref={headerRef}
         className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-hairline bg-bg/85 px-6 backdrop-blur-sm lg:hidden"
       >
-        <Link
-          href="/"
-          className="flex items-center gap-2.5 text-fg transition-swift hover:text-ember focus-visible:text-ember focus-visible:outline-none"
-        >
-          <MullionMark className="h-6 w-6" />
-          <span className="font-serif text-xl tracking-tight">Mullion</span>
-        </Link>
+        {/* Trigger leads the header (left side) — the drawer it opens is
+            anchored to, and slides in from, that same left edge below. */}
         <button
           ref={triggerRef}
           type="button"
@@ -132,69 +130,101 @@ export function MobileNav() {
         >
           {open ? <CloseIcon className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
         </button>
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 text-fg transition-swift hover:text-ember focus-visible:text-ember focus-visible:outline-none"
+        >
+          <MullionMark className="h-6 w-6" />
+          <span className="font-serif text-xl tracking-tight">Mullion</span>
+        </Link>
       </header>
 
+      {/* Outer layer: full-viewport, but only ever a click/focus target via
+          its two children below — the wrapper itself carries no visible
+          fill. `inert` lives here (once) rather than duplicated on the
+          scrim and panel individually, same convention as
+          ui/confirm-dialog.tsx's root wrapper. */}
       <div
-        id={drawerId}
-        ref={drawerRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Navigation"
+        className={cn("fixed inset-0 z-50 lg:hidden", open ? "" : "pointer-events-none")}
         inert={!open || undefined}
-        tabIndex={-1}
-        className={cn(
-          "mullion-drawer fixed inset-0 z-50 flex flex-col overflow-y-auto bg-bg lg:hidden",
-          open && "mullion-drawer-open",
-        )}
       >
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-hairline px-6">
-          <Link
-            href="/"
-            onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 text-fg transition-swift hover:text-ember focus-visible:text-ember focus-visible:outline-none"
-          >
-            <MullionMark className="h-6 w-6" />
-            <span className="font-serif text-xl tracking-tight">Mullion</span>
-          </Link>
-          <button
-            type="button"
-            aria-label="Close navigation"
-            onClick={() => setOpen(false)}
-            className="transition-swift flex h-9 w-9 items-center justify-center rounded-md text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none"
-          >
-            <CloseIcon className="h-5 w-5" />
-          </button>
-        </div>
+        {/* Scrim over the ~30% strip the panel doesn't cover — tapping it
+            closes, same bg-bg/70 + backdrop-blur-sm language as
+            ui/confirm-dialog.tsx's scrim, timed to match this drawer's own
+            asymmetric slide (see .mullion-drawer-scrim, globals.css)
+            instead of reusing the dialog's timing. */}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label="Close navigation"
+          onClick={() => setOpen(false)}
+          className={cn(
+            "mullion-drawer-scrim absolute inset-0 bg-bg/70 backdrop-blur-sm",
+            open && "mullion-drawer-open",
+          )}
+        />
 
-        <OrgDropdown variant="drawer" onNavigate={() => setOpen(false)} />
+        <div
+          id={drawerId}
+          ref={drawerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation"
+          tabIndex={-1}
+          className={cn(
+            "mullion-drawer absolute inset-y-0 left-0 flex w-[70%] max-w-sm flex-col overflow-y-auto border-r border-hairline bg-bg",
+            open && "mullion-drawer-open",
+          )}
+        >
+          <div className="flex h-16 shrink-0 items-center justify-between border-b border-hairline px-6">
+            <Link
+              href="/"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 text-fg transition-swift hover:text-ember focus-visible:text-ember focus-visible:outline-none"
+            >
+              <MullionMark className="h-6 w-6" />
+              <span className="font-serif text-xl tracking-tight">Mullion</span>
+            </Link>
+            <button
+              type="button"
+              aria-label="Close navigation"
+              onClick={() => setOpen(false)}
+              className="transition-swift flex h-9 w-9 items-center justify-center rounded-md text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none"
+            >
+              <CloseIcon className="h-5 w-5" />
+            </button>
+          </div>
 
-        <nav aria-label="Primary" className="flex flex-col">
-          {NAV_ITEMS.map((item) => {
-            const active = isActive(pathname, item);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-label={item.label}
-                aria-current={active ? "page" : undefined}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "transition-swift relative flex h-12 items-center gap-3 px-6 text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none",
-                  active && "bg-accent-soft text-fg",
-                )}
-              >
-                {active ? <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-accent" /> : null}
-                <item.Icon className={cn("h-4 w-4", active && "text-accent-strong")} />
-                <span className="font-mono text-[11px] uppercase tracking-[0.2em]">{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+          <OrgDropdown variant="drawer" onNavigate={() => setOpen(false)} />
 
-        <div className="flex-1" />
+          <nav aria-label="Primary" className="flex flex-col">
+            {NAV_ITEMS.map((item) => {
+              const active = isActive(pathname, item);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-label={item.label}
+                  aria-current={active ? "page" : undefined}
+                  onClick={() => setOpen(false)}
+                  className={cn(
+                    "transition-swift relative flex h-12 items-center gap-3 px-6 text-fg-muted hover:bg-elevated hover:text-fg focus-visible:bg-elevated focus-visible:text-fg focus-visible:outline-none",
+                    active && "bg-accent-soft text-fg",
+                  )}
+                >
+                  {active ? <span aria-hidden="true" className="absolute inset-y-0 left-0 w-0.5 bg-accent" /> : null}
+                  <item.Icon className={cn("h-4 w-4", active && "text-accent-strong")} />
+                  <span className="font-mono text-[11px] uppercase tracking-[0.2em]">{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
 
-        <div className="border-t border-hairline pb-[env(safe-area-inset-bottom)]">
-          <AccountMenu variant="drawer" onNavigate={() => setOpen(false)} />
+          <div className="flex-1" />
+
+          <div className="border-t border-hairline pb-[env(safe-area-inset-bottom)]">
+            <AccountMenu variant="drawer" onNavigate={() => setOpen(false)} />
+          </div>
         </div>
       </div>
     </>

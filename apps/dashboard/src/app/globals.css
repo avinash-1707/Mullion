@@ -389,9 +389,11 @@ body {
 }
 
 /*
- * Mobile nav slide-over — full-screen, state-driven (class toggle on
- * `open`, never transitionend-gated). Same asymmetric-timing trick as the
- * rail above: the open state's transition lives on `.mullion-drawer-open`
+ * Mobile nav slide-over — a ~70%-width panel (nav/mobile-nav.tsx), not
+ * full-screen; the remaining strip shows the page through a blurred scrim
+ * (`.mullion-drawer-scrim` below). State-driven (class toggle on `open`,
+ * never transitionend-gated). Same asymmetric-timing trick as the rail
+ * above: the open state's transition lives on `.mullion-drawer-open`
  * (the target when opening), the closed state's on `.mullion-drawer`
  * alone (the target when closing).
  */
@@ -404,6 +406,24 @@ body {
 .mullion-drawer.mullion-drawer-open {
   transform: translateX(0);
   transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Mobile drawer's backdrop — same always-mounted, class-toggle fade as
+ * .mullion-dialog-scrim (ui/confirm-dialog.tsx), kept as its own rule
+ * rather than reused directly: this scrim fades in lockstep with the
+ * drawer panel's own asymmetric slide timing directly above (230ms
+ * closing / 300ms opening) instead of the confirm-dialog's symmetric
+ * 320ms.
+ */
+.mullion-drawer-scrim {
+  opacity: 0;
+  transition: opacity 230ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mullion-drawer-scrim.mullion-drawer-open {
+  opacity: 1;
+  transition: opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /*
