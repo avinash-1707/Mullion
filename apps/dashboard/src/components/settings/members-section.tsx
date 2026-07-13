@@ -27,6 +27,7 @@ export function MembersSection() {
 
   const data = membersQuery.data;
   const currentUserId = session?.user.id;
+  const adminCount = data?.members.filter((member) => member.role === "admin").length ?? 0;
   // Defaults to hidden while the org list is still resolving (activeOrg
   // null) — showing a "leave" action prematurely on what might turn out to
   // be a personal org is worse than a brief delay before it appears.
@@ -105,6 +106,7 @@ export function MembersSection() {
                   member={member}
                   canManage={data.canManage}
                   isSelf={member.userId === currentUserId}
+                  adminCount={adminCount}
                 />
               ))}
             </tbody>

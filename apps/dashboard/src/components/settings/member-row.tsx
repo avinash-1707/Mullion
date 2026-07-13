@@ -14,6 +14,8 @@ interface MemberRowProps {
   member: OrgMember;
   canManage: boolean;
   isSelf: boolean;
+  /** Total admins in the roster — demote is only offered when another admin would remain. */
+  adminCount: number;
 }
 
 // Subtle-but-distinct tint per role, both built from existing tokens rather
@@ -34,7 +36,7 @@ const ROLE_BADGE_STYLES: Record<OrgRole, string> = {
 // old inline Select + Remove button pair had (self-demote through
 // ConfirmDialog, remove hidden for self, busy disables the trigger), just
 // behind one WAI-ARIA menu-button instead of two exposed controls.
-export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
+export function MemberRow({ member, canManage, isSelf, adminCount }: MemberRowProps) {
   const updateRole = useUpdateMemberRoleMutation();
   const removeMember = useRemoveMemberMutation();
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -61,11 +63,15 @@ export function MemberRow({ member, canManage, isSelf }: MemberRowProps) {
 
   const menuItems: DropdownMenuItem[] = [];
   if (canManage) {
-    menuItems.push(
-      member.role === "admin"
-        ? { key: "demote", label: "Demote to member", onSelect: () => handleRoleChange("member") }
-        : { key: "promote", label: "Promote to admin", onSelect: () => handleRoleChange("admin") },
-    );
+    // Demoting the only admin would orphan the org (the server 409s it
+    // anyway) — don't offer the action at all unless another admin remains.
+    if (member.role === "admin") {
+      if (adminCount > 1) {
+        menuItems.push({ key: "demote", label: "Demote to member", onSelect: () => handleRoleChange("member") });
+      }
+    } else {
+      menuItems.push({ key: "promote", label: "Promote to admin", onSelect: () => handleRoleChange("admin") });
+    }
     if (!isSelf) {
       menuItems.push({
         key: "remove",

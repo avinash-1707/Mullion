@@ -31,7 +31,9 @@ export function ModelsSection() {
       ) : null}
 
       <div className="flex flex-col gap-5 border-t border-hairline pt-6">
-        <p className="text-sm text-fg-muted">
+        {/* Same left-rule callout recipe as FormNote's error tone, in the
+            accent family instead of danger - informational, not a failure. */}
+        <p className="rounded-r-md border-l-2 border-accent bg-accent-soft px-3.5 py-2.5 text-sm text-fg">
           Models are picked for you based on your subscription tier. Attach your own OpenRouter key above to choose a
           different model per role.
         </p>
