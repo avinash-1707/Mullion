@@ -1988,3 +1988,28 @@ keep the 4 most consequential").
 raising temperature on retry (still blind, less deterministic);
 raising the schema cap to 5 (UI is designed around ≤4 + Other).
 **Doc:** `packages/agents/src/{retry.ts,agent.ts,agent.test.ts,analyst.ts}`
+
+### ADR-82 — Builds list surfaces active planning sessions
+**Status:** ✅ Decided with Avinash during Phase 5
+**Context:** A session in the MCQ/architecture phases is a
+`planning_sessions` row; a `runs` row only exists after confirm +
+"Build it for us". The builds page reads only `runs`, so in-flight
+planning work was invisible in every list view — users starting a task
+saw nothing until the build fork, and read it as a missing DB write.
+**Decision:** The builds page unions the two at the UI layer: a new
+`GET /api/sessions` returns the org's ACTIVE planning sessions
+(unpaginated — ADR-29 bounds it at one per user, so org membership is
+the ceiling), rendered as an "In planning" section above the runs
+list, each row linking to its session page with a phase pill
+(Clarifying/Planning). Tables stay separate; no status filter changes
+on `/api/builds`; confirmed/abandoned sessions don't appear (their
+outcome lives on as specs/runs, and ADR-33 delivery already covers
+abandoned builds).
+**Alternatives considered:** separate "Sessions" list page (splits
+"what's happening" across two views for at most a handful of rows);
+merging sessions into the runs query server-side (couples two
+lifecycles with different schemas/cursors for no pagination need).
+**Doc:** `apps/api/src/modules/planning/routes.ts` (GET /),
+`apps/dashboard/src/app/builds/page.tsx`,
+`apps/dashboard/src/components/planning/planning-session-row.tsx`,
+`packages/schemas/src/api.ts`

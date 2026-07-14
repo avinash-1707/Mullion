@@ -1626,3 +1626,21 @@ Gates green: check-types + tests across agents, api, orchestrator,
 evals (2 new agent.test.ts cases).
 **Files/areas touched:** `packages/agents/src/{retry.ts,agent.ts,agent.test.ts,analyst.ts}`.
 **Related ADR:** ADR-81.
+
+## 2026-07-14 — Builds list shows in-flight planning sessions (ADR-82)
+
+**What:** Sessions in the MCQ/architecture phases were invisible in the
+builds list — they live in `planning_sessions`, and a `runs` row only
+exists after confirm + Fork B, so the page looked like the DB write was
+missing. New `GET /api/sessions` lists the org's active planning
+sessions (unpaginated; ADR-29 bounds it at one per user), and the
+builds page renders them as an "In planning" section above the runs
+list — each row links to its session with a Clarifying/Planning phase
+pill. Tables stay separate; `/api/builds` unchanged. `StatusPill`
+exported from build-status-badge for reuse.
+**Files/areas touched:** `apps/api/src/modules/planning/routes.ts`,
+`apps/dashboard/src/app/builds/page.tsx`,
+`apps/dashboard/src/components/planning/planning-session-row.tsx` (new),
+`apps/dashboard/src/components/build/build-status-badge.tsx`,
+`packages/schemas/src/api.ts`.
+**Related ADR:** ADR-82.

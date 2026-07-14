@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
@@ -167,6 +167,23 @@ export const planningSessionsRoute = new Hono<{ Variables: RequiredAuthVariables
       }
       throw error;
     }
+  })
+
+  .get("/", async (c) => {
+    // Active sessions only — the builds list surfaces in-flight planning
+    // work alongside runs; finished sessions live on as their runs/specs.
+    const organizationId = c.get("organizationId");
+    const rows = await db
+      .select()
+      .from(schema.planningSessions)
+      .where(
+        and(
+          eq(schema.planningSessions.organizationId, organizationId),
+          eq(schema.planningSessions.status, "active"),
+        ),
+      )
+      .orderBy(desc(schema.planningSessions.createdAt), desc(schema.planningSessions.id));
+    return c.json(rows.map(toApiShape));
   })
 
   .get("/:id", async (c) => {

@@ -45,7 +45,7 @@ interface StatusPillProps {
 // Shared visual primitive behind both badges below — done/failed/in-flight
 // read as genuinely distinct at a glance via glyph (check/warning/dot), not
 // color alone, so the difference survives colorblindness and grayscale.
-function StatusPill({ label, tone, size }: StatusPillProps) {
+export function StatusPill({ label, tone, size }: StatusPillProps) {
   const iconSize = size === "md" ? "h-3.5 w-3.5" : "h-3 w-3";
   return (
     <span

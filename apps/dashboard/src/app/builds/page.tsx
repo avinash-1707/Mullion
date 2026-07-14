@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { useInfiniteQuery } from "@tanstack/react-query";
-import { buildRunListPageSchema } from "@mullion/schemas";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { buildRunListPageSchema, planningSessionListSchema } from "@mullion/schemas";
 import { authClient } from "@/lib/auth-client";
 import { redirectToSignIn } from "@/lib/auth-redirect";
 import { apiFetch } from "@/lib/api";
@@ -11,6 +11,7 @@ import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { BuildListSkeleton } from "@/components/build/build-skeletons";
 import { SessionErrorState } from "@/components/planning/session-error-state";
 import { BuildListRow } from "@/components/build/build-list-row";
+import { PlanningSessionRow } from "@/components/planning/planning-session-row";
 import { BuildIcon } from "@/components/planning/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buttonVariants } from "@/components/ui/button";
@@ -32,6 +33,15 @@ export default function BuildsPage() {
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
+    enabled: Boolean(session),
+  });
+
+  // Sessions still in clarification/planning live in planning_sessions, not
+  // runs — surfaced here so in-flight work is visible before a run exists.
+  // Supplemental: its loading/error states never block the runs list.
+  const sessionsQuery = useQuery({
+    queryKey: ["sessions", "active"],
+    queryFn: async () => planningSessionListSchema.parse(await apiFetch("/api/sessions")),
     enabled: Boolean(session),
   });
 
@@ -76,6 +86,7 @@ export default function BuildsPage() {
   }
 
   const runs = runsQuery.data?.pages.flatMap((page) => page.items) ?? [];
+  const planningSessions = sessionsQuery.data ?? [];
 
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-14">
@@ -90,21 +101,41 @@ export default function BuildsPage() {
         </Link>
       </div>
 
-      {runs.length === 0 ? (
-        // Same quiet empty state as settings' analytics tab: faint icon,
-        // serif line, muted sub-line — no card chrome. min-h + justify-center
-        // so it sits centered in the viewport area below the header, not
-        // hugging it.
-        <div className="animate-reveal flex min-h-[55vh] flex-col items-center justify-center px-5 py-14 text-center">
-          <BuildIcon className="h-8 w-8 text-fg-faint" />
-          <p className="mt-4 font-serif text-xl text-fg">No builds yet.</p>
-          <p className="mt-2 max-w-sm text-sm text-fg-muted">
-            Builds start from a confirmed planning session - freeze an architecture, then choose &ldquo;Build it for us.&rdquo;
+      {planningSessions.length > 0 && (
+        <div className="mt-8">
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-faint">
+            In planning
           </p>
+          <div className="mt-3 flex flex-col gap-2.5">
+            {planningSessions.map((planningSession) => (
+              <PlanningSessionRow key={planningSession.id} session={planningSession} />
+            ))}
+          </div>
         </div>
+      )}
+
+      {runs.length === 0 ? (
+        planningSessions.length === 0 && (
+          // Same quiet empty state as settings' analytics tab: faint icon,
+          // serif line, muted sub-line — no card chrome. min-h + justify-center
+          // so it sits centered in the viewport area below the header, not
+          // hugging it.
+          <div className="animate-reveal flex min-h-[55vh] flex-col items-center justify-center px-5 py-14 text-center">
+            <BuildIcon className="h-8 w-8 text-fg-faint" />
+            <p className="mt-4 font-serif text-xl text-fg">No builds yet.</p>
+            <p className="mt-2 max-w-sm text-sm text-fg-muted">
+              Builds start from a confirmed planning session - freeze an architecture, then choose &ldquo;Build it for us.&rdquo;
+            </p>
+          </div>
+        )
       ) : (
         <>
-          <div className="mt-8 flex flex-col gap-2.5">
+          {planningSessions.length > 0 && (
+            <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.2em] text-fg-faint">
+              Runs
+            </p>
+          )}
+          <div className={`${planningSessions.length > 0 ? "mt-3" : "mt-8"} flex flex-col gap-2.5`}>
             {runs.map((run) => (
               <BuildListRow key={run.id} run={run} />
             ))}

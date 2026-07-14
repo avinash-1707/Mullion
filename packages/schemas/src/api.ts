@@ -20,6 +20,11 @@ export const planningSessionSchema = z.object({
 
 export type PlanningSession = z.infer<typeof planningSessionSchema>;
 
+// GET /api/sessions — the org's active planning sessions. Unpaginated:
+// ADR-29 caps active sessions at one per user, so the list is bounded by
+// org membership, not usage.
+export const planningSessionListSchema = z.array(planningSessionSchema);
+
 export const streamEventSchema = z.object({
   id: z.number().int(),
   streamId: z.string().uuid(),
