@@ -19,7 +19,11 @@ export function isRetryableAgentError(error: unknown): boolean {
 }
 
 export async function withBackoff<T>(
-  fn: () => Promise<T>,
+  // The previous attempt's error is passed in so callers can self-repair —
+  // re-asking with the validation failure quoted converges where a blind
+  // re-sample at low temperature just repeats the same mistake (seen live:
+  // analyst emitting 5 MCQ options against the max-4 schema on every try).
+  fn: (lastError?: unknown) => Promise<T>,
   opts?: { attempts?: number; baseDelayMs?: number },
 ): Promise<T> {
   const attempts = opts?.attempts ?? DEFAULT_ATTEMPTS;
@@ -27,7 +31,7 @@ export async function withBackoff<T>(
   let lastError: unknown;
   for (let attempt = 0; attempt < attempts; attempt++) {
     try {
-      return await fn();
+      return await fn(lastError);
     } catch (error) {
       lastError = error;
       const isLast = attempt === attempts - 1;

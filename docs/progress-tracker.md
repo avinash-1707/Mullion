@@ -1611,3 +1611,18 @@ client wire) + 78 agents tests + dependents.
 (new), `packages/llm/src/{client.ts,response.ts,index.ts,tools.test.ts}`,
 `packages/agents/src/coder/build-task.ts`.
 **Related ADR:** ADR-80.
+
+## 2026-07-14 — First live-key failure fixed: self-repairing retries (ADR-81)
+
+**What:** First real-OpenRouter planning run failed the question round:
+analyst returned 5 MCQ options (schema max 4) and all three ADR-30
+retries repeated the identical mistake — blind re-sampling at temp 0.4
+doesn't fix systematic format drift. `withBackoff` now threads the
+previous error into the retry; `runAgent` self-repairs on
+`MalformedLlmResponseError` by echoing the failed output (8k-char
+middle-truncated) plus the exact zod error and re-asking. Covers all
+AgentSpec agents. Analyst prompt also hardened on the 4-option cap.
+Gates green: check-types + tests across agents, api, orchestrator,
+evals (2 new agent.test.ts cases).
+**Files/areas touched:** `packages/agents/src/{retry.ts,agent.ts,agent.test.ts,analyst.ts}`.
+**Related ADR:** ADR-81.

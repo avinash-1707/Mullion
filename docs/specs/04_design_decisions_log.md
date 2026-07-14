@@ -1961,3 +1961,30 @@ globally (one-shot calls pay 1.25× writes for zero reads).
 **Doc:** `packages/llm/src/{caching.ts,client.ts,response.ts,index.ts}`,
 `packages/llm/src/{caching.test.ts,tools.test.ts}`,
 `packages/agents/src/coder/build-task.ts`
+
+### ADR-81 — Self-repairing retries on schema-parse failures
+**Status:** 🔧 Designed by Claude during Phase 5 (first live-key test)
+**Context:** First live OpenRouter run: the analyst emitted an MCQ
+question with 5 options against the schema's max-4 cap and the round
+failed after all three ADR-30 retries. The retries were BLIND — same
+messages, temperature 0.4 — so the model repeated the identical shape
+mistake every attempt. Re-sampling fixes transport flakes, not
+systematic format drift.
+**Decision:** `withBackoff` now passes the previous attempt's error
+into the retry closure; `runAgent` uses it: when the last failure was
+a `MalformedLlmResponseError`, the retry appends the failed output
+(as the assistant turn, middle-truncated to 8k chars) plus a user
+message quoting the exact validation error and asking for the same
+content corrected. Transport errors retry with pristine messages as
+before. Applies to every AgentSpec agent (analyst, requirements,
+consistency reviewer, build reviewer, tester); the coder tool loop
+already had its own invalid-tool-call feedback path, and the streamed
+planner is unchanged (JSONL lines commit incrementally — replaying a
+half-applied plan is its own problem, deferred until live data shows
+it matters). Prompt hardened alongside ("NEVER more than 4 options —
+keep the 4 most consequential").
+**Alternatives considered:** clamping the options array to 4 at parse
+(silently rewrites what the model chose; hides quality drift);
+raising temperature on retry (still blind, less deterministic);
+raising the schema cap to 5 (UI is designed around ≤4 + Other).
+**Doc:** `packages/agents/src/{retry.ts,agent.ts,agent.test.ts,analyst.ts}`
