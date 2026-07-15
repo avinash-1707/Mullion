@@ -344,6 +344,70 @@ body {
 }
 
 /*
+ * "Preparing environment" full-screen loader (planning/preparing-overlay.tsx)
+ * — shown from idea submit until the session route paints. Three static bars
+ * with a dot arcing across the top: the CSS-only bouncing-dot loader,
+ * recolored from its stock black to the palette (bars in fg-muted, the
+ * travelling dot in ember so the brand warmth carries the wait). Kept as a
+ * plain class, not a Tailwind utility — the multi-background gradient trick
+ * doesn't express cleanly in utilities. Under prefers-reduced-motion the
+ * global block below freezes the dot to a single frame; the "Preparing
+ * environment" caption below it is what actually carries the state there.
+ */
+.prep-loader {
+  width: 40px;
+  height: 26px;
+  --prep-bar: no-repeat linear-gradient(var(--color-fg-muted) 0 0);
+  background:
+    var(--prep-bar) 0 100%,
+    var(--prep-bar) 50% 100%,
+    var(--prep-bar) 100% 100%;
+  background-size: 8px calc(100% - 4px);
+  position: relative;
+}
+
+.prep-loader::before {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-ember-strong);
+  left: 0;
+  top: 0;
+  animation:
+    prep-loader-slide 1.5s linear infinite alternate,
+    prep-loader-bounce 0.75s cubic-bezier(0, 200, 0.8, 200) infinite;
+}
+
+@keyframes prep-loader-slide {
+  100% {
+    left: calc(100% - 8px);
+  }
+}
+
+@keyframes prep-loader-bounce {
+  100% {
+    top: -0.1px;
+  }
+}
+
+/* Overlay scrim fade — a plain opacity ramp so the wait screen arrives
+   without a jolt, at transition-swift's curve/pace. */
+@keyframes overlay-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-overlay-fade {
+  animation: overlay-fade 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/*
  * React Flow (Phase 2 architecture diagram) ships a light-themed
  * stylesheet — every override below re-skins it for Mullion's dark-only
  * palette rather than fighting inline styles per node. Scoped under

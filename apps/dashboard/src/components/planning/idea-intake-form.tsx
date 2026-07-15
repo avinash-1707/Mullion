@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { useRouter } from "next/navigation";
 import { Button } from "../ui/button";
 import { SendIcon } from "./icons";
+import { PreparingOverlay } from "./preparing-overlay";
 import { useCreatePlanningSessionMutation } from "../../hooks/use-create-planning-session-mutation";
 
 const MAX_LENGTH = 10_000;
@@ -149,8 +150,16 @@ export function IdeaIntakeForm() {
     }
   }
 
+  // Stays up from click through the route change: `isPending` covers the
+  // POST /api/sessions round-trip, `isSuccess` holds it through router.push
+  // until /sessions/[id] paints and unmounts this form. An error flips both
+  // false, so the overlay drops away and the inline error below takes over.
+  const preparing = createSession.isPending || createSession.isSuccess;
+
   return (
-    <form ref={formRef} onSubmit={handleSubmit} noValidate className="w-full">
+    <>
+      {preparing ? <PreparingOverlay /> : null}
+      <form ref={formRef} onSubmit={handleSubmit} noValidate className="w-full">
       <div className="transition-swift relative rounded-lg border border-border-strong bg-surface/60 backdrop-blur-md hover:border-fg-faint focus-within:border-ember">
         <label htmlFor="idea" className="sr-only">
           What do you want to build?
@@ -206,6 +215,7 @@ export function IdeaIntakeForm() {
           {createSession.error.message}
         </p>
       ) : null}
-    </form>
+      </form>
+    </>
   );
 }
