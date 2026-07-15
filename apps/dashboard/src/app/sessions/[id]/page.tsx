@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { redirectToSignIn } from "@/lib/auth-redirect";
 import { usePlanningSession } from "@/hooks/use-planning-session";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { RequirementsPhase } from "@/components/planning/requirements-phase";
 import { ArchitecturePhase } from "@/components/planning/architecture-phase";
 import { ConfirmedView } from "@/components/planning/confirmed-view";
@@ -47,6 +48,11 @@ export default function PlanningSessionPage() {
   }, []);
 
   const planning = usePlanningSession(sessionId);
+
+  // Ideas are free text and can run long — clamp so the tab stays readable.
+  // Stays on the segment's "Planning session" title until the snapshot lands.
+  const idea = planning.state?.session.idea ?? null;
+  useDocumentTitle(idea ? (idea.length > 60 ? `${idea.slice(0, 59).trimEnd()}…` : idea) : null);
 
   // A 401 on the page's snapshot fetch (initial load or reload) funnels
   // through the same sign-in redirect as the initial gate. Mid-session

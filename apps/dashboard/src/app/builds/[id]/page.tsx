@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { redirectToSignIn } from "@/lib/auth-redirect";
 import { useBuildRun } from "@/hooks/use-build-run";
+import { useDocumentTitle } from "@/hooks/use-document-title";
+import { shortId } from "@/lib/build-format";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { SessionErrorState } from "@/components/planning/session-error-state";
 import { BuildRunSkeleton } from "@/components/build/build-skeletons";
@@ -26,6 +28,10 @@ export default function BuildRunPage() {
   }, [authPending, authSession]);
 
   const build = useBuildRun(runId);
+
+  // Runs have no name — the header identifies them by short id, so the tab
+  // title does the same. Stays on the segment's "Builds" title until loaded.
+  useDocumentTitle(build.run ? `Build ${shortId(build.run.id)}` : null);
 
   // A 401 on the page's snapshot fetch (initial load or reload) funnels
   // through the same sign-in redirect as the initial gate. Mid-session

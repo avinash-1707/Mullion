@@ -1644,3 +1644,20 @@ exported from build-status-badge for reuse.
 `apps/dashboard/src/components/build/build-status-badge.tsx`,
 `packages/schemas/src/api.ts`.
 **Related ADR:** ADR-82.
+
+## 2026-07-15 — Dashboard per-page titles (metadata parity with web)
+
+**What:** Dashboard tabs all read "Mullion" — the root layout had the
+title template + noindex robots, but every page is a client component,
+so none could export `metadata`. Static titles now come from per-segment
+server layouts (Builds, Settings, Planning session, Invitation); the two
+detail pages refine the tab title client-side once data lands via a new
+`useDocumentTitle` hook — build runs as `Build <shortId>` (runs have no
+name), sessions as the idea text clamped to 60 chars. No OG/canonical
+work: the dashboard is a private noindex surface, that stack stays
+web-only. Gates green: check-types + lint.
+**Files/areas touched:** `apps/dashboard/src/hooks/use-document-title.ts` (new),
+`apps/dashboard/src/app/{builds,settings,sessions,invite}/layout.tsx` (new),
+`apps/dashboard/src/app/{builds,sessions}/[id]/page.tsx`.
+**Related ADR:** none — follows apps/web's existing metadata pattern
+adapted to client pages.
