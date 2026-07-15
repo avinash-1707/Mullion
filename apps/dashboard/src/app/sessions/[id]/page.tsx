@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { redirectToSignIn } from "@/lib/auth-redirect";
@@ -13,13 +12,9 @@ import { ConfirmedView } from "@/components/planning/confirmed-view";
 import { ViewOnlyBanner } from "@/components/planning/view-only-banner";
 import { AgentStatusStrip } from "@/components/planning/agent-status-strip";
 import { SessionErrorState } from "@/components/planning/session-error-state";
+import { SessionHeader } from "@/components/planning/session-header";
 import { ArchitecturePhaseSkeleton, RequirementsPhaseSkeleton } from "@/components/planning/session-skeletons";
 import { DashboardSkeleton } from "@/components/dashboard-skeleton";
-
-const PHASE_LABEL: Record<string, string> = {
-  requirements: "Clarifying requirements",
-  architecture: "Planning architecture",
-};
 
 export default function PlanningSessionPage() {
   const params = useParams<{ id: string }>();
@@ -102,19 +97,7 @@ export default function PlanningSessionPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-hairline px-4 py-3 sm:px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <Link href="/" className="transition-swift shrink-0 text-sm text-fg-faint hover:text-fg-muted">
-            ← Dashboard
-          </Link>
-          <span className="truncate text-sm text-fg-muted">{state.session.idea}</span>
-        </div>
-        {!isConfirmed ? (
-          <span className="shrink-0 border border-border-strong px-3 py-1 font-mono text-[11px] uppercase tracking-[0.15em] text-fg-muted">
-            {PHASE_LABEL[state.session.phase] ?? state.session.phase}
-          </span>
-        ) : null}
-      </div>
+      <SessionHeader idea={state.session.idea} phase={state.session.phase} isConfirmed={isConfirmed} />
 
       {showResumedNotice ? (
         <div className="border-b border-border bg-elevated px-4 py-2 text-center text-xs text-fg-muted sm:px-6">
