@@ -11,7 +11,7 @@ import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useInView } from "@/hooks/use-in-view";
 import { IdeaIntakeForm } from "@/components/planning/idea-intake-form";
-import { BuildListRow } from "@/components/build/build-list-row";
+import { BuildCard } from "@/components/build/build-card";
 
 const RECENT_BUILDS_ID = "recent-builds";
 
@@ -145,7 +145,7 @@ export default function DashboardPage() {
         <section
           id={RECENT_BUILDS_ID}
           ref={recentBuildsRef}
-          className="mx-auto w-full max-w-4xl border-t border-hairline px-6 py-14 lg:py-16"
+          className="mx-auto w-full max-w-4xl px-6 py-14 lg:py-16"
         >
           <div
             className={cn("flex flex-wrap items-center justify-between gap-4 scroll-reveal", recentBuildsInView && "in-view")}
@@ -162,12 +162,12 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="mt-6 flex flex-col gap-2.5">
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {recentBuilds.map((build, index) => {
               const style: RowRevealStyle = { "--row-index": index + 1 };
               return (
                 <div key={build.id} className={cn("scroll-reveal", recentBuildsInView && "in-view")} style={style}>
-                  <BuildListRow build={build} />
+                  <BuildCard build={build} />
                 </div>
               );
             })}

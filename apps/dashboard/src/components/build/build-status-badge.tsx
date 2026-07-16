@@ -51,12 +51,13 @@ interface StatusPillProps {
   label: string;
   tone: Tone;
   size: "md" | "sm";
+  className?: string | undefined;
 }
 
 // Shared visual primitive behind both badges below — done/failed/in-flight
 // read as genuinely distinct at a glance via glyph (check/warning/dot), not
 // color alone, so the difference survives colorblindness and grayscale.
-export function StatusPill({ label, tone, size }: StatusPillProps) {
+export function StatusPill({ label, tone, size, className }: StatusPillProps) {
   const iconSize = size === "md" ? "h-3.5 w-3.5" : "h-3 w-3";
   return (
     <span
@@ -64,7 +65,10 @@ export function StatusPill({ label, tone, size }: StatusPillProps) {
         "inline-flex items-center gap-1.5 border font-mono uppercase tracking-[0.15em]",
         size === "md" ? "px-3 py-1 text-[11px]" : "px-2 py-0.5 text-[10px]",
         TONE_CLASSES[tone],
-      ].join(" ")}
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {tone === "success" ? (
         <CheckIcon className={iconSize} />
@@ -83,9 +87,9 @@ export function BuildStatusBadge({ status }: { status: BuildRun["status"] }) {
   return <StatusPill label={config.label} tone={config.tone} size="md" />;
 }
 
-export function BuildStageBadge({ stage }: { stage: BuildStage }) {
+export function BuildStageBadge({ stage, className }: { stage: BuildStage; className?: string }) {
   const config = STAGE_CONFIG[stage];
-  return <StatusPill label={config.label} tone={config.tone} size="md" />;
+  return <StatusPill label={config.label} tone={config.tone} size="md" className={className} />;
 }
 
 export function TaskStatusPill({ status }: { status: BuildTask["status"] }) {

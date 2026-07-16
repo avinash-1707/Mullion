@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import Link from "next/link";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { buildListPageSchema } from "@mullion/schemas";
 import { authClient } from "@/lib/auth-client";
 import { redirectToSignIn } from "@/lib/auth-redirect";
 import { apiFetch } from "@/lib/api";
-import { BuildListSkeleton } from "@/components/build/build-skeletons";
+import { BuildListSkeleton, BuildCardSkeleton } from "@/components/build/build-skeletons";
 import { SessionErrorState } from "@/components/planning/session-error-state";
-import { BuildListRow } from "@/components/build/build-list-row";
+import { BuildCard } from "@/components/build/build-card";
 import { BuildIcon } from "@/components/planning/icons";
-import { Skeleton } from "@/components/ui/skeleton";
 import { buttonVariants } from "@/components/ui/button";
 
 export default function BuildsPage() {
@@ -78,17 +76,11 @@ export default function BuildsPage() {
 
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-14">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gilt">Builds</p>
-          <h1 className="mt-3 font-serif text-4xl leading-tight tracking-tight text-fg">Builds</h1>
-          <p className="mt-2 text-sm text-fg-muted">
-            Everything your organization is planning or building, newest first.
-          </p>
-        </div>
-        <Link href="/" className={buttonVariants({ variant: "secondary", size: "sm" })}>
-          ← Dashboard
-        </Link>
+      <div>
+        <h1 className="font-serif text-4xl leading-tight tracking-tight text-fg">Builds</h1>
+        <p className="mt-2 text-sm text-fg-muted">
+          Everything your organization is planning or building, newest first.
+        </p>
       </div>
 
       {builds.length === 0 ? (
@@ -105,12 +97,12 @@ export default function BuildsPage() {
         </div>
       ) : (
         <>
-          <div className="mt-8 flex flex-col gap-2.5">
+          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {builds.map((build) => (
-              <BuildListRow key={build.id} build={build} />
+              <BuildCard key={build.id} build={build} />
             ))}
             {isFetchingNextPage &&
-              [0, 1, 2].map((i) => <Skeleton key={`next-page-${i}`} className="h-16" />)}
+              [0, 1, 2].map((i) => <BuildCardSkeleton key={`next-page-${i}`} />)}
           </div>
 
           <div ref={sentinelRef} aria-hidden="true" />
