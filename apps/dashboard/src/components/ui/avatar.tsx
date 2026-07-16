@@ -26,7 +26,9 @@ export function Avatar({ name, email, image, className = "h-8 w-8" }: AvatarProp
         // eslint-disable-next-line @next/next/no-img-element -- remote user avatar, not a static/optimizable asset
         <img src={src} alt={`${name.trim() || email} avatar`} referrerPolicy="no-referrer" className="h-full w-full object-cover" />
       ) : (
-        <span className="select-none font-serif text-sm text-fg-muted">{initial(name, email)}</span>
+        <span className="flex h-full w-full select-none items-center justify-center bg-accent-soft font-serif text-sm text-accent-strong">
+          {initial(name, email)}
+        </span>
       )}
     </span>
   );

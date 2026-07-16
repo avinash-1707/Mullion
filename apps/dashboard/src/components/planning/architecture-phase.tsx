@@ -13,6 +13,8 @@ interface ArchitecturePhaseProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
   decisions: DecisionEntry[];
+  userName: string;
+  userImage: string | null;
   clarifications: ClarificationLogEntry[];
   consistency: ConsistencyResult | null;
   graphVersion: number;
@@ -28,13 +30,15 @@ interface ArchitecturePhaseProps {
 }
 
 // Phase 2 (01 §4) — the centerpiece: live diagram + decision log, kept in
-// lockstep, with a persistent consistency/confirm toolbar and one always-
-// reachable edit surface. Desktop: side-by-side split. Mobile: tabbed,
-// diagram-first, edit bar always visible regardless of which tab is active.
+// lockstep, with a persistent consistency/confirm toolbar and the edit
+// surface pinned under the decision log. Desktop: side-by-side split.
+// Mobile: tabbed, diagram-first; the edit bar lives in the log tab.
 export function ArchitecturePhase({
   nodes,
   edges,
   decisions,
+  userName,
+  userImage,
   clarifications,
   consistency,
   graphVersion,
@@ -104,24 +108,30 @@ export function ArchitecturePhase({
         <div className={`min-h-[22rem] flex-1 lg:min-h-0 ${activeTab === "diagram" ? "" : "hidden lg:block"}`}>
           <ArchitectureDiagram nodes={nodes} edges={edges} issues={consistency?.issues ?? []} refitToken={diagramShowCount} />
         </div>
-        <div className={`min-h-[18rem] flex-1 lg:min-h-0 lg:w-[23rem] lg:flex-none ${activeTab === "log" ? "" : "hidden lg:block"}`}>
-          <DecisionLogPanel
-            decisions={decisions}
-            clarifications={clarifications}
-            isCreator={isCreator}
-            agentBusy={agentState === "working"}
-            onChooseClarificationOption={handleChooseClarificationOption}
-          />
+        <div
+          className={`min-h-[18rem] flex-1 flex-col gap-3 lg:min-h-0 lg:w-[23rem] lg:flex-none ${activeTab === "log" ? "flex" : "hidden lg:flex"}`}
+        >
+          <div className="min-h-0 flex-1">
+            <DecisionLogPanel
+              decisions={decisions}
+              clarifications={clarifications}
+              userName={userName}
+              userImage={userImage}
+              isCreator={isCreator}
+              agentBusy={agentState === "working"}
+              onChooseClarificationOption={handleChooseClarificationOption}
+            />
+          </div>
+          {/* Pinned below the log, in its own row — never overlapping entries. */}
+          <div className="shrink-0">
+            <EditPromptBar
+              disabled={editDisabledMessage !== null}
+              disabledMessage={editDisabledMessage}
+              isSubmitting={isSubmittingEdit}
+              onSubmit={submitEdit}
+            />
+          </div>
         </div>
-      </div>
-
-      <div className="sticky bottom-0 border-t border-border bg-bg/95 p-4 backdrop-blur-sm sm:px-6">
-        <EditPromptBar
-          disabled={editDisabledMessage !== null}
-          disabledMessage={editDisabledMessage}
-          isSubmitting={isSubmittingEdit}
-          onSubmit={submitEdit}
-        />
       </div>
     </div>
   );

@@ -17,8 +17,13 @@ import {
  * replays what the snapshot already contains.
  */
 export async function getSnapshot(session: SessionRow): Promise<PlanningSnapshot> {
-  const [roundRows, requirementsRows, nodeRows, edgeRows, decisionRows, specRows, lastEvent] =
+  const [creatorRows, roundRows, requirementsRows, nodeRows, edgeRows, decisionRows, specRows, lastEvent] =
     await Promise.all([
+      db
+        .select({ name: schema.user.name, image: schema.user.image })
+        .from(schema.user)
+        .where(eq(schema.user.id, session.userId))
+        .limit(1),
       db
         .select()
         .from(schema.mcqRounds)
@@ -74,6 +79,8 @@ export async function getSnapshot(session: SessionRow): Promise<PlanningSnapshot
       id: session.id,
       organizationId: session.organizationId,
       userId: session.userId,
+      userName: creatorRows[0]?.name ?? "",
+      userImage: creatorRows[0]?.image ?? null,
       status: session.status,
       phase: session.phase,
       agentState: session.agentState,

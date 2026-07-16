@@ -116,6 +116,8 @@ export default function PlanningSessionPage() {
           nodes={state.nodes}
           edges={state.edges}
           decisions={state.decisions}
+          userName={state.session.userName}
+          userImage={state.session.userImage}
         />
       ) : (
         <>
@@ -145,6 +147,8 @@ export default function PlanningSessionPage() {
               nodes={state.nodes}
               edges={state.edges}
               decisions={state.decisions}
+              userName={state.session.userName}
+              userImage={state.session.userImage}
               clarifications={state.clarifications}
               consistency={state.consistency}
               graphVersion={state.session.graphVersion}

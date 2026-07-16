@@ -15,6 +15,8 @@ interface ConfirmedViewProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
   decisions: DecisionEntry[];
+  userName: string;
+  userImage: string | null;
 }
 
 function CopyHashButton({ hash }: { hash: string }) {
@@ -45,7 +47,17 @@ function CopyHashButton({ hash }: { hash: string }) {
 // Phase 3 freeze (01 §5) — the one mode switch the user must recognize
 // without a tooltip (01 §9 success criterion): a distinct sealed band, plus
 // diagram/log becoming read-only (no edit bar, no confirm panel at all).
-export function ConfirmedView({ sessionId, buildSpecId, contentHash, frozenAt, nodes, edges, decisions }: ConfirmedViewProps) {
+export function ConfirmedView({
+  sessionId,
+  buildSpecId,
+  contentHash,
+  frozenAt,
+  nodes,
+  edges,
+  decisions,
+  userName,
+  userImage,
+}: ConfirmedViewProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-wrap items-center gap-3 border-b border-border-strong bg-elevated px-4 py-3.5 sm:px-6">
@@ -71,6 +83,8 @@ export function ConfirmedView({ sessionId, buildSpecId, contentHash, frozenAt, n
             <DecisionLogPanel
               decisions={decisions}
               clarifications={[]}
+              userName={userName}
+              userImage={userImage}
               isCreator={false}
               agentBusy={false}
               onChooseClarificationOption={() => {}}

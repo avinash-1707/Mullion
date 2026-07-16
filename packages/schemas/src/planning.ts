@@ -266,6 +266,11 @@ export const planningSnapshotSchema = z.object({
     id: z.string().uuid(),
     organizationId: z.string(),
     userId: z.string(),
+    // Creator identity for the decision log's "user" rows — resolved
+    // server-side so org members viewing someone else's session see the
+    // creator, not themselves. Name falls back to "" if the user row is gone.
+    userName: z.string(),
+    userImage: z.string().nullable(),
     status: z.enum(["active", "confirmed", "abandoned"]),
     phase: planningPhaseSchema,
     agentState: agentStateSchema,

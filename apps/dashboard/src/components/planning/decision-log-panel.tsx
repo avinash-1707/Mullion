@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { DecisionEntry } from "@mullion/schemas";
 import type { ClarificationLogEntry } from "../../lib/planning-reducer";
 import { useReducedMotion } from "../../hooks/use-reduced-motion";
-import { PersonIcon, SparkIcon } from "./icons";
+import { Avatar } from "../ui/avatar";
+import { SparkIcon } from "./icons";
 
 type LogItem =
   | { kind: "decision"; createdAt: string; entry: DecisionEntry }
@@ -13,21 +14,47 @@ type LogItem =
 interface DecisionLogPanelProps {
   decisions: DecisionEntry[];
   clarifications: ClarificationLogEntry[];
+  /** Session creator — shown as avatar + name on "user" decision rows. */
+  userName: string;
+  userImage: string | null;
   isCreator: boolean;
   agentBusy: boolean;
   onChooseClarificationOption: (entry: ClarificationLogEntry, option: string) => void;
 }
 
-function ActorChip({ actor }: { actor: string }) {
-  const isUser = actor === "user";
+// One hue per agent so a scan of the log separates who decided what;
+// unknown future actors fall back to gilt rather than rendering unstyled.
+const AGENT_CHIP_COLORS: Record<string, string> = {
+  planner: "border-gilt/40 bg-gilt/10 text-gilt",
+  analyst: "border-node-datastore/40 bg-node-datastore/10 text-node-datastore",
+  reviewer: "border-node-external/40 bg-node-external/10 text-node-external",
+};
+
+interface UserIdentity {
+  name: string;
+  image: string | null;
+}
+
+// "user" rows show the session creator's avatar + name (not a badge); agent
+// rows keep the colored chip.
+function ActorChip({ actor, user }: { actor: string; user?: UserIdentity }) {
+  if (actor === "user") {
+    const name = user?.name ?? "";
+    return (
+      <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-fg">
+        <Avatar name={name} email="" image={user?.image} className="h-5 w-5" />
+        <span className="truncate">{name.trim() || "User"}</span>
+      </span>
+    );
+  }
   return (
     <span
       className={[
-        "inline-flex items-center gap-1 border px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.15em]",
-        isUser ? "border-accent/40 text-accent-strong" : "border-border-strong text-fg-muted",
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+        AGENT_CHIP_COLORS[actor] ?? AGENT_CHIP_COLORS.planner,
       ].join(" ")}
     >
-      {isUser ? <PersonIcon className="h-3 w-3" /> : <SparkIcon className="h-3 w-3" />}
+      <SparkIcon className="h-3 w-3" />
       {actor.charAt(0).toUpperCase() + actor.slice(1)}
     </span>
   );
@@ -41,11 +68,11 @@ function timeLabel(iso: string): string {
   }
 }
 
-function DecisionRow({ entry }: { entry: DecisionEntry }) {
+function DecisionRow({ entry, user }: { entry: DecisionEntry; user: UserIdentity }) {
   return (
     <div className="animate-reveal flex flex-col gap-1.5 border-b border-hairline pb-4 last:border-b-0">
       <div className="flex items-center justify-between gap-2">
-        <ActorChip actor={entry.actor} />
+        <ActorChip actor={entry.actor} user={user} />
         <span className="font-mono text-[11px] text-fg-faint">{timeLabel(entry.createdAt)}</span>
       </div>
       <p className="text-sm font-medium leading-snug text-fg">{entry.decision}</p>
@@ -103,7 +130,15 @@ function ClarificationRow({
 // The decision log (01 §4.1) — the same structured rows the backend keeps as
 // the system's design memory, merged chronologically with any planner
 // clarification pushback so the two never drift into separate timelines.
-export function DecisionLogPanel({ decisions, clarifications, isCreator, agentBusy, onChooseClarificationOption }: DecisionLogPanelProps) {
+export function DecisionLogPanel({
+  decisions,
+  clarifications,
+  userName,
+  userImage,
+  isCreator,
+  agentBusy,
+  onChooseClarificationOption,
+}: DecisionLogPanelProps) {
   const items: LogItem[] = [
     ...decisions.map((entry): LogItem => ({ kind: "decision", createdAt: entry.createdAt, entry })),
     ...clarifications.map((entry): LogItem => ({ kind: "clarification", createdAt: entry.createdAt, entry })),
@@ -141,7 +176,7 @@ export function DecisionLogPanel({ decisions, clarifications, isCreator, agentBu
         ) : (
           items.map((item) =>
             item.kind === "decision" ? (
-              <DecisionRow key={item.entry.id} entry={item.entry} />
+              <DecisionRow key={item.entry.id} entry={item.entry} user={{ name: userName, image: userImage }} />
             ) : (
               <ClarificationRow
                 key={item.entry.id}
