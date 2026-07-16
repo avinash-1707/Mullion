@@ -107,7 +107,7 @@ export function ArchitectureDiagram({ nodes, edges, issues, refitToken = 0 }: Ar
       label: edge.label,
       animated: false,
       style: { opacity: edge.status === "removed" ? 0.35 : 0.9, strokeDasharray: edge.status === "removed" ? "4 4" : undefined },
-      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "var(--color-border-strong)" },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "var(--color-fg-faint)" },
       data: { synthesized: false, status: edge.status },
     }));
     const synthesized: GraphFlowEdge[] = synthesizedLinks.map((link) => ({
@@ -115,7 +115,7 @@ export function ArchitectureDiagram({ nodes, edges, issues, refitToken = 0 }: Ar
       source: link.sourceKey,
       target: link.targetKey,
       style: { opacity: 0.55, strokeDasharray: "3 5" },
-      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: "var(--color-border-strong)" },
+      markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: "var(--color-fg-faint)" },
       data: { synthesized: true, status: "active" },
     }));
     return [...explicit, ...synthesized];

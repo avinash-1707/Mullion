@@ -442,7 +442,8 @@ body {
 }
 
 .mullion-flow .react-flow__edge-path {
-  stroke: var(--color-border-strong);
+  stroke: var(--color-fg-faint);
+  stroke-width: 1.5px;
 }
 
 .mullion-flow .react-flow__edge.animated .react-flow__edge-path {
@@ -450,7 +451,14 @@ body {
 }
 
 .mullion-flow .react-flow__edge-text {
-  fill: var(--color-fg-muted);
+  fill: var(--color-fg);
+  font-weight: 500;
+}
+
+/* React Flow's default label plate is white — restate it as a dark chip so
+ * the label reads against the canvas instead of glowing. */
+.mullion-flow .react-flow__edge-textbg {
+  fill: var(--color-elevated);
 }
 
 .mullion-flow .react-flow__resize-control {

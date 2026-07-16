@@ -57,29 +57,36 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphFlowNode>) {
     <div
       onAnimationEnd={() => setFlashing(false)}
       className={[
-        "animate-reveal border bg-surface px-4 py-3 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.55)]",
+        "animate-reveal rounded-xl border bg-surface px-4 py-3 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.55)]",
         isTask ? "w-[180px]" : "w-[240px]",
         isRemoved
           ? "border-dashed border-border opacity-45"
           : data.kind === "external"
-            ? "border-dashed border-border-strong"
-            : "border-border-strong",
+            ? "border-dashed"
+            : "",
         data.flagged && !isRemoved ? "ring-2 ring-danger/60" : "",
         selected && !isRemoved ? "ring-2 ring-accent/50" : "",
         flashing ? "animate-flash-once" : "",
       ].join(" ")}
-      style={{ borderLeftWidth: isRemoved ? undefined : "3px", borderLeftColor: isRemoved ? undefined : config.color }}
+      // Kind color carries the whole card (border + tinted fill) instead of
+      // the old 3px left stripe. Tasks stay neutral (transparent tint).
+      style={
+        isRemoved
+          ? undefined
+          : {
+              borderColor: `color-mix(in srgb, ${config.color} 45%, transparent)`,
+              backgroundColor: config.tint === "transparent" ? undefined : config.tint,
+            }
+      }
     >
       <Handle type="target" position={Position.Top} className="!bg-border-strong" />
       <Handle type="source" position={Position.Bottom} className="!bg-border-strong" />
 
       <div className="flex items-start justify-between gap-2">
+        {/* Card fill already carries the kind tint — the chip is text-only. */}
         <div
-          className="flex items-center gap-1.5 px-2 py-0.5"
-          style={{
-            color: isRemoved ? "var(--color-fg-faint)" : config.color,
-            backgroundColor: isRemoved || isTask ? "transparent" : config.tint,
-          }}
+          className="flex items-center gap-1.5"
+          style={{ color: isRemoved ? "var(--color-fg-faint)" : config.color }}
         >
           <Icon className="h-3.5 w-3.5 shrink-0" />
           <span className="font-mono text-[10px] uppercase tracking-wide">{config.label}</span>
