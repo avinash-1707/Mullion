@@ -13,7 +13,7 @@ import { ViewOnlyBanner } from "@/components/planning/view-only-banner";
 import { AgentStatusStrip } from "@/components/planning/agent-status-strip";
 import { SessionErrorState } from "@/components/planning/session-error-state";
 import { SessionHeader } from "@/components/planning/session-header";
-import { ArchitecturePhaseSkeleton, RequirementsPhaseSkeleton } from "@/components/planning/session-skeletons";
+import { PlanningPhaseSkeleton } from "@/components/planning/session-skeletons";
 
 export default function PlanningSessionPage() {
   const params = useParams<{ id: string }>();
@@ -28,16 +28,17 @@ export default function PlanningSessionPage() {
   }, [authPending, authSession]);
 
   const [showResumedNotice] = useState(() => searchParams.get("resumed") === "1");
-  // Just a hint from the create-session response (see idea-intake-form.tsx)
-  // for which skeleton to show before this page's own snapshot fetch
-  // resolves — never trusted as the actual phase once real data arrives.
-  const [phaseHint] = useState(() => searchParams.get("phase"));
   useEffect(() => {
+    // `resumed` is captured into state above before this strips it from the
+    // URL. `phase` no longer drives anything here — RequirementsPhase and
+    // ArchitecturePhase now share one skeleton (see session-skeletons.tsx),
+    // so there's nothing left to hint at — but old links (a stale
+    // build-card href, a bookmarked URL from before this change) may still
+    // carry it, so it's swept off the URL bar too rather than left dangling.
     if (searchParams.get("resumed") === "1" || searchParams.get("phase")) {
       router.replace(`/sessions/${sessionId}`, { scroll: false });
     }
-    // Only ever needs to run once, on arrival — both flags are captured into
-    // state above before this strips them from the URL.
+    // Only ever needs to run once, on arrival.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -55,14 +56,13 @@ export default function PlanningSessionPage() {
     if (planning.unauthorized) redirectToSignIn();
   }, [planning.unauthorized]);
 
-  // Same phase-hinted skeleton for every pre-content wait (auth, snapshot
-  // fetch, unauthorized-while-redirecting) — a different placeholder per
-  // wait reads as a flash of the wrong page.
-  const phaseSkeleton =
-    phaseHint === "architecture" ? <ArchitecturePhaseSkeleton /> : <RequirementsPhaseSkeleton />;
+  // Same skeleton for every pre-content wait (auth, snapshot fetch,
+  // unauthorized-while-redirecting) — a different placeholder per wait reads
+  // as a flash of the wrong page.
+  const loadingSkeleton = <PlanningPhaseSkeleton />;
 
   if (authPending || !authSession) {
-    return phaseSkeleton;
+    return loadingSkeleton;
   }
 
   if (planning.notFound) {
@@ -75,7 +75,7 @@ export default function PlanningSessionPage() {
   }
 
   if (planning.unauthorized) {
-    return phaseSkeleton;
+    return loadingSkeleton;
   }
 
   if (planning.loadError) {
@@ -83,7 +83,7 @@ export default function PlanningSessionPage() {
   }
 
   if (planning.isLoading || !planning.state) {
-    return phaseSkeleton;
+    return loadingSkeleton;
   }
 
   const { state } = planning;

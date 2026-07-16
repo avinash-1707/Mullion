@@ -129,13 +129,12 @@ export function IdeaIntakeForm() {
 
     createSession.mutate(trimmed, {
       onSuccess: ({ session, resumed }) => {
-        // Both params are pure UX hints, not trust boundaries: `phase` lets
-        // the destination page pick the matching skeleton instead of
-        // guessing before its own snapshot fetch resolves; `resumed` drives
-        // the one-time "resuming your active session" notice.
-        const hints = new URLSearchParams({ phase: session.phase });
-        if (resumed) hints.set("resumed", "1");
-        router.push(`/sessions/${session.id}?${hints.toString()}`);
+        // `resumed` is a pure UX hint, not a trust boundary — it just drives
+        // the one-time "resuming your active session" notice on arrival.
+        // No `phase` hint anymore: RequirementsPhase and ArchitecturePhase
+        // now share one skeleton (session-skeletons.tsx), so there's
+        // nothing left for a phase hint to pick between.
+        router.push(resumed ? `/sessions/${session.id}?resumed=1` : `/sessions/${session.id}`);
       },
     });
   }

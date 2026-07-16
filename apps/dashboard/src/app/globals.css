@@ -386,6 +386,53 @@ body {
   animation: focus-halo-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/*
+ * Requirements phase main-pane "agent working" mark
+ * (planning/agent-working-panel.tsx) — shown whenever that pane has nothing
+ * actionable yet (no rounds drafted, or all answered but the doc isn't back
+ * yet). A genuine loop, not decoration: like pulse-glow/focus-halo-pulse
+ * above, it signals real background work with no fixed end time, so
+ * freezing it would read as "stuck," not "calm." Kept to transform/opacity
+ * (no box-shadow glow) so it doesn't compete with those two for visual
+ * vocabulary. Each orbiting arm bakes its resting angle into the keyframe
+ * itself via --orbit-start rather than animation-delay, because the
+ * prefers-reduced-motion block below zeroes animation-delay too — a
+ * delay-based stagger would collapse to three overlapping motes instead of
+ * the intended still, evenly-spaced frame.
+ */
+@keyframes agent-orbit-spin {
+  from {
+    transform: rotate(var(--orbit-start, 0deg));
+  }
+  to {
+    transform: rotate(calc(var(--orbit-start, 0deg) + 360deg));
+  }
+}
+
+.animate-agent-orbit {
+  animation: agent-orbit-spin 7s linear infinite;
+}
+
+/* Linear, not the custom deceleration curve used everywhere else — a
+   continuous rotation needs constant angular velocity; easing a spin would
+   make it visibly speed up/slow down once per lap. */
+
+@keyframes agent-breathe {
+  0%,
+  100% {
+    transform: scale(0.92) rotate(45deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.05) rotate(45deg);
+    opacity: 1;
+  }
+}
+
+.animate-agent-breathe {
+  animation: agent-breathe 3.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
 /* Layout shifts glide instead of jump: dagre re-runs on every streamed
    node/edge and repositions everything at once. Pan/zoom lives on
    .react-flow__viewport, not per-node transforms, and nodes aren't

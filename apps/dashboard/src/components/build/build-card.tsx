@@ -17,13 +17,10 @@ function hrefFor(build: BuildListItem): string {
   if (!PLANNING_STAGES.has(build.stage) && build.latestRunId) {
     return `/builds/${build.latestRunId}`;
   }
-  // Same pure-UX `phase` hint idea-intake-form.tsx sends after create: the
-  // session page picks its loading skeleton from it before the snapshot
-  // lands. Past clarifying, the session renders the architecture-shaped
-  // layout (planning or the confirmed view), so without the hint the page
-  // flashes the requirements skeleton first, then shape-shifts.
-  const architectureShaped = build.stage === "planning" || build.stage === "confirmed";
-  return `/sessions/${build.sessionId}${architectureShaped ? "?phase=architecture" : ""}`;
+  // No `?phase=` hint anymore: RequirementsPhase and ArchitecturePhase now
+  // share one skeleton (session-skeletons.tsx) that fits either, so the
+  // session page no longer needs a steer on which one is coming.
+  return `/sessions/${build.sessionId}`;
 }
 
 // Curated hue pairs for the card's generated cover, not an arbitrary

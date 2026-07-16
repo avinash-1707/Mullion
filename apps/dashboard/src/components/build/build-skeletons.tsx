@@ -35,12 +35,10 @@ export function BuildRunSkeleton() {
             </div>
             <Skeleton className="mt-1 h-3 w-36" />
           </div>
-          {/* StatusPill is a bordered chip (border + dot + label), not a
-              filled block — framed here the same way, not a flat blob. */}
-          <div className="inline-flex h-7 shrink-0 items-center gap-1.5 border border-border-strong bg-surface px-3 py-1">
-            <Skeleton className="h-1.5 w-1.5 rounded-full" />
-            <Skeleton className="h-2.5 w-14" />
-          </div>
+          {/* Flat block at the StatusPill's footprint — skeleton
+              placeholders carry no borders (user directive), even where
+              the real element is a bordered chip. */}
+          <Skeleton className="h-7 w-24 shrink-0" />
         </div>
       </div>
 
@@ -60,77 +58,40 @@ export function BuildRunSkeleton() {
             timeline pane below it carries no `hidden` class on mobile. */}
         <div className="flex min-h-[20rem] flex-1 flex-col gap-3">
           <div className="flex shrink-0 justify-end">
-            <div className="inline-flex items-center border border-border bg-surface">
-              <div className="px-3 py-1.5">
-                <Skeleton className="h-3 w-8" />
-              </div>
-              <div className="px-3 py-1.5">
-                <Skeleton className="h-3 w-10" />
-              </div>
-            </div>
+            <Skeleton className="h-8 w-28" />
           </div>
           {/* Mirrors BuildTaskList, the default tasksView "list" pane: header
-              block, then a few task rows (BuildTaskRow's id chip + status
-              pill line, description lines). */}
-          <div className="min-h-0 flex-1">
-            <div className="flex h-full min-h-0 flex-col border border-border bg-bg">
-              <div className="shrink-0 border-b border-border px-4 py-3">
-                <Skeleton className="h-3 w-12" />
-                <Skeleton className="mt-1.5 h-3 w-44" />
-              </div>
-              <div className="flex min-h-0 flex-1 flex-col divide-y divide-hairline overflow-y-auto">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="flex flex-col gap-2.5 px-4 py-3.5">
-                    <div className="flex items-center justify-between gap-2">
-                      {/* specTaskId chip: bg-elevated, no border — a flat
-                          Skeleton already matches its real shape. */}
-                      <Skeleton className="h-4 w-20" />
-                      {/* TaskStatusPill: bordered chip, framed like the
-                          header's status badge above. */}
-                      <div className="inline-flex items-center gap-1.5 border border-border-strong bg-surface px-2 py-0.5">
-                        <Skeleton className="h-1.5 w-1.5 rounded-full" />
-                        <Skeleton className="h-2.5 w-10" />
-                      </div>
-                    </div>
-                    <Skeleton className="h-3.5 w-full" />
-                    <Skeleton className="h-3.5 w-2/3" />
-                  </div>
-                ))}
-              </div>
+              block, then a few task rows — all flat blocks, no borders (user
+              directive), sized to the real rows' footprints. */}
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-3 w-44" />
             </div>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex flex-col gap-2.5 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-5 w-16" />
+                </div>
+                <Skeleton className="h-3.5 w-full" />
+                <Skeleton className="h-3.5 w-2/3" />
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Timeline pane — hidden below `lg` until the "timeline" tab is
             chosen, same default-visibility split the real page starts in. */}
         <div className="hidden min-h-[18rem] lg:block lg:w-[24rem] lg:shrink-0">
-          <div className="flex h-full min-h-0 flex-col border border-border bg-bg">
-            <div className="shrink-0 border-b border-border px-4 py-3">
+          <div className="flex h-full min-h-0 flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
               <Skeleton className="h-3 w-28" />
-              <Skeleton className="mt-1.5 h-3 w-52" />
+              <Skeleton className="h-3 w-52" />
             </div>
-            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
-              <div className="ml-1 flex flex-col border-l border-hairline">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="relative border-b border-hairline py-2.5 pl-4 last:border-b-0">
-                    <span
-                      className="absolute left-0 top-3.5 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-fg-faint"
-                      aria-hidden="true"
-                    />
-                    {/* Most row kinds (task/escalation/review/delivery) render
-                        as a bordered card, not a plain line — framed here to
-                        match rather than a flat blob on the spine. */}
-                    <div className="flex items-start gap-2.5 border border-border bg-surface px-3.5 py-2.5">
-                      <Skeleton className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded-sm" />
-                      <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                        <Skeleton className="h-3 w-28" />
-                        <Skeleton className="h-3 w-10" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
           </div>
         </div>
       </div>
@@ -146,7 +107,7 @@ export function BuildRunSkeleton() {
 // hand-rolled approximation drifting out of sync with it.
 export function BuildCardSkeleton() {
   return (
-    <div className="flex flex-col overflow-hidden rounded-lg border border-border bg-surface">
+    <div className="flex flex-col overflow-hidden rounded-lg">
       <Skeleton className="h-28 w-full sm:h-32" />
       <div className="flex flex-1 flex-col gap-3 px-4 py-3.5">
         <div className="flex flex-col gap-1.5">
