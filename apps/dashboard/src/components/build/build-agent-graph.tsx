@@ -56,7 +56,7 @@ export function BuildAgentGraph({ tasks, escalatedSpecTaskId = null, refitToken 
 
   const positions = useMemo(() => {
     const boxes = tasks.map((task) => ({ key: buildTaskNodeKey(task), width: BOX_WIDTH, height: BOX_HEIGHT }));
-    return layoutGraph(boxes, links);
+    return layoutGraph(boxes, links).positions;
   }, [tasks, links]);
 
   const flowNodes: BuildGraphFlowNode[] = useMemo(

@@ -46,6 +46,7 @@
   --color-ember: #c4552a;
   --color-ember-strong: #d96b3d;
   --color-gilt: #c99b2e;
+  --color-gilt-soft: rgba(201, 155, 46, 0.14);
   --color-parchment: rgba(242, 236, 221, 0.72);
   --color-parchment-faint: rgba(242, 236, 221, 0.44);
   --color-hairline: rgba(201, 155, 46, 0.22);
@@ -341,6 +342,57 @@ body {
 
 .animate-pulse-glow {
   animation: pulse-glow 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+/* Agent focus indicator (ADR-84) — pulse-glow's cadence recolored gilt, the
+   one hue with no assigned meaning yet ("agent is here", distinct from
+   accent = selection/revision and danger = flagged). Lives on a dedicated
+   halo element, never the card's own box-shadow. Same reduced-motion rule
+   as pulse-glow: swap to .focus-halo-static via JS, don't let the blanket
+   block collapse the loop. */
+@keyframes focus-halo-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--color-gilt-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 5px var(--color-gilt-soft);
+  }
+}
+
+.animate-focus-halo-pulse {
+  animation: focus-halo-pulse 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.focus-halo-static {
+  box-shadow: 0 0 0 3px var(--color-gilt-soft);
+}
+
+/* Arrival beat when focus lands on a node — opacity/transform only, so it
+   composes with (never doubles) the box-shadow-based flash-once when a
+   revision bump and a focus arrival hit the same node in the same instant. */
+@keyframes focus-halo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-focus-halo-in {
+  animation: focus-halo-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Layout shifts glide instead of jump: dagre re-runs on every streamed
+   node/edge and repositions everything at once. Pan/zoom lives on
+   .react-flow__viewport, not per-node transforms, and nodes aren't
+   draggable, so this only ever animates layout moves. Collapsed by the
+   prefers-reduced-motion block below (one-shot transition — safe). */
+.mullion-flow .react-flow__node {
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /*

@@ -21,14 +21,36 @@ export interface LayoutPosition {
   y: number;
 }
 
-const RANK_SEP = 96;
-const NODE_SEP = 56;
+export interface LayoutResult {
+  positions: Map<string, LayoutPosition>;
+  // Dagre's own per-edge waypoints (ADR-85), keyed `${sourceKey}->${targetKey}`,
+  // in the same absolute coordinate space as positions. Multi-rank edges are
+  // threaded through dummy-node lanes that clear the node boxes — these points
+  // are what lets edges route around cards instead of cutting across them.
+  edgePoints: Map<string, LayoutPosition[]>;
+}
+
+// Spacing leaves room for the edge lanes between ranks (ADR-85).
+const RANK_SEP = 120;
+const NODE_SEP = 72;
+const EDGE_SEP = 24;
 const MARGIN = 32;
 
-export function layoutGraph(boxes: LayoutBox[], links: LayoutLink[]): Map<string, LayoutPosition> {
+export function edgePointsKey(sourceKey: string, targetKey: string): string {
+  return `${sourceKey}->${targetKey}`;
+}
+
+export function layoutGraph(boxes: LayoutBox[], links: LayoutLink[]): LayoutResult {
   const graph = new dagre.graphlib.Graph();
   graph.setDefaultEdgeLabel(() => ({}));
-  graph.setGraph({ rankdir: "TB", nodesep: NODE_SEP, ranksep: RANK_SEP, marginx: MARGIN, marginy: MARGIN });
+  graph.setGraph({
+    rankdir: "TB",
+    nodesep: NODE_SEP,
+    ranksep: RANK_SEP,
+    edgesep: EDGE_SEP,
+    marginx: MARGIN,
+    marginy: MARGIN,
+  });
 
   for (const box of boxes) {
     graph.setNode(box.key, { width: box.width, height: box.height });
@@ -52,5 +74,13 @@ export function layoutGraph(boxes: LayoutBox[], links: LayoutLink[]): Map<string
     const placed = graph.node(box.key);
     positions.set(box.key, { x: placed.x - box.width / 2, y: placed.y - box.height / 2 });
   }
-  return positions;
+
+  const edgePoints = new Map<string, LayoutPosition[]>();
+  for (const e of graph.edges()) {
+    // @types/dagre omits `points`, but dagre populates it at runtime.
+    const placed = graph.edge(e) as { points?: LayoutPosition[] };
+    edgePoints.set(edgePointsKey(e.v, e.w), placed.points ?? []);
+  }
+
+  return { positions, edgePoints };
 }

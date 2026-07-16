@@ -153,6 +153,7 @@ export default function PlanningSessionPage() {
               consistency={state.consistency}
               graphVersion={state.session.graphVersion}
               agentState={state.session.agentState}
+              agentActor={state.session.agentActor}
               isCreator={isCreator}
               submitEdit={planning.submitEdit}
               isSubmittingEdit={planning.isSubmittingEdit}

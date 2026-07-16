@@ -2062,3 +2062,68 @@ reference for no gain — the trigger only ever writes `NEW.id`).
 `packages/schemas/src/api.ts`,
 `apps/dashboard/src/app/{page.tsx,builds/page.tsx}`,
 `apps/dashboard/src/components/build/{build-list-row.tsx,build-status-badge.tsx}`
+
+### ADR-84 — Agent focus indicator is client-derived presentation, no new SSE contract
+**Status:** ✅ Decided with Avinash during Phase 5
+**Context:** The planning diagram should show the agent visibly "working
+on" nodes as the graph streams in (the ask was multiplayer-style
+cursors). Exactly one planning agent works at a time (analyst/planner/
+reviewer), and dagre re-layouts on every graph change, so nodes move —
+a coordinate-anchored cursor would lurch on every reflow. The stream
+already carries everything needed: `node` events arrive per node with
+`revision`, and `agent_status` carries `actor` + working/idle.
+**Decision:** No server or schema change. A client hook derives the
+"focused" node: `node` events arriving while `agentState === "working"`
+enqueue `(nodeKey, revision)` pairs not already seen; a dwell queue
+(400ms/node) drains them into a single `focusedNodeKey`, anchored to
+the node id so the indicator rides re-layout for free. The seen-map is
+seeded from the snapshot at hydration, so reconnect/replay
+(Last-Event-ID) and page reloads never re-animate history. The queue
+keeps draining after `idle` lands (idle's event id sorts after the
+decision's node events), then clears. Focus state lives outside the
+planning reducer — SSE-validated state stays authoritative and pure.
+Rendering is a `focused` flag on the node card plus a gilt halo on a
+sibling element (never the card's own box-shadow, which
+selected/flagged rings and the revision flash already contend for);
+a pulsing dot on the inactive diagram tab hints when the focused node
+is on the hidden pane. Multiplayer cursor infrastructure is explicitly
+rejected: there are no concurrent agents in this phase to show.
+**Alternatives considered:** new `agent_presence` SSE event or field
+(schema + validation + replay semantics for pure presentation data);
+free-floating canvas-coordinate cursor (teleports on re-layout);
+pacing/animating server-side (fights the 1s SSE poll, which delivers a
+whole decision's events in one burst — dwell is inherently a client
+concern).
+**Doc:** `apps/dashboard/src/lib/agent-focus.ts`,
+`apps/dashboard/src/hooks/use-agent-focus.ts`,
+`apps/dashboard/src/components/planning/{graph-node-card.tsx,architecture-diagram.tsx}`
+
+### ADR-85 — Edge routing via dagre's own waypoints, not a routing library
+**Status:** ✅ Decided with Avinash during Phase 5
+**Context:** Default React Flow bezier edges cut across node cards,
+obstructing node details. Z-ordering edges under nodes was rejected by
+Avinash: edges carry `label` content, and layering would bury labels
+beneath cards. Genuine avoidance routing is required, on a streaming
+graph that re-layouts on every node/edge arrival.
+**Decision:** Use the edge waypoints dagre already computes
+(`graph.edge(e).points`) — its layered layout threads multi-rank edges
+through dummy-node lanes that clear the node boxes. `layoutGraph`
+returns `{ positions, edgePoints }`; a custom React Flow edge renders
+an orthogonal rounded polyline (8px corners, clamped to segment
+length) through the interior waypoints, anchored to React Flow's real
+handle coordinates at the ends. Labels render via `EdgeLabelRenderer`
+as chips anchored to a mid waypoint — in the clear lane, above the
+canvas, never under a card. Spacing bumped to give lanes room:
+ranksep 96→120, nodesep 56→72, explicit edgesep 24. Zero new
+dependencies and zero added compute — the layout pass already runs on
+every change, synchronously.
+**Alternatives considered:** z-order layering (buries edge labels —
+rejected by user); `@tisoap/react-flow-smart-edge` (A* per edge per
+render — worst case on a recompute-every-tick graph; React Flow v12
+support only via a low-adoption fork); ELK/elkjs (first-class
+orthogonal routing but replaces dagre wholesale, async layout breaks
+the synchronous useMemo render path, ~500KB — kept as escalation path
+only); bigger spacing + smoothstep alone (still cuts across cards on
+long/skewed connections).
+**Doc:** `apps/dashboard/src/lib/{graph-layout.ts,edge-path.ts}`,
+`apps/dashboard/src/components/planning/routed-edge.tsx`

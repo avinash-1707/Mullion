@@ -1711,3 +1711,34 @@ and `ConfirmedView` inherit the tabs since the split lives inside the
 diagram component. Gates green: check-types + lint.
 **Files/areas touched:** `apps/dashboard/src/components/planning/architecture-diagram.tsx`.
 **Related ADR:** none — presentation-only split, graph model unchanged.
+
+## 2026-07-16 — Agent focus indicator + routed edges (ADR-84, ADR-85)
+
+**What:** Two diagram-pane features, planned via staged review
+(problem framing → architecture → design) before code. (1) Agent focus
+indicator (ADR-84): the ask was multiplayer-style cursors, reframed —
+one agent works at a time and dagre re-layout moves nodes, so a
+coordinate cursor would lurch. Instead a node-anchored gilt halo +
+actor chip glides node-to-node through a client dwell queue (400ms)
+fed by `node` events while agentState is working; seen-map seeded from
+the snapshot so reconnect/replay never re-animates history. Zero
+server/schema/reducer change. Hidden-pane hint: pulsing gilt dot on
+the other diagram tab. Node positions now tween 300ms so layout
+shifts glide. (2) Routed edges (ADR-85): z-layering rejected (edge
+labels would hide under cards); edges follow dagre's own waypoints via
+a custom React Flow edge — orthogonal rounded polyline (8px clamped
+corners), ends anchored to real handle coords, label as a chip on the
+HTML layer at a mid waypoint. Spacing ranksep 120 / nodesep 72 /
+edgesep 24. Zero new deps. Reduced motion: static halo/dot via JS
+branch (loops can't rely on the blanket CSS rule), tween collapses via
+the existing block. Gates green: check-types, lint, vitest 69/69
+(three new pure-function suites: focus derivation, edge path geometry,
+layout waypoints).
+**Files/areas touched:**
+`apps/dashboard/src/lib/{graph-layout.ts,graph-flow-types.ts,agent-focus.ts,edge-path.ts}`,
+`apps/dashboard/src/hooks/use-agent-focus.ts`,
+`apps/dashboard/src/components/planning/{architecture-diagram.tsx,architecture-phase.tsx,graph-node-card.tsx,routed-edge.tsx}`,
+`apps/dashboard/src/components/build/build-agent-graph.tsx`,
+`apps/dashboard/src/app/{globals.css,sessions/[id]/page.tsx}`, tests in
+`apps/dashboard/src/lib/*.test.ts`.
+**Related ADR:** ADR-84, ADR-85.

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { GraphFlowNode } from "../../lib/graph-flow-types";
-import { DatastoreIcon, ExternalIcon, ServiceIcon, TaskIcon, WarningIcon } from "./icons";
+import { useReducedMotion } from "../../hooks/use-reduced-motion";
+import { DatastoreIcon, ExternalIcon, ServiceIcon, SparkIcon, TaskIcon, WarningIcon } from "./icons";
 
 const KIND_CONFIG = {
   service: {
@@ -41,6 +42,11 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphFlowNode>) {
   const Icon = config.icon;
   const isTask = data.kind === "task";
   const isRemoved = data.status === "removed";
+  const reducedMotion = useReducedMotion();
+  // Never halo a ghosted card — a bright "working here" ring would contradict
+  // its own deprioritized treatment (the dwell queue is client-timed and can
+  // in theory land on a node removed mid-glide).
+  const isFocused = data.focused && !isRemoved;
 
   // One-shot highlight on revision bump (not on first mount) — signals "this
   // node just changed" without becoming a permanent or looping decoration.
@@ -79,6 +85,28 @@ export function GraphNodeCard({ data, selected }: NodeProps<GraphFlowNode>) {
             }
       }
     >
+      {/* Agent focus indicator (ADR-84). Halo on a sibling element — never the
+          card's own box-shadow, which the selected/flagged rings and the
+          revision flash already contend for; two concentric bands beat one
+          property overwriting the other. Continuous loops can't rely on the
+          blanket reduced-motion CSS rule (they'd freeze on an arbitrary
+          frame), so the static variant is a JS branch — same pattern as
+          animate-pulse-glow. */}
+      {isFocused ? (
+        <>
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute inset-[-4px] rounded-[16px] animate-focus-halo-in ${
+              reducedMotion ? "focus-halo-static" : "animate-focus-halo-pulse"
+            }`}
+          />
+          <span className="absolute -top-6 left-1/2 flex -translate-x-1/2 items-center gap-1 bg-elevated px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-gilt animate-focus-halo-in">
+            <SparkIcon className="h-2.5 w-2.5 shrink-0" />
+            {data.focusActor ?? "agent"}
+          </span>
+        </>
+      ) : null}
+
       <Handle type="target" position={Position.Top} className="!bg-border-strong" />
       <Handle type="source" position={Position.Bottom} className="!bg-border-strong" />
 

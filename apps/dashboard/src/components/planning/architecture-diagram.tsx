@@ -11,13 +11,17 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { ConsistencyIssue, GraphEdge, GraphNode } from "@mullion/schemas";
-import { layoutGraph, type LayoutLink } from "../../lib/graph-layout";
+import type { AgentState, ConsistencyIssue, GraphEdge, GraphNode } from "@mullion/schemas";
+import { edgePointsKey, layoutGraph, type LayoutLink } from "../../lib/graph-layout";
 import type { GraphFlowEdge, GraphFlowNode } from "../../lib/graph-flow-types";
+import { paneOf } from "../../lib/agent-focus";
+import { useAgentFocus } from "../../hooks/use-agent-focus";
 import { GraphNodeCard } from "./graph-node-card";
+import { RoutedEdge } from "./routed-edge";
 import { useReducedMotion } from "../../hooks/use-reduced-motion";
 
 const nodeTypes = { graphNode: GraphNodeCard };
+const edgeTypes = { routed: RoutedEdge };
 
 const BOX = { service: [240, 100], datastore: [240, 100], external: [240, 100], task: [180, 76] } as const;
 
@@ -36,6 +40,10 @@ interface ArchitectureDiagramProps {
   nodes: GraphNode[];
   edges: GraphEdge[];
   issues: ConsistencyIssue[];
+  // Drive the agent focus indicator (ADR-84). ConfirmedView omits both —
+  // a frozen diagram has no live agent to show.
+  agentState?: AgentState;
+  agentActor?: string | null;
   // Bumped by the parent whenever this pane transitions from hidden to
   // visible (mobile tab switch) — the pane can mount while `display: none`
   // (both tabs stay in the DOM so state isn't lost switching back and
@@ -74,8 +82,20 @@ function FitViewOnChange({ signature }: { signature: string }) {
   return null;
 }
 
-export function ArchitectureDiagram({ nodes, edges, issues, refitToken = 0 }: ArchitectureDiagramProps) {
+export function ArchitectureDiagram({
+  nodes,
+  edges,
+  issues,
+  agentState = "idle",
+  agentActor = null,
+  refitToken = 0,
+}: ArchitectureDiagramProps) {
   const [activePane, setActivePane] = useState<DiagramPane>("architecture");
+  const reducedMotion = useReducedMotion();
+
+  const focusedNodeKey = useAgentFocus(nodes, agentState);
+  // Hint on the other tab when the agent works a node on the hidden pane.
+  const focusedPane = focusedNodeKey === null ? null : paneOf(focusedNodeKey, nodes);
 
   const flaggedKeys = useMemo(() => new Set(issues.flatMap((issue) => issue.nodeKeys)), [issues]);
 
@@ -87,7 +107,7 @@ export function ArchitectureDiagram({ nodes, edges, issues, refitToken = 0 }: Ar
   );
   const visibleKeys = useMemo(() => new Set(visibleNodes.map((n) => n.nodeKey)), [visibleNodes]);
 
-  const positions = useMemo(() => {
+  const layout = useMemo(() => {
     const boxes = visibleNodes.map((n) => {
       const [width, height] = BOX[n.kind];
       return { key: n.nodeKey, width, height };
@@ -106,7 +126,7 @@ export function ArchitectureDiagram({ nodes, edges, issues, refitToken = 0 }: Ar
       visibleNodes.map((node) => ({
         id: node.nodeKey,
         type: "graphNode",
-        position: positions.get(node.nodeKey) ?? { x: 0, y: 0 },
+        position: layout.positions.get(node.nodeKey) ?? { x: 0, y: 0 },
         draggable: false,
         data: {
           label: node.label,
@@ -115,35 +135,39 @@ export function ArchitectureDiagram({ nodes, edges, issues, refitToken = 0 }: Ar
           status: node.status,
           revision: node.revision,
           flagged: flaggedKeys.has(node.nodeKey),
+          focused: node.nodeKey === focusedNodeKey,
+          focusActor: agentActor,
         },
       })),
-    [visibleNodes, positions, flaggedKeys],
+    [visibleNodes, layout, flaggedKeys, focusedNodeKey, agentActor],
   );
 
   const flowEdges: GraphFlowEdge[] = useMemo(() => {
     const visible = edges.filter((e) => visibleKeys.has(e.sourceKey) && visibleKeys.has(e.targetKey));
     const explicit: GraphFlowEdge[] = visible.map((edge) => ({
       id: edge.id,
+      type: "routed",
       source: edge.sourceKey,
       target: edge.targetKey,
       label: edge.label,
       animated: false,
       style: { opacity: edge.status === "removed" ? 0.35 : 0.9, strokeDasharray: edge.status === "removed" ? "4 4" : undefined },
       markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "var(--color-fg-faint)" },
-      data: { synthesized: false, status: edge.status },
+      data: { synthesized: false, status: edge.status, points: layout.edgePoints.get(edgePointsKey(edge.sourceKey, edge.targetKey)) },
     }));
     const synthesized: GraphFlowEdge[] = synthesizedLinks
       .filter((link) => visibleKeys.has(link.sourceKey) && visibleKeys.has(link.targetKey))
       .map((link) => ({
         id: `dep::${link.sourceKey}::${link.targetKey}`,
+        type: "routed" as const,
         source: link.sourceKey,
         target: link.targetKey,
         style: { opacity: 0.55, strokeDasharray: "3 5" },
         markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: "var(--color-fg-faint)" },
-        data: { synthesized: true, status: "active" },
+        data: { synthesized: true, status: "active" as const, points: layout.edgePoints.get(edgePointsKey(link.sourceKey, link.targetKey)) },
       }));
     return [...explicit, ...synthesized];
-  }, [edges, synthesizedLinks, visibleKeys]);
+  }, [edges, synthesizedLinks, visibleKeys, layout]);
 
   const signature = `${flowNodes.map((n) => n.id).sort().join(",")}::${activePane}::${refitToken}`;
 
@@ -157,11 +181,20 @@ export function ArchitectureDiagram({ nodes, edges, issues, refitToken = 0 }: Ar
             onClick={() => setActivePane(pane.key)}
             aria-pressed={activePane === pane.key}
             className={[
-              "transition-swift px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.15em]",
+              "transition-swift flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.15em]",
               activePane === pane.key ? "bg-elevated text-fg" : "text-fg-faint hover:text-fg-muted",
             ].join(" ")}
           >
             {pane.label}
+            {/* Agent-at-work hint when the focused node lives on the pane
+                you're not looking at — dot only, never the whole button; an
+                ambient signal shouldn't outshout the canvas. */}
+            {focusedPane === pane.key && activePane !== pane.key ? (
+              <span
+                aria-hidden
+                className={`h-1.5 w-1.5 shrink-0 bg-gilt ${reducedMotion ? "" : "animate-focus-halo-pulse"}`}
+              />
+            ) : null}
           </button>
         ))}
       </div>
@@ -170,6 +203,7 @@ export function ArchitectureDiagram({ nodes, edges, issues, refitToken = 0 }: Ar
           nodes={flowNodes}
           edges={flowEdges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           nodesConnectable={false}
           elementsSelectable
           proOptions={{ hideAttribution: true }}

@@ -19,6 +19,7 @@ interface ArchitecturePhaseProps {
   consistency: ConsistencyResult | null;
   graphVersion: number;
   agentState: AgentState;
+  agentActor: string | null;
   isCreator: boolean;
   submitEdit: (prompt: string) => void;
   isSubmittingEdit: boolean;
@@ -43,6 +44,7 @@ export function ArchitecturePhase({
   consistency,
   graphVersion,
   agentState,
+  agentActor,
   isCreator,
   submitEdit,
   isSubmittingEdit,
@@ -106,7 +108,14 @@ export function ArchitecturePhase({
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6 lg:flex-row lg:overflow-hidden">
         <div className={`min-h-[22rem] flex-1 lg:min-h-0 ${activeTab === "diagram" ? "" : "hidden lg:block"}`}>
-          <ArchitectureDiagram nodes={nodes} edges={edges} issues={consistency?.issues ?? []} refitToken={diagramShowCount} />
+          <ArchitectureDiagram
+            nodes={nodes}
+            edges={edges}
+            issues={consistency?.issues ?? []}
+            agentState={agentState}
+            agentActor={agentActor}
+            refitToken={diagramShowCount}
+          />
         </div>
         <div
           className={`min-h-[18rem] flex-1 flex-col gap-3 lg:min-h-0 lg:w-[23rem] lg:flex-none ${activeTab === "log" ? "flex" : "hidden lg:flex"}`}
