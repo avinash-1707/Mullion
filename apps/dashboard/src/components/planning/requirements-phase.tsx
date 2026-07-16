@@ -43,7 +43,10 @@ export function RequirementsPhase({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
+    // The sessions layout caps the page at the viewport (no page scroll), so
+    // this phase scrolls its own column instead.
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-10">
       <div className="border border-dashed border-border-strong px-5 py-4">
         <span className="font-mono text-xs uppercase tracking-[0.15em] text-fg-faint">Your idea</span>
         <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">{idea}</p>
@@ -111,6 +114,7 @@ export function RequirementsPhase({
           ) : null}
         </>
       )}
+      </div>
     </div>
   );
 }

@@ -28,7 +28,7 @@ export function RequirementsPhaseSkeleton() {
 
 export function ArchitecturePhaseSkeleton() {
   return (
-    <div className="flex min-h-[32rem] w-full flex-1 flex-col gap-4 px-4 py-6 sm:px-6">
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-4 px-4 py-6 sm:px-6">
       <Skeleton className="h-10 w-full" />
       <div className="flex flex-1 flex-col gap-4 lg:flex-row">
         <Skeleton className="h-80 flex-1 lg:h-auto" />

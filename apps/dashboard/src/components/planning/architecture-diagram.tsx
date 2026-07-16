@@ -124,7 +124,7 @@ export function ArchitectureDiagram({ nodes, edges, issues, refitToken = 0 }: Ar
   const signature = `${flowNodes.map((n) => n.id).sort().join(",")}::${refitToken}`;
 
   return (
-    <div className="mullion-flow relative h-full min-h-[20rem] w-full overflow-hidden border border-border bg-bg">
+    <div className="mullion-flow relative h-full min-h-[20rem] w-full overflow-hidden border border-border bg-bg lg:min-h-0">
       <ReactFlowProvider>
         <ReactFlow
           nodes={flowNodes}

@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { DecisionEntry, GraphEdge, GraphNode } from "@mullion/schemas";
 import { ArchitectureDiagram } from "./architecture-diagram";
 import { DecisionLogPanel } from "./decision-log-panel";
-import { ForkChoiceCards } from "./fork-choice-cards";
+import { ForkActions } from "./fork-actions";
 import { CheckIcon, CopyIcon, LockIcon } from "./icons";
 
 interface ConfirmedViewProps {
@@ -61,23 +61,22 @@ export function ConfirmedView({ sessionId, buildSpecId, contentHash, frozenAt, n
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 sm:p-6 lg:flex-row">
-        <div className="min-h-[20rem] flex-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6 lg:flex-row lg:overflow-hidden">
+        <div className="min-h-[20rem] flex-1 lg:min-h-0">
           <ArchitectureDiagram nodes={nodes} edges={edges} issues={[]} />
         </div>
-        <div className="min-h-[16rem] lg:w-[23rem] lg:shrink-0">
-          <DecisionLogPanel
-            decisions={decisions}
-            clarifications={[]}
-            isCreator={false}
-            agentBusy={false}
-            onChooseClarificationOption={() => {}}
-          />
+        <div className="flex min-h-[16rem] flex-1 flex-col gap-3 lg:min-h-0 lg:w-[23rem] lg:flex-none">
+          <ForkActions sessionId={sessionId} buildSpecId={buildSpecId} />
+          <div className="min-h-[14rem] flex-1 lg:min-h-0">
+            <DecisionLogPanel
+              decisions={decisions}
+              clarifications={[]}
+              isCreator={false}
+              agentBusy={false}
+              onChooseClarificationOption={() => {}}
+            />
+          </div>
         </div>
-      </div>
-
-      <div className="border-t border-hairline p-4 sm:p-6">
-        <ForkChoiceCards sessionId={sessionId} buildSpecId={buildSpecId} />
       </div>
     </div>
   );

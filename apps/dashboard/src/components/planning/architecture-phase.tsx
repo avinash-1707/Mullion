@@ -100,11 +100,11 @@ export function ArchitecturePhase({
         ))}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 sm:p-6 lg:flex-row">
-        <div className={`min-h-[22rem] flex-1 ${activeTab === "diagram" ? "" : "hidden lg:block"}`}>
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6 lg:flex-row lg:overflow-hidden">
+        <div className={`min-h-[22rem] flex-1 lg:min-h-0 ${activeTab === "diagram" ? "" : "hidden lg:block"}`}>
           <ArchitectureDiagram nodes={nodes} edges={edges} issues={consistency?.issues ?? []} refitToken={diagramShowCount} />
         </div>
-        <div className={`min-h-[18rem] lg:w-[23rem] lg:shrink-0 ${activeTab === "log" ? "" : "hidden lg:block"}`}>
+        <div className={`min-h-[18rem] flex-1 lg:min-h-0 lg:w-[23rem] lg:flex-none ${activeTab === "log" ? "" : "hidden lg:block"}`}>
           <DecisionLogPanel
             decisions={decisions}
             clarifications={clarifications}
