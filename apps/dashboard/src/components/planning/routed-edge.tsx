@@ -21,7 +21,7 @@ export function RoutedEdge({
   data,
 }: EdgeProps<GraphFlowEdge>) {
   const path = buildEdgePath(sourceX, sourceY, targetX, targetY, data?.points);
-  const anchor = labelAnchor(sourceX, sourceY, targetX, targetY, data?.points);
+  const anchor = labelAnchor(sourceX, sourceY, targetX, targetY, data?.points, data?.labelT ?? 0.5);
 
   return (
     <>

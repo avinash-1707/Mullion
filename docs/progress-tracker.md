@@ -1742,3 +1742,21 @@ layout waypoints).
 `apps/dashboard/src/app/{globals.css,sessions/[id]/page.tsx}`, tests in
 `apps/dashboard/src/lib/*.test.ts`.
 **Related ADR:** ADR-84, ADR-85.
+
+## 2026-07-16 — Edge rendering fixes from live-graph screenshot
+
+**What:** Avinash's live session screenshot showed three renderer
+defects: a reversed edge (service → datastore above it) drawn across
+the target card, antiparallel pairs (reads/writes) crossing mid-air as
+an X, and their two label chips jammed together in the shared lane.
+Fixes, all in the ADR-85 pipeline: (1) `buildEdgePath` now trusts
+dagre's endpoints as-is instead of re-anchoring to the fixed
+top/bottom handles — a reversed edge reaches the target's bottom
+border cleanly; (2) `layoutGraph` shifts each edge of an A→B/B→A pair
+14px along its own left normal (opposite directions → opposite sides,
+28px apart); (3) `labelAnchor` is arc-length parameterized and
+antiparallel pairs stagger chips at t=0.38/0.62. Gates green:
+check-types, lint, vitest 72/72.
+**Files/areas touched:** `apps/dashboard/src/lib/{edge-path.ts,graph-layout.ts,graph-flow-types.ts}`,
+`apps/dashboard/src/components/planning/{routed-edge.tsx,architecture-diagram.tsx}`, tests.
+**Related ADR:** ADR-85 (refinement, no new decision).

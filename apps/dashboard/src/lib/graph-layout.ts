@@ -35,6 +35,8 @@ const RANK_SEP = 120;
 const NODE_SEP = 72;
 const EDGE_SEP = 24;
 const MARGIN = 32;
+// Lateral shift applied to each edge of an A→B / B→A pair.
+const ANTIPARALLEL_OFFSET = 14;
 
 export function edgePointsKey(sourceKey: string, targetKey: string): string {
   return `${sourceKey}->${targetKey}`;
@@ -75,11 +77,31 @@ export function layoutGraph(boxes: LayoutBox[], links: LayoutLink[]): LayoutResu
     positions.set(box.key, { x: placed.x - box.width / 2, y: placed.y - box.height / 2 });
   }
 
+  const registered = new Set(graph.edges().map((e) => edgePointsKey(e.v, e.w)));
   const edgePoints = new Map<string, LayoutPosition[]>();
   for (const e of graph.edges()) {
     // @types/dagre omits `points`, but dagre populates it at runtime.
     const placed = graph.edge(e) as { points?: LayoutPosition[] };
-    edgePoints.set(edgePointsKey(e.v, e.w), placed.points ?? []);
+    let points = placed.points ?? [];
+    // Antiparallel pairs (A→B and B→A) would otherwise land on the same
+    // near-straight line and cross mid-air. Shift each along its own left
+    // normal — the pair's directions are opposite, so the two offsets push
+    // to opposite sides automatically.
+    if (registered.has(edgePointsKey(e.w, e.v)) && points.length >= 2) {
+      const first = points[0];
+      const last = points[points.length - 1];
+      if (first !== undefined && last !== undefined) {
+        const dx = last.x - first.x;
+        const dy = last.y - first.y;
+        const length = Math.hypot(dx, dy);
+        if (length > 0) {
+          const nx = (-dy / length) * ANTIPARALLEL_OFFSET;
+          const ny = (dx / length) * ANTIPARALLEL_OFFSET;
+          points = points.map((p) => ({ x: p.x + nx, y: p.y + ny }));
+        }
+      }
+    }
+    edgePoints.set(edgePointsKey(e.v, e.w), points);
   }
 
   return { positions, edgePoints };

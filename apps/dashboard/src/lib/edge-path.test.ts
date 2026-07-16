@@ -7,12 +7,12 @@ describe("buildEdgePath", () => {
     expect(buildEdgePath(0, 0, 100, 100, [])).toBe("M 0,0 L 100,100");
   });
 
-  it("treats two dagre points (endpoints only) as a straight line", () => {
+  it("draws a straight line between two dagre points", () => {
     const path = buildEdgePath(0, 0, 100, 100, [
       { x: 2, y: 2 },
       { x: 98, y: 98 },
     ]);
-    expect(path).toBe("M 0,0 L 100,100");
+    expect(path).toBe("M 2,2 L 98,98");
   });
 
   it("routes through interior waypoints with rounded corners", () => {
@@ -26,14 +26,17 @@ describe("buildEdgePath", () => {
     expect(path.endsWith("L 100,100")).toBe(true);
   });
 
-  it("anchors ends to the handle coordinates, not dagre's border approximations", () => {
+  it("trusts dagre's endpoints over the handle coordinates", () => {
+    // A reversed edge (lower node → upper node) reaches the target's BOTTOM
+    // border; anchoring to the fixed top handle would drag the path across
+    // the target card.
     const path = buildEdgePath(10, 20, 90, 80, [
       { x: 12, y: 22 },
       { x: 50, y: 50 },
       { x: 88, y: 78 },
     ]);
-    expect(path.startsWith("M 10,20")).toBe(true);
-    expect(path.endsWith("L 90,80")).toBe(true);
+    expect(path.startsWith("M 12,22")).toBe(true);
+    expect(path.endsWith("L 88,78")).toBe(true);
   });
 
   it("clamps the corner radius on short segments instead of self-intersecting", () => {
@@ -61,24 +64,36 @@ describe("buildEdgePath", () => {
 });
 
 describe("labelAnchor", () => {
-  it("uses the middle interior waypoint when one exists", () => {
-    const anchor = labelAnchor(0, 0, 100, 100, [
-      { x: 0, y: 0 },
-      { x: 30, y: 40 },
-      { x: 60, y: 50 },
-      { x: 90, y: 60 },
-      { x: 100, y: 100 },
-    ]);
-    expect(anchor).toEqual({ x: 60, y: 50 });
+  it("defaults to the arc-length midpoint", () => {
+    expect(
+      labelAnchor(0, 0, 100, 0, [
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ]),
+    ).toEqual({ x: 50, y: 0 });
   });
 
-  it("falls back to the segment midpoint without interior waypoints", () => {
+  it("places the chip at fraction t of the polyline's total length", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 100, y: 100 },
+    ];
+    // Total length 200: t=0.5 is the corner, t=0.75 is halfway down.
+    expect(labelAnchor(0, 0, 100, 100, points, 0.5)).toEqual({ x: 100, y: 0 });
+    expect(labelAnchor(0, 0, 100, 100, points, 0.75)).toEqual({ x: 100, y: 50 });
+  });
+
+  it("clamps t to [0, 1]", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ];
+    expect(labelAnchor(0, 0, 100, 0, points, -1)).toEqual({ x: 0, y: 0 });
+    expect(labelAnchor(0, 0, 100, 0, points, 2)).toEqual({ x: 100, y: 0 });
+  });
+
+  it("falls back to the handle midpoint without points", () => {
     expect(labelAnchor(0, 0, 100, 50)).toEqual({ x: 50, y: 25 });
-    expect(
-      labelAnchor(0, 0, 100, 50, [
-        { x: 0, y: 0 },
-        { x: 100, y: 50 },
-      ]),
-    ).toEqual({ x: 50, y: 25 });
   });
 });

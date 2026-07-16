@@ -24,10 +24,13 @@ function towards(from: LayoutPosition, to: LayoutPosition, distance: number): La
 }
 
 /**
- * SVG path from source handle → interior waypoints → target handle, with each
- * interior corner rounded via a quadratic bend clamped to its segment lengths.
- * `points` is dagre's full point list; its first/last entries approximate the
- * node borders and are replaced by the exact handle coordinates.
+ * SVG path through dagre's full point list, each corner rounded via a
+ * quadratic bend clamped to its segment lengths. Dagre's endpoints are
+ * trusted as-is — they sit on whichever node border the edge actually
+ * reaches, which matters for reversed edges (lower node → upper node):
+ * anchoring those to the fixed top/bottom handles would drag the path
+ * across the target card. Handle coordinates are only the no-points
+ * fallback.
  */
 export function buildEdgePath(
   sourceX: number,
@@ -36,12 +39,13 @@ export function buildEdgePath(
   targetY: number,
   points?: LayoutPosition[],
 ): string {
-  const interior = points && points.length > 2 ? points.slice(1, -1) : [];
-  const path: LayoutPosition[] = [
-    { x: sourceX, y: sourceY },
-    ...interior,
-    { x: targetX, y: targetY },
-  ];
+  const path: LayoutPosition[] =
+    points && points.length >= 2
+      ? points
+      : [
+          { x: sourceX, y: sourceY },
+          { x: targetX, y: targetY },
+        ];
 
   // Collapse consecutive duplicates — zero-length segments break rounding math.
   const waypoints = path.filter((p, i) => {
@@ -74,8 +78,9 @@ export function buildEdgePath(
 }
 
 /**
- * Where the edge label chip sits: the middle dagre waypoint (in the clear
- * lane between ranks) when one exists, else the segment midpoint.
+ * Where the edge label chip sits: the point at fraction `t` of the polyline's
+ * arc length. Default t=0.5 (the lane midpoint); antiparallel edge pairs get
+ * staggered fractions so their two chips don't collide in the shared lane.
  */
 export function labelAnchor(
   sourceX: number,
@@ -83,9 +88,39 @@ export function labelAnchor(
   targetX: number,
   targetY: number,
   points?: LayoutPosition[],
+  t = 0.5,
 ): LayoutPosition {
-  const interior = points && points.length > 2 ? points.slice(1, -1) : [];
-  const mid = interior[Math.floor(interior.length / 2)];
-  if (mid !== undefined) return mid;
-  return { x: (sourceX + targetX) / 2, y: (sourceY + targetY) / 2 };
+  const path: LayoutPosition[] =
+    points && points.length >= 2
+      ? points
+      : [
+          { x: sourceX, y: sourceY },
+          { x: targetX, y: targetY },
+        ];
+
+  let total = 0;
+  const lengths: number[] = [];
+  for (let i = 1; i < path.length; i++) {
+    const from = path[i - 1];
+    const to = path[i];
+    const length = from !== undefined && to !== undefined ? dist(from, to) : 0;
+    lengths.push(length);
+    total += length;
+  }
+  const first = path[0];
+  if (first === undefined) return { x: (sourceX + targetX) / 2, y: (sourceY + targetY) / 2 };
+  if (total === 0) return first;
+
+  let remaining = Math.min(Math.max(t, 0), 1) * total;
+  for (let i = 1; i < path.length; i++) {
+    const from = path[i - 1];
+    const to = path[i];
+    const length = lengths[i - 1] ?? 0;
+    if (from === undefined || to === undefined) continue;
+    if (remaining <= length || i === path.length - 1) {
+      return towards(from, to, Math.min(remaining, length));
+    }
+    remaining -= length;
+  }
+  return first;
 }

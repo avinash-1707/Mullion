@@ -26,6 +26,9 @@ export interface GraphFlowEdgeData extends Record<string, unknown> {
   status: GraphNodeStatus;
   // Dagre waypoints for the routed edge (ADR-85); absent → straight fallback.
   points?: LayoutPosition[] | undefined;
+  // Label position as a fraction of the path's arc length (default 0.5) —
+  // staggered for antiparallel pairs so the two chips don't collide.
+  labelT?: number | undefined;
 }
 
 export type GraphFlowEdge = Edge<GraphFlowEdgeData, "routed">;

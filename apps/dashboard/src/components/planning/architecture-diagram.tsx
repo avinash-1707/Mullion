@@ -144,6 +144,10 @@ export function ArchitectureDiagram({
 
   const flowEdges: GraphFlowEdge[] = useMemo(() => {
     const visible = edges.filter((e) => visibleKeys.has(e.sourceKey) && visibleKeys.has(e.targetKey));
+    const pairKeys = new Set([
+      ...visible.map((e) => edgePointsKey(e.sourceKey, e.targetKey)),
+      ...synthesizedLinks.map((l) => edgePointsKey(l.sourceKey, l.targetKey)),
+    ]);
     const explicit: GraphFlowEdge[] = visible.map((edge) => ({
       id: edge.id,
       type: "routed",
@@ -153,7 +157,18 @@ export function ArchitectureDiagram({
       animated: false,
       style: { opacity: edge.status === "removed" ? 0.35 : 0.9, strokeDasharray: edge.status === "removed" ? "4 4" : undefined },
       markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: "var(--color-fg-faint)" },
-      data: { synthesized: false, status: edge.status, points: layout.edgePoints.get(edgePointsKey(edge.sourceKey, edge.targetKey)) },
+      data: {
+        synthesized: false,
+        status: edge.status,
+        points: layout.edgePoints.get(edgePointsKey(edge.sourceKey, edge.targetKey)),
+        // Stagger the pair's chips along their (already laterally separated)
+        // paths so neither sits on the crossing point.
+        labelT: pairKeys.has(edgePointsKey(edge.targetKey, edge.sourceKey))
+          ? edge.sourceKey < edge.targetKey
+            ? 0.38
+            : 0.62
+          : 0.5,
+      },
     }));
     const synthesized: GraphFlowEdge[] = synthesizedLinks
       .filter((link) => visibleKeys.has(link.sourceKey) && visibleKeys.has(link.targetKey))

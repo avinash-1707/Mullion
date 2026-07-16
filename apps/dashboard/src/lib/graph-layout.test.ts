@@ -41,6 +41,18 @@ describe("layoutGraph", () => {
     expect(edgePoints.size).toBe(0);
   });
 
+  it("laterally separates an antiparallel pair so they don't cross mid-air", () => {
+    const { edgePoints } = layoutGraph(boxes("a", "b"), [
+      { sourceKey: "a", targetKey: "b" },
+      { sourceKey: "b", targetKey: "a" },
+    ]);
+    const down = edgePoints.get(edgePointsKey("a", "b"))![0]!;
+    const up = edgePoints.get(edgePointsKey("b", "a"))![0]!;
+    // Each edge shifts along its own left normal; opposite directions push
+    // the two to opposite sides (2 × 14px apart for a vertical pair).
+    expect(Math.abs(down.x - up.x)).toBeGreaterThanOrEqual(20);
+  });
+
   it("gives a multi-rank edge interior waypoints to route around the middle rank", () => {
     // a -> b -> c chain plus a long a -> c edge spanning both ranks.
     const { edgePoints } = layoutGraph(boxes("a", "b", "c"), [
