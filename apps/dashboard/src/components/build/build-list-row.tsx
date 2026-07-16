@@ -1,25 +1,43 @@
 import Link from "next/link";
-import type { BuildRun } from "@mullion/schemas";
-import { BuildStatusBadge } from "./build-status-badge";
+import type { BuildListItem, BuildStage } from "@mullion/schemas";
+import { BuildStageBadge } from "./build-status-badge";
 import { ChevronIcon } from "../planning/icons";
-import { formatDateTime, shortId } from "../../lib/build-format";
+import { formatDateTime } from "../../lib/build-format";
 
-interface BuildListRowProps {
-  run: BuildRun;
+// Pre-run stages live on the planning page; once a run exists the row jumps
+// straight to it (ADR-83).
+const PLANNING_STAGES: ReadonlySet<BuildStage> = new Set([
+  "clarifying",
+  "planning",
+  "confirmed",
+  "abandoned",
+]);
+
+function hrefFor(build: BuildListItem): string {
+  if (!PLANNING_STAGES.has(build.stage) && build.latestRunId) {
+    return `/builds/${build.latestRunId}`;
+  }
+  return `/sessions/${build.sessionId}`;
 }
 
-export function BuildListRow({ run }: BuildListRowProps) {
+interface BuildListRowProps {
+  build: BuildListItem;
+}
+
+export function BuildListRow({ build }: BuildListRowProps) {
   return (
     <Link
-      href={`/builds/${run.id}`}
+      href={hrefFor(build)}
       className="transition-swift group flex items-center justify-between gap-3 border border-border bg-surface px-4 py-3.5 hover:-translate-y-[2px] hover:border-ember"
     >
       <div className="flex min-w-0 items-center gap-3">
-        <span className="shrink-0 font-mono text-sm text-fg">{shortId(run.id)}</span>
-        <span className="truncate font-mono text-xs text-fg-faint">{formatDateTime(run.createdAt)}</span>
+        <span className="truncate text-sm text-fg">{build.idea}</span>
+        <span className="shrink-0 font-mono text-xs text-fg-faint">
+          {formatDateTime(build.createdAt)}
+        </span>
       </div>
       <div className="flex shrink-0 items-center gap-2.5">
-        <BuildStatusBadge status={run.status} />
+        <BuildStageBadge stage={build.stage} />
         <ChevronIcon className="h-4 w-4 text-fg-faint transition-transform group-hover:translate-x-0.5" />
       </div>
     </Link>

@@ -45,9 +45,22 @@ describe.skipIf(!dbUrl)("ensureTaskRowActivity idempotency (real Postgres)", () 
       .insert(schema.user)
       .values({ id: USER, name: "T", email: "ensure@test.local" })
       .onConflictDoNothing();
+    // Build id reuses SESSION_ID (same trick as the 0012 backfill) — the
+    // fixture chain stays two constants, not three.
+    await db
+      .insert(schema.builds)
+      .values({ id: SESSION_ID, organizationId: ORG, userId: USER, idea: "test" })
+      .onConflictDoNothing();
     await db
       .insert(schema.planningSessions)
-      .values({ id: SESSION_ID, organizationId: ORG, userId: USER, idea: "test", status: "confirmed" })
+      .values({
+        id: SESSION_ID,
+        organizationId: ORG,
+        userId: USER,
+        buildId: SESSION_ID,
+        idea: "test",
+        status: "confirmed",
+      })
       .onConflictDoNothing();
     await db
       .insert(schema.buildSpecs)
@@ -64,7 +77,7 @@ describe.skipIf(!dbUrl)("ensureTaskRowActivity idempotency (real Postgres)", () 
     await db.delete(schema.runs).where(eq(schema.runs.organizationId, ORG));
     const [run] = await db
       .insert(schema.runs)
-      .values({ organizationId: ORG, userId: USER, buildSpecId: SPEC_ID, status: "building" })
+      .values({ organizationId: ORG, userId: USER, buildId: SESSION_ID, buildSpecId: SPEC_ID, status: "building" })
       .returning();
     runId = run!.id;
   }, 30_000);

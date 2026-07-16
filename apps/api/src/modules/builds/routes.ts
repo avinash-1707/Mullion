@@ -69,10 +69,15 @@ export const buildsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     const organizationId = c.get("organizationId");
     const { buildSpecId } = c.req.valid("json");
 
-    // The Build Spec must exist in this org (ADR-36).
+    // The Build Spec must exist in this org (ADR-36). The join resolves the
+    // lifecycle parent (ADR-83) the run must attach to.
     const [spec] = await db
-      .select({ id: schema.buildSpecs.id })
+      .select({ id: schema.buildSpecs.id, buildId: schema.planningSessions.buildId })
       .from(schema.buildSpecs)
+      .innerJoin(
+        schema.planningSessions,
+        eq(schema.planningSessions.id, schema.buildSpecs.sessionId),
+      )
       .where(
         and(
           eq(schema.buildSpecs.id, buildSpecId),
@@ -86,7 +91,13 @@ export const buildsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     try {
       const inserted = await db
         .insert(schema.runs)
-        .values({ organizationId, userId: user.id, buildSpecId, status: "queued" })
+        .values({
+          organizationId,
+          userId: user.id,
+          buildId: spec.buildId,
+          buildSpecId,
+          status: "queued",
+        })
         .returning();
       if (!inserted[0]) throw new Error("run insert returned nothing");
       run = inserted[0];
@@ -145,10 +156,12 @@ export const buildsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
 
     return c.json(toApiShape(run), 201);
   })
-  // Dashboard entry: the org's runs, newest first, cursor-paginated
-  // (02 §7.1, ADR-77). Keyset on (created_at, id) — id breaks created_at
-  // ties — so concurrent inserts can't skip or duplicate rows the way an
-  // OFFSET walk would.
+  // Dashboard entry (ADR-83, supersedes ADR-82's UI-layer union): the org's
+  // builds — one row per idea whatever its stage — newest first,
+  // cursor-paginated (02 §7.1, ADR-77). Keyset on (created_at, id) — id
+  // breaks created_at ties — so concurrent inserts can't skip or duplicate
+  // rows the way an OFFSET walk would. The session join is 1:1 on a unique
+  // index and only supplies the planning-page link target.
   .get("/", zValidator("query", listBuildsQuerySchema), async (c) => {
     const organizationId = c.get("organizationId");
     const { cursor: rawCursor, limit } = c.req.valid("query");
@@ -157,26 +170,37 @@ export const buildsRoute = new Hono<{ Variables: RequiredAuthVariables }>()
       throw new HTTPException(400, { message: "Invalid cursor" });
     }
     const rows = await db
-      .select()
-      .from(schema.runs)
+      .select({
+        id: schema.builds.id,
+        idea: schema.builds.idea,
+        stage: schema.builds.stage,
+        latestRunId: schema.builds.latestRunId,
+        createdAt: schema.builds.createdAt,
+        sessionId: schema.planningSessions.id,
+      })
+      .from(schema.builds)
+      .innerJoin(schema.planningSessions, eq(schema.planningSessions.buildId, schema.builds.id))
       .where(
         and(
-          eq(schema.runs.organizationId, organizationId),
+          eq(schema.builds.organizationId, organizationId),
           // Row-value comparison, matching the composite ORDER BY exactly —
           // two separate ANDed comparisons would drop same-timestamp rows.
           cursor
-            ? sql`(${schema.runs.createdAt}, ${schema.runs.id}) < (${cursor.createdAt.toISOString()}::timestamptz, ${cursor.id}::uuid)`
+            ? sql`(${schema.builds.createdAt}, ${schema.builds.id}) < (${cursor.createdAt.toISOString()}::timestamptz, ${cursor.id}::uuid)`
             : undefined,
         ),
       )
-      .orderBy(desc(schema.runs.createdAt), desc(schema.runs.id))
+      .orderBy(desc(schema.builds.createdAt), desc(schema.builds.id))
       // One row past the page proves (or disproves) a next page without a
       // separate COUNT.
       .limit(limit + 1);
     const items = rows.slice(0, limit);
     const last = items[items.length - 1];
     const nextCursor = rows.length > limit && last ? encodeBuildsCursor(last) : null;
-    return c.json({ items: items.map(toApiShape), nextCursor });
+    return c.json({
+      items: items.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() })),
+      nextCursor,
+    });
   })
   .get("/:id", async (c) => c.json(toApiShape(await loadRun(c))))
   // Task rows for the timeline — statuses update live via the run stream;

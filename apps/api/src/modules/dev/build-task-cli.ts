@@ -103,6 +103,7 @@ async function main(): Promise<void> {
     .values({
       organizationId: specRow.organizationId,
       userId: session.userId,
+      buildId: session.buildId,
       buildSpecId: specRow.id,
       status: "building",
     })

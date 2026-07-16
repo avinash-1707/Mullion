@@ -26,6 +26,66 @@ export const planningSessionStatus = pgEnum("planning_session_status", [
 ]);
 
 /**
+ * ADR-83: flattened lifecycle of one idea — planning_sessions.status/phase
+ * ('clarifying'|'planning'|'confirmed'|'abandoned') followed by runs.status
+ * mirrored verbatim. TEXT with a TS enum per the model_routing precedent —
+ * run statuses grow in later milestones and text avoids ALTER TYPE churn.
+ */
+export const BUILD_STAGES = [
+  "clarifying",
+  "planning",
+  "confirmed",
+  "queued",
+  "building",
+  "testing",
+  "reviewing",
+  "fixing",
+  "shipping",
+  "done",
+  "failed",
+  "abandoned",
+] as const;
+export type BuildStage = (typeof BUILD_STAGES)[number];
+
+/**
+ * ADR-83: the parent of one idea's whole lifecycle — created at idea submit,
+ * pointed at by planning_sessions (1:1) and runs (1:N, re-runs). `stage` is
+ * DENORMALIZED from the children by AFTER-triggers in migration 0012 (all
+ * four writer processes — API, orchestrator worker, evals, dev CLI — stay in
+ * sync with zero app-code duty), so never written from application code.
+ * `latest_run_id` is maintained by the same run trigger; no FK to runs to
+ * avoid a circular table reference — the trigger only ever writes NEW.id.
+ */
+export const builds = pgTable(
+  "builds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id),
+    idea: text("idea").notNull(),
+    stage: text("stage", { enum: BUILD_STAGES }).notNull().default("clarifying"),
+    latestRunId: uuid("latest_run_id"),
+    // precision 3 (ms): keyset ordering column, same cursor round-trip
+    // constraint as runs.created_at (ADR-77/78).
+    createdAt: timestamp("created_at", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    // The builds list is the org-scoped keyset scan (ADR-77 shape).
+    index("builds_org_created_idx").on(t.organizationId, t.createdAt),
+    // Composite-FK target for planning_sessions/runs, like the other parents.
+    unique("builds_id_org_uq").on(t.id, t.organizationId),
+  ],
+);
+
+/**
  * Planning sessions (product Phases 0–3). Named `planning_sessions` at the
  * table level because Better Auth already owns `session` for auth sessions.
  */
@@ -39,6 +99,9 @@ export const planningSessions = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id),
+    // ADR-83: lifecycle parent. Exactly one session per build (1:1) — the
+    // build row is created in the same transaction as the session.
+    buildId: uuid("build_id").notNull(),
     status: planningSessionStatus("status").notNull().default("active"),
     // Product phase within an active session (01 §1): requirements (Analyst
     // MCQ) → architecture (Planner). Confirmed/frozen is `status`, not a
@@ -78,6 +141,14 @@ export const planningSessions = pgTable(
     // Composite-FK target: lets children pin (parent id, org) together so a
     // denormalized organization_id can never disagree with its parent's.
     unique("planning_sessions_id_org_uq").on(t.id, t.organizationId),
+    // ADR-83: 1:1 with builds; unique doubles as the join index for the
+    // builds-list session lookup.
+    uniqueIndex("planning_sessions_build_uidx").on(t.buildId),
+    foreignKey({
+      columns: [t.buildId, t.organizationId],
+      foreignColumns: [builds.id, builds.organizationId],
+      name: "planning_sessions_build_org_fk",
+    }),
   ],
 );
 
@@ -309,6 +380,9 @@ export const runs = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id),
+    // ADR-83: lifecycle parent — 1:N (a failed run can be re-run from the
+    // same spec under the same build).
+    buildId: uuid("build_id").notNull(),
     buildSpecId: uuid("build_spec_id").notNull(),
     status: runStatus("status").notNull().default("queued"),
     // precision 3 (ms), not the default µs: created_at is the keyset ordering
@@ -333,10 +407,16 @@ export const runs = pgTable(
     // it a range scan, same shape as cost_events_org_created_idx.
     index("runs_org_created_idx").on(t.organizationId, t.createdAt),
     unique("runs_id_org_uq").on(t.id, t.organizationId),
+    index("runs_build_idx").on(t.buildId),
     foreignKey({
       columns: [t.buildSpecId, t.organizationId],
       foreignColumns: [buildSpecs.id, buildSpecs.organizationId],
       name: "runs_build_spec_org_fk",
+    }),
+    foreignKey({
+      columns: [t.buildId, t.organizationId],
+      foreignColumns: [builds.id, builds.organizationId],
+      name: "runs_build_org_fk",
     }),
   ],
 );

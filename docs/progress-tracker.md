@@ -1661,3 +1661,37 @@ web-only. Gates green: check-types + lint.
 `apps/dashboard/src/app/{builds,sessions}/[id]/page.tsx`.
 **Related ADR:** none — follows apps/web's existing metadata pattern
 adapted to client pages.
+
+## 2026-07-16 — Parent `builds` table: one list row per idea, stage-driven (ADR-83)
+
+**What:** The "build" now has a single DB identity. New `builds` table
+(idea, `stage`, `latest_run_id`) created at idea submit in the same
+transaction as its planning session; `planning_sessions` (1:1) and
+`runs` (1:N) carry a `build_id` composite FK. `stage` flattens
+session status/phase + run status and is kept in sync by two DB
+triggers in migration 0012 (four writer processes — API, orchestrator
+worker, evals, dev CLI — so app-level sync would drift); the run
+trigger also tracks `latest_run_id` and ignores stale non-latest runs.
+Backfill reuses each session's uuid as its build id. `GET /api/builds`
+keysets over `builds` alone (ADR-77 cursor unchanged); ADR-82's
+`GET /api/sessions` union and `PlanningSessionRow` are removed — the
+builds page and dashboard recents render one `BuildListRow` per idea
+(idea text + stage pill; links to session pre-run, run after).
+Two parallel sage reviews (DB lens, API/frontend lens) surfaced and
+got fixed: a `latest_run_id IS NULL` guard on the session trigger (a
+post-run session write can never regress a run stage), a pg_trigger
+existence assertion in the integration suite, `["builds"]` query
+invalidation on idea-submit and build-start mutations, and a hardened
+POST /api/sessions retry path (repeat ADR-29 race answers 200/409,
+never a raw 500).
+Gates green: check-types 15/15, unit tests all packages, api
+integration 112/112, orchestrator ensure-task-row 3/3; migration
+applied to dev DB — backfill verified (0 orphans, 0 stage mismatches)
+plus a full trigger lifecycle smoke test.
+**Files/areas touched:** `packages/db/src/schema/app.ts`,
+`packages/db/drizzle/0012_mixed_quentin_quire.sql`,
+`apps/api/src/modules/{builds,planning,dev}/`,
+`packages/{schemas/src/api.ts,evals/src/harness.ts}`,
+`apps/dashboard/src/app/{page.tsx,builds/page.tsx}`,
+`apps/dashboard/src/components/build/`.
+**Related ADR:** ADR-83 (supersedes ADR-82).

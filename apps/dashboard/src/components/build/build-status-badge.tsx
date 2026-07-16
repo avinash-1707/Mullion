@@ -1,4 +1,4 @@
-import type { BuildRun, BuildTask } from "@mullion/schemas";
+import type { BuildRun, BuildStage, BuildTask } from "@mullion/schemas";
 import { CheckIcon, WarningIcon } from "../planning/icons";
 
 export type Tone = "neutral" | "progress" | "success" | "danger";
@@ -27,6 +27,17 @@ const RUN_STATUS_CONFIG: Record<BuildRun["status"], { label: string; tone: Tone 
   shipping: { label: "Shipping", tone: "progress" },
   done: { label: "Done", tone: "success" },
   failed: { label: "Failed", tone: "danger" },
+};
+
+// ADR-83 lifecycle stages — the planning phases use their user-facing names
+// ("requirements" was already rendered as Clarifying under ADR-82), then the
+// run statuses reuse the labels above.
+const STAGE_CONFIG: Record<BuildStage, { label: string; tone: Tone }> = {
+  clarifying: { label: "Clarifying", tone: "progress" },
+  planning: { label: "Planning", tone: "progress" },
+  confirmed: { label: "Confirmed", tone: "neutral" },
+  abandoned: { label: "Abandoned", tone: "neutral" },
+  ...RUN_STATUS_CONFIG,
 };
 
 const TASK_STATUS_CONFIG: Record<BuildTask["status"], { label: string; tone: Tone }> = {
@@ -69,6 +80,11 @@ export function StatusPill({ label, tone, size }: StatusPillProps) {
 
 export function BuildStatusBadge({ status }: { status: BuildRun["status"] }) {
   const config = RUN_STATUS_CONFIG[status];
+  return <StatusPill label={config.label} tone={config.tone} size="md" />;
+}
+
+export function BuildStageBadge({ stage }: { stage: BuildStage }) {
+  const config = STAGE_CONFIG[stage];
   return <StatusPill label={config.label} tone={config.tone} size="md" />;
 }
 

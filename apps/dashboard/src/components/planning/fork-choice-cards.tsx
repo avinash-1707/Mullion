@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createBuildBodySchema, buildRunSchema } from "@mullion/schemas";
 import { Button } from "../ui/button";
 import { BuildIcon, DownloadIcon } from "./icons";
@@ -21,6 +21,7 @@ interface ForkChoiceCardsProps {
 // dashboard.
 export function ForkChoiceCards({ sessionId, buildSpecId }: ForkChoiceCardsProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const exportMutation = useMutation({
     mutationFn: () => downloadSessionExport(sessionId),
@@ -35,6 +36,9 @@ export function ForkChoiceCards({ sessionId, buildSpecId }: ForkChoiceCardsProps
       return buildRunSchema.parse(body);
     },
     onSuccess: (run) => {
+      // The build's stage/link target just changed (ADR-83) — refresh the
+      // builds page and dashboard recents lists.
+      void queryClient.invalidateQueries({ queryKey: ["builds"] });
       router.push(`/builds/${run.id}`);
     },
   });

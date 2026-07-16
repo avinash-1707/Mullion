@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { planningSessionSchema, type PlanningSession } from "@mullion/schemas";
 import { apiFetchWithStatus } from "../lib/api";
 
@@ -12,6 +12,7 @@ export interface CreateSessionResult {
 }
 
 export function useCreatePlanningSessionMutation() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (idea: string): Promise<CreateSessionResult> => {
       const { status, body } = await apiFetchWithStatus("/api/sessions", {
@@ -19,6 +20,12 @@ export function useCreatePlanningSessionMutation() {
         body: JSON.stringify({ idea }),
       });
       return { session: planningSessionSchema.parse(body), resumed: status === 200 };
+    },
+    onSuccess: () => {
+      // A new build row exists now (ADR-83) — the prefix hits both the
+      // builds page (["builds","list"]) and the dashboard recents
+      // (["builds","recent"]), which are otherwise fresh for 60s.
+      void queryClient.invalidateQueries({ queryKey: ["builds"] });
     },
   });
 }

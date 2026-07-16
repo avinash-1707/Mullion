@@ -311,6 +311,20 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     expect(await res.json()).toEqual({ items: [], nextCursor: null });
   });
 
+  it("keeps the ADR-83 stage-sync triggers installed (migration 0012)", async () => {
+    // builds.stage is trigger-maintained and triggers are invisible to
+    // drizzle's snapshot — a table recreate or DROP..CASCADE would remove
+    // them with no diff to catch it. This assertion is that catch.
+    const { sql } = await import("drizzle-orm");
+    const result = await harness.db.execute(
+      sql`SELECT tgname FROM pg_trigger WHERE tgname IN ('planning_sessions_sync_build_stage', 'runs_sync_build_stage')`,
+    );
+    expect(result.rows.map((row) => row["tgname"]).sort()).toEqual([
+      "planning_sessions_sync_build_stage",
+      "runs_sync_build_stage",
+    ]);
+  });
+
   describe("builds list pagination (ADR-77)", () => {
     interface ListPage {
       items: Array<{ id: string; createdAt: string }>;
@@ -336,37 +350,34 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
     }
 
     /**
-     * Seed `count` terminal runs (status 'done' keeps ADR-29's one-active
-     * partial index out of play) through the real FK chain: planning session
-     * → frozen spec → runs. created_at DELIBERATELY ties in pairs so the
-     * list order exercises the id tiebreaker, not just timestamps.
+     * Seed `count` builds (ADR-83: the list paginates builds, one row per
+     * idea) each with its 1:1 planning session — 'confirmed' keeps ADR-29's
+     * one-active partial index out of play. created_at DELIBERATELY ties in
+     * pairs so the list order exercises the id tiebreaker, not just
+     * timestamps.
      */
-    async function seedRuns(cookie: string, ip: string, count: number): Promise<void> {
+    async function seedBuilds(cookie: string, ip: string, count: number): Promise<void> {
       const { schema } = await import("@mullion/db");
       const { userId, organizationId } = await sessionIdentity(cookie, ip);
-      const [session] = await harness.db
-        .insert(schema.planningSessions)
-        .values({ organizationId, userId, status: "confirmed", idea: "pagination harness idea" })
-        .returning();
-      if (!session) throw new Error("seed insert returned no session row");
-      const [spec] = await harness.db
-        .insert(schema.buildSpecs)
-        .values({
-          organizationId,
-          sessionId: session.id,
-          contentHash: `harness-${randomUUID()}`,
-          spec: {},
-        })
-        .returning();
-      if (!spec) throw new Error("seed insert returned no spec row");
       const base = Date.parse("2026-01-01T00:00:00.000Z");
-      await harness.db.insert(schema.runs).values(
-        Array.from({ length: count }, (_, i) => ({
+      const builds = await harness.db
+        .insert(schema.builds)
+        .values(
+          Array.from({ length: count }, (_, i) => ({
+            organizationId,
+            userId,
+            idea: `pagination harness idea ${i}`,
+            createdAt: new Date(base + Math.floor(i / 2) * 1000),
+          })),
+        )
+        .returning();
+      await harness.db.insert(schema.planningSessions).values(
+        builds.map((build) => ({
           organizationId,
           userId,
-          buildSpecId: spec.id,
-          status: "done" as const,
-          createdAt: new Date(base + Math.floor(i / 2) * 1000),
+          buildId: build.id,
+          status: "confirmed" as const,
+          idea: build.idea,
         })),
       );
     }
@@ -380,7 +391,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
 
     it("walks pages by cursor with stable ordering, no overlap, no gaps", async () => {
       const { cookie, ip } = await signUp(harness.app);
-      await seedRuns(cookie, ip, 5);
+      await seedBuilds(cookie, ip, 5);
 
       // Single-fetch baseline (default limit 20 covers all 5).
       const fullRes = await listBuilds(cookie, ip);
@@ -438,7 +449,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
 
     it("clamps limit to 50 and rejects garbage limits", async () => {
       const { cookie, ip } = await signUp(harness.app);
-      await seedRuns(cookie, ip, 55);
+      await seedBuilds(cookie, ip, 55);
 
       const res = await listBuilds(cookie, ip, "?limit=999");
       expect(res.status).toBe(200);
@@ -500,16 +511,27 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
       return { userId: body.user.id, organizationId: body.session.activeOrganizationId };
     }
 
-    /** Real FK chain (planning session → frozen spec) so runs can be seeded. */
+    /** Real FK chain (build → planning session → frozen spec) so runs can be seeded. */
     async function seedSpec(
       cookie: string,
       ip: string,
-    ): Promise<{ userId: string; organizationId: string; buildSpecId: string }> {
+    ): Promise<{ userId: string; organizationId: string; buildId: string; buildSpecId: string }> {
       const { schema } = await import("@mullion/db");
       const { userId, organizationId } = await identity(cookie, ip);
+      const [build] = await harness.db
+        .insert(schema.builds)
+        .values({ organizationId, userId, idea: "per-run spend harness idea" })
+        .returning();
+      if (!build) throw new Error("seed insert returned no build row");
       const [session] = await harness.db
         .insert(schema.planningSessions)
-        .values({ organizationId, userId, status: "confirmed", idea: "per-run spend harness idea" })
+        .values({
+          organizationId,
+          userId,
+          buildId: build.id,
+          status: "confirmed",
+          idea: "per-run spend harness idea",
+        })
         .returning();
       if (!session) throw new Error("seed insert returned no session row");
       const [spec] = await harness.db
@@ -517,11 +539,11 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
         .values({ organizationId, sessionId: session.id, contentHash: `harness-${randomUUID()}`, spec: {} })
         .returning();
       if (!spec) throw new Error("seed insert returned no spec row");
-      return { userId, organizationId, buildSpecId: spec.id };
+      return { userId, organizationId, buildId: build.id, buildSpecId: spec.id };
     }
 
     async function seedRun(
-      ctx: { userId: string; organizationId: string; buildSpecId: string },
+      ctx: { userId: string; organizationId: string; buildId: string; buildSpecId: string },
       createdAt: Date,
       status: "done" | "failed" = "done",
     ): Promise<string> {
@@ -531,6 +553,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
         .values({
           organizationId: ctx.organizationId,
           userId: ctx.userId,
+          buildId: ctx.buildId,
           buildSpecId: ctx.buildSpecId,
           status,
           createdAt,
@@ -546,7 +569,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
      * grouped keyset exercises the id tiebreaker too.
      */
     async function seedRunsWithEvents(
-      ctx: { userId: string; organizationId: string; buildSpecId: string },
+      ctx: { userId: string; organizationId: string; buildId: string; buildSpecId: string },
       count: number,
       base: number,
     ): Promise<void> {
@@ -557,6 +580,7 @@ describe.skipIf(!integration)("apps/api HTTP surface", () => {
           Array.from({ length: count }, (_, i) => ({
             organizationId: ctx.organizationId,
             userId: ctx.userId,
+            buildId: ctx.buildId,
             buildSpecId: ctx.buildSpecId,
             status: "done" as const,
             createdAt: new Date(base + Math.floor(i / 2) * 1000),

@@ -4,7 +4,7 @@ import { useEffect, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { buildRunListPageSchema } from "@mullion/schemas";
+import { buildListPageSchema } from "@mullion/schemas";
 import { authClient } from "@/lib/auth-client";
 import { redirectToSignIn } from "@/lib/auth-redirect";
 import { apiFetch } from "@/lib/api";
@@ -42,12 +42,13 @@ export default function DashboardPage() {
     }
   }, [isPending, session]);
 
-  // First page of the paginated builds list (ADR-77), asked for at exactly
-  // the 3 rows shown below the fold; enabled once a session exists so it
-  // never fires for a signed-out visitor mid-redirect.
-  const runsQuery = useQuery({
+  // First page of the paginated builds list (ADR-77/83) — one row per idea
+  // whatever its stage — asked for at exactly the 3 rows shown below the
+  // fold; enabled once a session exists so it never fires for a signed-out
+  // visitor mid-redirect.
+  const buildsQuery = useQuery({
     queryKey: ["builds", "recent"],
-    queryFn: async () => buildRunListPageSchema.parse(await apiFetch("/api/builds?limit=3")),
+    queryFn: async () => buildListPageSchema.parse(await apiFetch("/api/builds?limit=3")),
     enabled: Boolean(session),
   });
 
@@ -66,7 +67,7 @@ export default function DashboardPage() {
   // the hero for the moment it takes the redirect effect above to fire —
   // submitting the form still requires auth server-side, so nothing is
   // reachable in that window.
-  const recentRuns = runsQuery.data?.items ?? [];
+  const recentBuilds = buildsQuery.data?.items ?? [];
 
   return (
     <>
@@ -156,7 +157,7 @@ export default function DashboardPage() {
               loading in TanStack v5. isPending keeps the row skeletons up
               through BOTH waits — auth settling, then the first fetch —
               instead of flashing the empty state in between. */}
-          {runsQuery.isPending ? (
+          {buildsQuery.isPending ? (
             [0, 1, 2].map((i) => {
               const style: RowRevealStyle = { "--row-index": i + 1 };
               return (
@@ -165,15 +166,15 @@ export default function DashboardPage() {
                 </div>
               );
             })
-          ) : runsQuery.isError ? (
+          ) : buildsQuery.isError ? (
             <p
               role="alert"
               className={cn("scroll-reveal text-sm text-danger", recentBuildsInView && "in-view")}
               style={FIRST_ROW_STYLE}
             >
-              Couldn&apos;t load recent builds - {runsQuery.error.message}
+              Couldn&apos;t load recent builds - {buildsQuery.error.message}
             </p>
-          ) : recentRuns.length === 0 ? (
+          ) : recentBuilds.length === 0 ? (
             <p
               className={cn("scroll-reveal text-sm text-fg-muted", recentBuildsInView && "in-view")}
               style={FIRST_ROW_STYLE}
@@ -181,11 +182,11 @@ export default function DashboardPage() {
               No builds yet - your first build will appear here.
             </p>
           ) : (
-            recentRuns.map((run, index) => {
+            recentBuilds.map((build, index) => {
               const style: RowRevealStyle = { "--row-index": index + 1 };
               return (
-                <div key={run.id} className={cn("scroll-reveal", recentBuildsInView && "in-view")} style={style}>
-                  <BuildListRow run={run} />
+                <div key={build.id} className={cn("scroll-reveal", recentBuildsInView && "in-view")} style={style}>
+                  <BuildListRow build={build} />
                 </div>
               );
             })

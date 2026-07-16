@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { buildRunListPageSchema, planningSessionListSchema } from "@mullion/schemas";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { buildListPageSchema } from "@mullion/schemas";
 import { authClient } from "@/lib/auth-client";
 import { redirectToSignIn } from "@/lib/auth-redirect";
 import { apiFetch } from "@/lib/api";
@@ -11,7 +11,6 @@ import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { BuildListSkeleton } from "@/components/build/build-skeletons";
 import { SessionErrorState } from "@/components/planning/session-error-state";
 import { BuildListRow } from "@/components/build/build-list-row";
-import { PlanningSessionRow } from "@/components/planning/planning-session-row";
 import { BuildIcon } from "@/components/planning/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buttonVariants } from "@/components/ui/button";
@@ -23,12 +22,14 @@ export default function BuildsPage() {
     if (!isPending && !session) redirectToSignIn();
   }, [isPending, session]);
 
-  // Cursor-paginated walk of the org's runs (ADR-77): each page carries an
+  // Cursor-paginated walk of the org's builds (ADR-77/83): one row per idea
+  // whatever its stage — planning, running, or finished — so no second
+  // sessions query (ADR-82's union is superseded). Each page carries an
   // opaque nextCursor; null means the end.
-  const runsQuery = useInfiniteQuery({
+  const buildsQuery = useInfiniteQuery({
     queryKey: ["builds", "list"],
     queryFn: async ({ pageParam }) =>
-      buildRunListPageSchema.parse(
+      buildListPageSchema.parse(
         await apiFetch(`/api/builds${pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : ""}`),
       ),
     initialPageParam: null as string | null,
@@ -36,17 +37,8 @@ export default function BuildsPage() {
     enabled: Boolean(session),
   });
 
-  // Sessions still in clarification/planning live in planning_sessions, not
-  // runs — surfaced here so in-flight work is visible before a run exists.
-  // Supplemental: its loading/error states never block the runs list.
-  const sessionsQuery = useQuery({
-    queryKey: ["sessions", "active"],
-    queryFn: async () => planningSessionListSchema.parse(await apiFetch("/api/sessions")),
-    enabled: Boolean(session),
-  });
-
-  const { hasNextPage, isFetchingNextPage, fetchNextPage } = runsQuery;
-  const pageCount = runsQuery.data?.pages.length ?? 0;
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = buildsQuery;
+  const pageCount = buildsQuery.data?.pages.length ?? 0;
 
   // Infinite scroll: a sentinel below the list fetches the next page as it
   // approaches the viewport. The "Load more" button stays as the manual
@@ -77,67 +69,48 @@ export default function BuildsPage() {
     return <DashboardSkeleton />;
   }
 
-  if (runsQuery.isLoading) {
+  if (buildsQuery.isLoading) {
     return <BuildListSkeleton />;
   }
 
-  if (runsQuery.isError) {
-    return <SessionErrorState title="Couldn't load builds" message={runsQuery.error.message} />;
+  if (buildsQuery.isError) {
+    return <SessionErrorState title="Couldn't load builds" message={buildsQuery.error.message} />;
   }
 
-  const runs = runsQuery.data?.pages.flatMap((page) => page.items) ?? [];
-  const planningSessions = sessionsQuery.data ?? [];
+  const builds = buildsQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
     <div className="mx-auto w-full max-w-4xl px-6 py-14">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gilt">Builds</p>
-          <h1 className="mt-3 font-serif text-4xl leading-tight tracking-tight text-fg">Build runs</h1>
-          <p className="mt-2 text-sm text-fg-muted">Your organization&apos;s build runs, newest first.</p>
+          <h1 className="mt-3 font-serif text-4xl leading-tight tracking-tight text-fg">Builds</h1>
+          <p className="mt-2 text-sm text-fg-muted">
+            Everything your organization is planning or building, newest first.
+          </p>
         </div>
         <Link href="/" className={buttonVariants({ variant: "secondary", size: "sm" })}>
           ← Dashboard
         </Link>
       </div>
 
-      {planningSessions.length > 0 && (
-        <div className="mt-8">
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-faint">
-            In planning
+      {builds.length === 0 ? (
+        // Same quiet empty state as settings' analytics tab: faint icon,
+        // serif line, muted sub-line — no card chrome. min-h + justify-center
+        // so it sits centered in the viewport area below the header, not
+        // hugging it.
+        <div className="animate-reveal flex min-h-[55vh] flex-col items-center justify-center px-5 py-14 text-center">
+          <BuildIcon className="h-8 w-8 text-fg-faint" />
+          <p className="mt-4 font-serif text-xl text-fg">No builds yet.</p>
+          <p className="mt-2 max-w-sm text-sm text-fg-muted">
+            Every build starts from an idea - submit one from the dashboard to begin planning.
           </p>
-          <div className="mt-3 flex flex-col gap-2.5">
-            {planningSessions.map((planningSession) => (
-              <PlanningSessionRow key={planningSession.id} session={planningSession} />
-            ))}
-          </div>
         </div>
-      )}
-
-      {runs.length === 0 ? (
-        planningSessions.length === 0 && (
-          // Same quiet empty state as settings' analytics tab: faint icon,
-          // serif line, muted sub-line — no card chrome. min-h + justify-center
-          // so it sits centered in the viewport area below the header, not
-          // hugging it.
-          <div className="animate-reveal flex min-h-[55vh] flex-col items-center justify-center px-5 py-14 text-center">
-            <BuildIcon className="h-8 w-8 text-fg-faint" />
-            <p className="mt-4 font-serif text-xl text-fg">No builds yet.</p>
-            <p className="mt-2 max-w-sm text-sm text-fg-muted">
-              Builds start from a confirmed planning session - freeze an architecture, then choose &ldquo;Build it for us.&rdquo;
-            </p>
-          </div>
-        )
       ) : (
         <>
-          {planningSessions.length > 0 && (
-            <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.2em] text-fg-faint">
-              Runs
-            </p>
-          )}
-          <div className={`${planningSessions.length > 0 ? "mt-3" : "mt-8"} flex flex-col gap-2.5`}>
-            {runs.map((run) => (
-              <BuildListRow key={run.id} run={run} />
+          <div className="mt-8 flex flex-col gap-2.5">
+            {builds.map((build) => (
+              <BuildListRow key={build.id} build={build} />
             ))}
             {isFetchingNextPage &&
               [0, 1, 2].map((i) => <Skeleton key={`next-page-${i}`} className="h-16" />)}

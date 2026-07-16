@@ -1990,7 +1990,7 @@ raising the schema cap to 5 (UI is designed around ≤4 + Other).
 **Doc:** `packages/agents/src/{retry.ts,agent.ts,agent.test.ts,analyst.ts}`
 
 ### ADR-82 — Builds list surfaces active planning sessions
-**Status:** ✅ Decided with Avinash during Phase 5
+**Status:** ⛔ Superseded by ADR-83
 **Context:** A session in the MCQ/architecture phases is a
 `planning_sessions` row; a `runs` row only exists after confirm +
 "Build it for us". The builds page reads only `runs`, so in-flight
@@ -2013,3 +2013,52 @@ lifecycles with different schemas/cursors for no pagination need).
 `apps/dashboard/src/app/builds/page.tsx`,
 `apps/dashboard/src/components/planning/planning-session-row.tsx`,
 `packages/schemas/src/api.ts`
+
+### ADR-83 — Parent `builds` table with denormalized `stage`, one list row per idea
+**Status:** ✅ Decided with Avinash during Phase 5 (supersedes ADR-82)
+**Context:** ADR-82 made in-flight planning visible by unioning two
+queries at the UI layer, but the product's core object — "a build",
+from idea to delivery — still had no single DB identity: its lifecycle
+was split across `planning_sessions` (status+phase) and `runs`
+(status), with different shapes, cursors and link targets. Avinash
+asked for a schema-level fix: one list, one row per idea, with a
+`stage` attribute. A literal merge of the two tables was rejected:
+their lifecycles differ (Fork A sessions never get a run; one spec can
+be re-run into several runs), their column sets are disjoint, ~10
+composite child FKs would need rewriting, and ADR-29's two partial
+unique indexes would have to collapse into one.
+**Decision:** New parent `builds` table — one row per idea, created in
+the same transaction as its planning session. `planning_sessions`
+(1:1, unique `build_id`) and `runs` (1:N via `build_id`) become
+children through the usual composite `(id, organization_id)` FKs.
+`stage` flattens the whole lifecycle
+(`clarifying`/`planning`/`confirmed`/`abandoned` from the session, then
+the run statuses verbatim through `done`/`failed`) and is DENORMALIZED,
+kept in sync by two `AFTER INSERT OR UPDATE` triggers (migration 0012)
+rather than app code — four separate processes write session/run status
+(API, orchestrator worker, evals harness, dev CLI) and a helper would
+drift the moment one site forgets. The run trigger also maintains
+`latest_run_id` and ignores updates from non-latest runs, so a stale
+run can never clobber a re-run's stage. `GET /api/builds` now keysets
+over `builds` alone (ADR-77 cursor unchanged) joined 1:1 to sessions
+for the link target; `GET /api/sessions` (the ADR-82 list) is removed.
+Backfilled builds reuse their session's uuid as `id`, giving exact 1:1
+pairing with no re-matching. Session status/phase only ever change
+before a run exists (confirm is terminal and gates run creation), so
+the two triggers can't fight. ADR-29's per-user partial unique indexes
+stay on the child tables untouched. Fork-A-only builds remain
+`confirmed` forever — visible and honest; abandoned planning is now
+visible in the list too (it wasn't under ADR-82).
+**Alternatives considered:** literal table merge (rejected above);
+keeping ADR-82's UI union and only adding a computed stage field
+(cheapest, but keeps two queries/shapes and still no unified history);
+app-level stage writes at every transition site (drift risk across four
+writer processes); `latest_run_id` as a real FK to runs (circular table
+reference for no gain — the trigger only ever writes `NEW.id`).
+**Doc:** `packages/db/src/schema/app.ts`,
+`packages/db/drizzle/0012_mixed_quentin_quire.sql`,
+`apps/api/src/modules/builds/routes.ts`,
+`apps/api/src/modules/planning/routes.ts`,
+`packages/schemas/src/api.ts`,
+`apps/dashboard/src/app/{page.tsx,builds/page.tsx}`,
+`apps/dashboard/src/components/build/{build-list-row.tsx,build-status-badge.tsx}`

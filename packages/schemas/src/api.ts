@@ -20,10 +20,46 @@ export const planningSessionSchema = z.object({
 
 export type PlanningSession = z.infer<typeof planningSessionSchema>;
 
-// GET /api/sessions — the org's active planning sessions. Unpaginated:
-// ADR-29 caps active sessions at one per user, so the list is bounded by
-// org membership, not usage.
-export const planningSessionListSchema = z.array(planningSessionSchema);
+// ADR-83: the flattened lifecycle of one idea — session status/phase while
+// planning, then the run status verbatim. Mirrors BUILD_STAGES in
+// packages/db (schemas is a leaf package, so the tuple is duplicated the
+// same way run statuses are).
+export const buildStageSchema = z.enum([
+  "clarifying",
+  "planning",
+  "confirmed",
+  "queued",
+  "building",
+  "testing",
+  "reviewing",
+  "fixing",
+  "shipping",
+  "done",
+  "failed",
+  "abandoned",
+]);
+export type BuildStage = z.infer<typeof buildStageSchema>;
+
+// GET /api/builds items (ADR-83): one row per idea, whatever its stage.
+// `sessionId` targets the planning page while the build is pre-run;
+// `latestRunId` targets the run page once one exists.
+export const buildListItemSchema = z.object({
+  id: z.string().uuid(),
+  idea: z.string(),
+  stage: buildStageSchema,
+  sessionId: z.string().uuid(),
+  latestRunId: z.string().uuid().nullable(),
+  createdAt: z.string(),
+});
+export type BuildListItem = z.infer<typeof buildListItemSchema>;
+
+// Cursor-paginated list envelope (ADR-77). `nextCursor` is an opaque server
+// token (keyset on created_at+id) — null means the last page.
+export const buildListPageSchema = z.object({
+  items: z.array(buildListItemSchema),
+  nextCursor: z.string().nullable(),
+});
+export type BuildListPage = z.infer<typeof buildListPageSchema>;
 
 export const streamEventSchema = z.object({
   id: z.number().int(),
@@ -58,15 +94,6 @@ export const buildRunSchema = z.object({
 });
 
 export type BuildRun = z.infer<typeof buildRunSchema>;
-
-// Cursor-paginated list envelope (ADR-77). `nextCursor` is an opaque server
-// token (keyset on created_at+id) — null means the last page. The template
-// for future org-scoped lists (e.g. the planned LLM-calls log).
-export const buildRunListPageSchema = z.object({
-  items: z.array(buildRunSchema),
-  nextCursor: z.string().nullable(),
-});
-export type BuildRunListPage = z.infer<typeof buildRunListPageSchema>;
 
 export const listBuildsQuerySchema = z.object({
   // max(256) bounds the decode work — a real cursor is ~82 chars, so

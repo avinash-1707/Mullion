@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
@@ -114,12 +114,51 @@ export const planningSessionsRoute = new Hono<{ Variables: RequiredAuthVariables
       });
     }
 
-    const insertSession = async (): Promise<SessionRow | undefined> => {
-      const [created] = await db
-        .insert(schema.planningSessions)
-        .values({ organizationId, userId: user.id, idea })
-        .returning();
-      return created;
+    // ADR-83: the build (lifecycle parent) and its session land in one
+    // transaction — an ADR-29 unique violation on the session rolls the
+    // build row back too, never leaving an orphan parent.
+    const insertSession = async (): Promise<SessionRow | undefined> =>
+      db.transaction(async (tx) => {
+        const [build] = await tx
+          .insert(schema.builds)
+          .values({ organizationId, userId: user.id, idea })
+          .returning({ id: schema.builds.id });
+        if (!build) return undefined;
+        const [created] = await tx
+          .insert(schema.planningSessions)
+          .values({ organizationId, userId: user.id, idea, buildId: build.id })
+          .returning();
+        return created;
+      });
+
+    const findActiveSession = async (): Promise<SessionRow | undefined> => {
+      const [existing] = await db
+        .select()
+        .from(schema.planningSessions)
+        .where(
+          and(
+            eq(schema.planningSessions.userId, user.id),
+            eq(schema.planningSessions.status, "active"),
+          ),
+        )
+        .limit(1);
+      return existing;
+    };
+
+    // ADR-29 is per user across orgs — but only hand the session back when
+    // it belongs to the org the caller is acting in; a mismatch would
+    // confuse client state with a foreign-org object.
+    const resolveConflict = async (): Promise<Response | null> => {
+      const existing = await findActiveSession();
+      if (existing && existing.organizationId === organizationId) {
+        return c.json(toApiShape(existing), 200);
+      }
+      if (existing) {
+        throw new HTTPException(409, {
+          message: "An active session exists in another organization",
+        });
+      }
+      return null;
     };
 
     try {
@@ -135,55 +174,35 @@ export const planningSessionsRoute = new Hono<{ Variables: RequiredAuthVariables
       // ADR-29: the partial unique index is the enforcement; the API's job
       // is to hand back the existing active session, not a duplicate.
       if (isUniqueViolation(error, "planning_sessions_one_active_per_user")) {
-        const [existing] = await db
-          .select()
-          .from(schema.planningSessions)
-          .where(
-            and(
-              eq(schema.planningSessions.userId, user.id),
-              eq(schema.planningSessions.status, "active"),
-            ),
-          )
-          .limit(1);
-        // ADR-29 is per user across orgs — but only hand the session back
-        // when it belongs to the org the caller is acting in; a mismatch
-        // would confuse client state with a foreign-org object.
-        if (existing && existing.organizationId === organizationId) {
-          return c.json(toApiShape(existing), 200);
-        }
-        if (existing) {
-          throw new HTTPException(409, {
-            message: "An active session exists in another organization",
-          });
-        }
+        const resolved = await resolveConflict();
+        if (resolved) return resolved;
         // The blocking session flipped out of 'active' between our INSERT
         // and the SELECT — the user is allowed to create one now; retry
         // once rather than surfacing the stale unique violation as a 500.
-        const retried = await insertSession();
-        if (retried) {
+        // The retry maps its own races too: losing the slot AGAIN to a
+        // concurrent create answers 200/409 like the first attempt, never
+        // a raw 500.
+        try {
+          const retried = await insertSession();
+          if (!retried) {
+            throw new HTTPException(500, { message: "Session insert returned no row" });
+          }
           await startAgentTask(retried, { kind: "question_round", round: 1 });
           return c.json(toApiShape(retried), 201);
+        } catch (retryError) {
+          if (retryError instanceof HTTPException) throw retryError;
+          if (isUniqueViolation(retryError, "planning_sessions_one_active_per_user")) {
+            const resolved = await resolveConflict();
+            if (resolved) return resolved;
+            throw new HTTPException(409, {
+              message: "You already have an active session — resume or abandon it first",
+            });
+          }
+          throw retryError;
         }
       }
       throw error;
     }
-  })
-
-  .get("/", async (c) => {
-    // Active sessions only — the builds list surfaces in-flight planning
-    // work alongside runs; finished sessions live on as their runs/specs.
-    const organizationId = c.get("organizationId");
-    const rows = await db
-      .select()
-      .from(schema.planningSessions)
-      .where(
-        and(
-          eq(schema.planningSessions.organizationId, organizationId),
-          eq(schema.planningSessions.status, "active"),
-        ),
-      )
-      .orderBy(desc(schema.planningSessions.createdAt), desc(schema.planningSessions.id));
-    return c.json(rows.map(toApiShape));
   })
 
   .get("/:id", async (c) => {

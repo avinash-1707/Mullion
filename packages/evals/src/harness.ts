@@ -191,11 +191,19 @@ export async function runEvalTask(
   const started = Date.now();
   const artifact = artifactFor(fixture);
 
+  // ADR-83: lifecycle parent first; the session/run triggers keep its stage.
+  const [build] = await deps.db
+    .insert(schema.builds)
+    .values({ organizationId: EVAL_ORG_ID, userId: EVAL_USER_ID, idea: fixture.idea })
+    .returning();
+  if (!build) throw new Error("eval build insert returned nothing");
+
   const [session] = await deps.db
     .insert(schema.planningSessions)
     .values({
       organizationId: EVAL_ORG_ID,
       userId: EVAL_USER_ID,
+      buildId: build.id,
       // 'confirmed', not 'active' — evals must never collide with ADR-29's
       // one-active-session-per-user index, and a frozen spec implies
       // confirmation anyway.
@@ -222,6 +230,7 @@ export async function runEvalTask(
     .values({
       organizationId: EVAL_ORG_ID,
       userId: EVAL_USER_ID,
+      buildId: build.id,
       buildSpecId: spec.id,
       status: "building",
     })
