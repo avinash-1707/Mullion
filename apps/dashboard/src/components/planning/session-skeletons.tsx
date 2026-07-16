@@ -36,22 +36,39 @@ export function RequirementsPhaseSkeleton() {
           <div className="flex flex-col gap-6 rounded-lg border border-border bg-surface p-6">
             <Skeleton className="h-3 w-24" />
 
+            {/* Each option below is a bordered chip (chipClass: rounded-md
+                border px-4 py-2), not a filled block — framed the same way
+                rather than a flat Skeleton standing in for a border. */}
             <div className="flex flex-col gap-3">
               <Skeleton className="h-4 w-64" />
               <div className="flex flex-wrap gap-2">
-                <Skeleton className="h-9 w-28" />
-                <Skeleton className="h-9 w-24" />
-                <Skeleton className="h-9 w-32" />
-                <Skeleton className="h-9 w-40" />
+                <div className="rounded-md border border-border-strong px-4 py-2">
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <div className="rounded-md border border-border-strong px-4 py-2">
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="rounded-md border border-border-strong px-4 py-2">
+                  <Skeleton className="h-4 w-24" />
+                </div>
+                <div className="rounded-md border border-border-strong px-4 py-2">
+                  <Skeleton className="h-4 w-32" />
+                </div>
               </div>
             </div>
 
             <div className="flex flex-col gap-3">
               <Skeleton className="h-4 w-56" />
               <div className="flex flex-wrap gap-2">
-                <Skeleton className="h-9 w-24" />
-                <Skeleton className="h-9 w-28" />
-                <Skeleton className="h-9 w-36" />
+                <div className="rounded-md border border-border-strong px-4 py-2">
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <div className="rounded-md border border-border-strong px-4 py-2">
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <div className="rounded-md border border-border-strong px-4 py-2">
+                  <Skeleton className="h-4 w-28" />
+                </div>
               </div>
             </div>
 
@@ -104,8 +121,11 @@ export function ArchitecturePhaseSkeleton() {
           {/* Diagram pane — always visible; "diagram" is the phase's default
               active mobile tab, so no `hidden` class is needed here. */}
           <div className="min-h-[22rem] flex-1 lg:min-h-0">
-            <div className="relative h-full min-h-[22rem] w-full lg:min-h-0">
-              <Skeleton className="absolute inset-0" />
+            {/* Mirrors ArchitectureDiagram's own frame (border border-border
+                bg-bg) — the canvas fill sits inset inside it, not as a flat
+                blob standing in for the bordered pane itself. */}
+            <div className="relative h-full min-h-[22rem] w-full overflow-hidden border border-border bg-bg lg:min-h-0">
+              <Skeleton className="absolute inset-2 rounded-sm" />
               <div className="absolute left-3 top-3 z-10 flex gap-2 border border-border bg-surface px-3 py-1.5">
                 <Skeleton className="h-3 w-16" />
                 <Skeleton className="h-3 w-10" />
@@ -123,10 +143,23 @@ export function ArchitecturePhaseSkeleton() {
                   <Skeleton className="h-5 w-28" />
                   <Skeleton className="mt-1.5 h-3 w-44" />
                 </div>
-                <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
-                  <Skeleton className="h-16 w-full" />
-                  <Skeleton className="h-20 w-full" />
-                  <Skeleton className="h-14 w-full" />
+                {/* Mirrors DecisionRow: actor chip (rounded-full pill) +
+                    timestamp, then the decision text — divided by the same
+                    border-b DecisionRow itself uses, not a flat card. */}
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex flex-col gap-1.5 border-b border-hairline pb-3 last:border-b-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="inline-flex items-center gap-1 rounded-full border border-border-strong px-2 py-0.5">
+                          <Skeleton className="h-2.5 w-2.5 rounded-full" />
+                          <Skeleton className="h-2.5 w-14" />
+                        </div>
+                        <Skeleton className="h-2.5 w-8" />
+                      </div>
+                      <Skeleton className="h-3.5 w-full" />
+                      <Skeleton className="h-3 w-2/3" />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
