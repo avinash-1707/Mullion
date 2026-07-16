@@ -67,8 +67,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # db:migrate, not db:push — push only syncs the model-derived schema
+      # and skips hand-written migration SQL (the ADR-83 stage-sync triggers
+      # live in 0012). Migrate runs the same chain prod gets.
       - name: Apply DB schema
-        run: pnpm --filter @mullion/db db:push
+        run: pnpm --filter @mullion/db db:migrate
         env:
           DATABASE_URL: postgres://mullion:mullion@localhost:5432/mullion
       - run: pnpm --filter @mullion/api test:integration

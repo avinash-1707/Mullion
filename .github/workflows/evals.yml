@@ -51,8 +51,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # db:migrate, not db:push — keeps trigger/custom SQL from migrations
+      # (see ci.yml api-integration job).
       - name: Apply DB schema
-        run: pnpm --filter @mullion/db db:push
+        run: pnpm --filter @mullion/db db:migrate
         env:
           DATABASE_URL: postgres://mullion:mullion@localhost:5432/mullion
       - name: Run eval suite
