@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { useInView } from "@/hooks/use-in-view";
 import { IdeaIntakeForm } from "@/components/planning/idea-intake-form";
 import { BuildListRow } from "@/components/build/build-list-row";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const RECENT_BUILDS_ID = "recent-builds";
 
@@ -24,10 +23,6 @@ const RECENT_BUILDS_ID = "recent-builds";
 interface RowRevealStyle extends CSSProperties {
   "--row-index"?: number;
 }
-
-// Shared by the single-element branches below (error/empty) — both sit
-// right under the header row, so both get the same fixed stagger slot.
-const FIRST_ROW_STYLE: RowRevealStyle = { "--row-index": 1 };
 
 export default function DashboardPage() {
   const { data: session, isPending } = authClient.useSession();
@@ -62,12 +57,17 @@ export default function DashboardPage() {
   // hero is entirely static — artwork, copy, and the intake form need no
   // session data to render — so it paints immediately and the entrance
   // choreography starts at first paint instead of after auth resolves.
-  // Only the recent-builds rows below actually depend on the session; they
-  // hold their row skeletons until it settles. A signed-out visitor sees
-  // the hero for the moment it takes the redirect effect above to fire —
-  // submitting the form still requires auth server-side, so nothing is
-  // reachable in that window.
+  // A signed-out visitor sees the hero for the moment it takes the
+  // redirect effect above to fire — submitting the form still requires
+  // auth server-side, so nothing is reachable in that window.
   const recentBuilds = buildsQuery.data?.items ?? [];
+  // The whole recent-builds surface — the hero's "Recent builds ↓" pointer
+  // AND the section itself — exists only once the query has resolved with
+  // at least one build. No skeletons, no empty state: a first-time user
+  // gets a hero and nothing else. Pending/error render nothing too — the
+  // section sits below the fold, so its late arrival is invisible, and an
+  // error here is non-critical (the /builds page still surfaces it).
+  const hasBuilds = recentBuilds.length > 0;
 
   return (
     <>
@@ -115,13 +115,23 @@ export default function DashboardPage() {
 
           <div className="flex-1" />
 
-          <a
-            href={`#${RECENT_BUILDS_ID}`}
-            className="animate-reveal transition-swift pb-6 font-mono text-[11px] uppercase tracking-[0.25em] text-fg-faint hover:text-ember focus-visible:text-ember focus-visible:outline-none"
-            style={{ animationDelay: "360ms" }}
-          >
-            Recent builds <span aria-hidden="true">↓</span>
-          </a>
+          {/* Mounts only once builds exist, so its animate-reveal plays at
+              that moment rather than on the page's 360ms cascade slot — a
+              quiet fade-in instead of a pop when the query resolves. The
+              pb-6 spacer span keeps the hero's vertical rhythm identical
+              with and without the pointer. */}
+          {hasBuilds ? (
+            <a
+              href={`#${RECENT_BUILDS_ID}`}
+              className="animate-reveal transition-swift pb-6 font-mono text-[11px] uppercase tracking-[0.25em] text-fg-faint hover:text-ember focus-visible:text-ember focus-visible:outline-none"
+            >
+              Recent builds <span aria-hidden="true">↓</span>
+            </a>
+          ) : (
+            <span aria-hidden="true" className="pb-6 font-mono text-[11px] uppercase tracking-[0.25em]">
+              &nbsp;
+            </span>
+          )}
         </div>
       </section>
 
@@ -131,68 +141,39 @@ export default function DashboardPage() {
           all as of this writing, and IntersectionObserver is the pattern
           this codebase already uses for viewport-gated behavior (see
           idea-intake-form.tsx's placeholder-rotation pause). */}
-      <section
-        id={RECENT_BUILDS_ID}
-        ref={recentBuildsRef}
-        className="mx-auto w-full max-w-4xl border-t border-hairline px-6 py-14 lg:py-16"
-      >
-        <div
-          className={cn("flex flex-wrap items-center justify-between gap-4 scroll-reveal", recentBuildsInView && "in-view")}
+      {hasBuilds && (
+        <section
+          id={RECENT_BUILDS_ID}
+          ref={recentBuildsRef}
+          className="mx-auto w-full max-w-4xl border-t border-hairline px-6 py-14 lg:py-16"
         >
-          <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted">Recent builds</h2>
-          <Link
-            href="/builds"
-            className="transition-swift group flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted hover:text-ember focus-visible:text-ember focus-visible:outline-none"
+          <div
+            className={cn("flex flex-wrap items-center justify-between gap-4 scroll-reveal", recentBuildsInView && "in-view")}
           >
-            View all
-            <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">
-              →
-            </span>
-          </Link>
-        </div>
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted">Recent builds</h2>
+            <Link
+              href="/builds"
+              className="transition-swift group flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-fg-muted hover:text-ember focus-visible:text-ember focus-visible:outline-none"
+            >
+              View all
+              <span aria-hidden="true" className="transition-transform group-hover:translate-x-0.5">
+                →
+              </span>
+            </Link>
+          </div>
 
-        <div className="mt-6 flex flex-col gap-2.5">
-          {/* isPending (not isLoading): the query is disabled until the
-              session resolves, and a disabled query is pending-but-not-
-              loading in TanStack v5. isPending keeps the row skeletons up
-              through BOTH waits — auth settling, then the first fetch —
-              instead of flashing the empty state in between. */}
-          {buildsQuery.isPending ? (
-            [0, 1, 2].map((i) => {
-              const style: RowRevealStyle = { "--row-index": i + 1 };
-              return (
-                <div key={i} className={cn("scroll-reveal", recentBuildsInView && "in-view")} style={style}>
-                  <Skeleton className="h-16" />
-                </div>
-              );
-            })
-          ) : buildsQuery.isError ? (
-            <p
-              role="alert"
-              className={cn("scroll-reveal text-sm text-danger", recentBuildsInView && "in-view")}
-              style={FIRST_ROW_STYLE}
-            >
-              Couldn&apos;t load recent builds - {buildsQuery.error.message}
-            </p>
-          ) : recentBuilds.length === 0 ? (
-            <p
-              className={cn("scroll-reveal text-sm text-fg-muted", recentBuildsInView && "in-view")}
-              style={FIRST_ROW_STYLE}
-            >
-              No builds yet - your first build will appear here.
-            </p>
-          ) : (
-            recentBuilds.map((build, index) => {
+          <div className="mt-6 flex flex-col gap-2.5">
+            {recentBuilds.map((build, index) => {
               const style: RowRevealStyle = { "--row-index": index + 1 };
               return (
                 <div key={build.id} className={cn("scroll-reveal", recentBuildsInView && "in-view")} style={style}>
                   <BuildListRow build={build} />
                 </div>
               );
-            })
-          )}
-        </div>
-      </section>
+            })}
+          </div>
+        </section>
+      )}
     </>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 // One-shot "has this element ever entered the viewport" signal for
 // scroll-triggered entrances (recent-builds section on the dashboard home
@@ -9,15 +9,21 @@ import { useEffect, useRef, useState } from "react";
 // would read as nagging for attention, not a considered reveal, so the
 // observer disconnects itself the moment it has fired once.
 //
+// `ref` is a callback ref holding the node in state, not a RefObject: the
+// observed element can mount well after the calling component does (the
+// recent-builds section only exists once its query resolves with rows), and
+// an effect reading `ref.current` at mount time would run against null and
+// never re-fire. The callback ref re-runs the effect whenever the node
+// actually attaches.
+//
 // Kept intentionally small (no options object, no repeat-trigger mode) —
 // this page is the only caller today. Grow the API when a second caller
 // actually needs something different, not preemptively.
 export function useInView<T extends Element>() {
-  const ref = useRef<T | null>(null);
+  const [node, setNode] = useState<T | null>(null);
   const [isInView, setIsInView] = useState(false);
 
   useEffect(() => {
-    const node = ref.current;
     // Nothing to observe, or already fired (this effect re-runs once
     // isInView flips true; the cleanup below already disconnected the
     // observer by then, so just stop here instead of re-observing).
@@ -37,7 +43,7 @@ export function useInView<T extends Element>() {
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [isInView]);
+  }, [node, isInView]);
 
-  return { ref, isInView };
+  return { ref: setNode, isInView };
 }
