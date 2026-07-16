@@ -537,9 +537,9 @@ body {
   width: 60px;
   box-shadow: 0 0 0 0 transparent;
   transition:
-    width 190ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 190ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 190ms cubic-bezier(0.22, 1, 0.36, 1);
+    width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 260ms cubic-bezier(0.22, 1, 0.36, 1);
   transition-delay: 100ms; /* lets a mouse graze the edge without a collapse-then-reopen flicker */
   will-change: width;
 }
@@ -550,9 +550,9 @@ body {
   box-shadow: 8px 0 24px -8px rgba(0, 0, 0, 0.5);
   border-right-color: var(--color-border-strong);
   transition:
-    width 250ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 250ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 250ms cubic-bezier(0.22, 1, 0.36, 1);
+    width 330ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 330ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 330ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Always in the DOM, never display:none (a11y, and the fade needs
@@ -562,7 +562,7 @@ body {
 .mullion-rail-label {
   opacity: 0;
   transform: translateX(-6px);
-  transition: opacity 120ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .mullion-rail:hover .mullion-rail-label,
@@ -570,8 +570,8 @@ body {
   opacity: 1;
   transform: translateX(0);
   transition:
-    opacity 190ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
   /* Per-row stagger via a --row-index custom property set inline per link
      (app-sidebar.tsx), capped so a longer nav never drifts past a fast,
      deliberate reveal. */
@@ -600,17 +600,17 @@ body {
   box-shadow: 8px 0 24px -8px rgba(0, 0, 0, 0.5);
   border-right-color: var(--color-border-strong);
   transition:
-    width 250ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 250ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 250ms cubic-bezier(0.22, 1, 0.36, 1);
+    width 330ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 330ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 330ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .mullion-rail:has([data-menu-open]) .mullion-rail-label {
   opacity: 1;
   transform: translateX(0);
   transition:
-    opacity 190ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 260ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
   transition-delay: min(calc(var(--row-index, 0) * 15ms), 120ms);
 }
 

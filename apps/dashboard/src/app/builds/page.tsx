@@ -7,7 +7,6 @@ import { buildListPageSchema } from "@mullion/schemas";
 import { authClient } from "@/lib/auth-client";
 import { redirectToSignIn } from "@/lib/auth-redirect";
 import { apiFetch } from "@/lib/api";
-import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { BuildListSkeleton } from "@/components/build/build-skeletons";
 import { SessionErrorState } from "@/components/planning/session-error-state";
 import { BuildListRow } from "@/components/build/build-list-row";
@@ -65,11 +64,9 @@ export default function BuildsPage() {
     // state and keeps the auto-load going.
   }, [hasNextPage, fetchNextPage, pageCount]);
 
-  if (isPending || !session) {
-    return <DashboardSkeleton />;
-  }
-
-  if (buildsQuery.isLoading) {
+  // One skeleton for both waits (auth resolving, then the list query) — a
+  // different placeholder per wait reads as a flash of the wrong page.
+  if (isPending || !session || buildsQuery.isLoading) {
     return <BuildListSkeleton />;
   }
 

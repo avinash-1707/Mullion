@@ -14,7 +14,6 @@ import { AgentStatusStrip } from "@/components/planning/agent-status-strip";
 import { SessionErrorState } from "@/components/planning/session-error-state";
 import { SessionHeader } from "@/components/planning/session-header";
 import { ArchitecturePhaseSkeleton, RequirementsPhaseSkeleton } from "@/components/planning/session-skeletons";
-import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 
 export default function PlanningSessionPage() {
   const params = useParams<{ id: string }>();
@@ -56,8 +55,14 @@ export default function PlanningSessionPage() {
     if (planning.unauthorized) redirectToSignIn();
   }, [planning.unauthorized]);
 
+  // Same phase-hinted skeleton for every pre-content wait (auth, snapshot
+  // fetch, unauthorized-while-redirecting) — a different placeholder per
+  // wait reads as a flash of the wrong page.
+  const phaseSkeleton =
+    phaseHint === "architecture" ? <ArchitecturePhaseSkeleton /> : <RequirementsPhaseSkeleton />;
+
   if (authPending || !authSession) {
-    return <DashboardSkeleton />;
+    return phaseSkeleton;
   }
 
   if (planning.notFound) {
@@ -70,7 +75,7 @@ export default function PlanningSessionPage() {
   }
 
   if (planning.unauthorized) {
-    return <DashboardSkeleton />;
+    return phaseSkeleton;
   }
 
   if (planning.loadError) {
@@ -78,7 +83,7 @@ export default function PlanningSessionPage() {
   }
 
   if (planning.isLoading || !planning.state) {
-    return phaseHint === "architecture" ? <ArchitecturePhaseSkeleton /> : <RequirementsPhaseSkeleton />;
+    return phaseSkeleton;
   }
 
   const { state } = planning;

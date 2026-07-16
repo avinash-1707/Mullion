@@ -7,7 +7,6 @@ import { redirectToSignIn } from "@/lib/auth-redirect";
 import { useBuildRun } from "@/hooks/use-build-run";
 import { useDocumentTitle } from "@/hooks/use-document-title";
 import { shortId } from "@/lib/build-format";
-import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { SessionErrorState } from "@/components/planning/session-error-state";
 import { BuildRunSkeleton } from "@/components/build/build-skeletons";
 import { BuildRunHeader } from "@/components/build/build-run-header";
@@ -48,8 +47,10 @@ export default function BuildRunPage() {
   // the List/Graph toggle and mobile-tab click handlers below.
   const [graphRefitToken, setGraphRefitToken] = useState(0);
 
+  // Same skeleton for auth-pending as for the run fetch below — a different
+  // placeholder per wait reads as a flash of the wrong page.
   if (authPending || !authSession) {
-    return <DashboardSkeleton />;
+    return <BuildRunSkeleton />;
   }
 
   if (build.notFound) {
@@ -62,7 +63,7 @@ export default function BuildRunPage() {
   }
 
   if (build.unauthorized) {
-    return <DashboardSkeleton />;
+    return <BuildRunSkeleton />;
   }
 
   if (build.loadError) {
