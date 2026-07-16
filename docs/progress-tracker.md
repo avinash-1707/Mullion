@@ -1695,3 +1695,19 @@ plus a full trigger lifecycle smoke test.
 `apps/dashboard/src/app/{page.tsx,builds/page.tsx}`,
 `apps/dashboard/src/components/build/`.
 **Related ADR:** ADR-83 (supersedes ADR-82).
+
+## 2026-07-16 — Diagram pane split: Architecture / Tasks tabs
+
+**What:** The session diagram mixed task nodes into the architecture
+graph, crowding both. `ArchitectureDiagram` now renders two switchable
+panes via a tab group pinned top-left inside the pane: Architecture
+(service/datastore/external nodes + their edges) and Tasks (task nodes
++ dependency links). Layout runs per pane on the visible subset; edges
+crossing the divide are hidden on both sides rather than drawn to a
+missing node. Pane switch re-runs fitView (signature includes the
+active pane). Fit is slightly zoomed out now (padding 0.3, maxZoom 1)
+so cards aren't pressed against pane borders. Both `ArchitecturePhase`
+and `ConfirmedView` inherit the tabs since the split lives inside the
+diagram component. Gates green: check-types + lint.
+**Files/areas touched:** `apps/dashboard/src/components/planning/architecture-diagram.tsx`.
+**Related ADR:** none — presentation-only split, graph model unchanged.
