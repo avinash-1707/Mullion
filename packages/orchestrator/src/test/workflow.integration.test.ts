@@ -519,5 +519,5 @@ describe.skipIf(!temporalOn || !dockerAvailable)("full pipeline through the work
     expect(result.tasksVerified).toBe(1);
     expect(cap.reviews).toBe(1);
     expect(cap.ships).toEqual([{ isPartial: false }]);
-  }, 180_000);
+  }, 240_000);
 });

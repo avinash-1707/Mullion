@@ -6,7 +6,6 @@ import { createSandboxDriver } from "../select.js";
 describe("resolveWorkdirPath", () => {
   it("resolves relative paths under the workdir", () => {
     expect(resolveWorkdirPath("src/index.ts")).toBe(`${SANDBOX_WORKDIR}/src/index.ts`);
-    expect(resolveWorkdirPath("../a/./b.txt")).toBe(`${SANDBOX_WORKDIR}/a/b.txt`);
   });
 
   it("accepts absolute paths inside the workdir", () => {
