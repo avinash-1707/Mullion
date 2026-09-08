@@ -33,6 +33,103 @@ Fully autonomous coding agents work, but they are opaque. You hand over a ticket
 
 Every external service has a local or fake driver picked by config. The whole system runs on a laptop with just Postgres, Docker, and a Temporal dev server. Real OpenRouter, E2B, S3, or GitHub credentials are optional swaps, not requirements.
 
+## Architecture
+
+```mermaid
+flowchart TB
+  user([User])
+
+  subgraph clients[Browser clients]
+    web[apps/web<br/>Marketing and auth]
+    dashboard[apps/dashboard<br/>Planning and build dashboard]
+  end
+
+  subgraph api[apps/api - Hono on Node.js]
+    auth[Better Auth and<br/>organization middleware]
+    planning[Planning service<br/>Analyst, Planner, consistency review]
+    buildApi[Build and delivery API]
+    sse[SSE service<br/>replay and live events]
+    llmClient[OpenRouter client<br/>role routing, ZDR, cost, replay]
+  end
+
+  subgraph durable[Durable build execution]
+    temporal[Temporal workflow<br/>task graph, retries, escalation]
+    worker[Temporal worker<br/>activities]
+    coder[Coder tool loop]
+    tester[Tester verifier]
+    reviewer[Advisory Reviewer]
+    delivery[Delivery activities]
+  end
+
+  subgraph data[Durable state]
+    postgres[(Neon Postgres via Drizzle<br/>sessions, specs, runs, tasks,<br/>messages, costs, events, deliveries)]
+    artifacts[ArtifactStore<br/>local filesystem or S3]
+  end
+
+  subgraph execution[Isolated execution]
+    sandbox[Sandbox port]
+    docker[Hardened local Docker<br/>no network, constrained container]
+    e2b[E2B adapter<br/>enabled only after parity checks]
+  end
+
+  subgraph external[External services]
+    openrouter[OpenRouter<br/>ZDR-only providers]
+    github[GitHub<br/>per-user repo-scoped token]
+  end
+
+  subgraph telemetry[Quality and observability]
+    otel[OpenTelemetry and<br/>structured logs]
+    evals[Eval suite<br/>scripted, replay, live]
+  end
+
+  user --> web
+  user --> dashboard
+  web -->|credentialed REST| auth
+  dashboard -->|REST and SSE| planning
+  dashboard -->|REST and SSE| buildApi
+
+  auth --> postgres
+  planning --> postgres
+  planning --> sse
+  buildApi --> postgres
+  buildApi -->|start or signal| temporal
+  sse --> postgres
+  sse --> dashboard
+
+  planning --> llmClient
+  llmClient --> openrouter
+  llmClient --> postgres
+
+  temporal --> worker
+  worker --> coder
+  coder --> tester
+  worker --> reviewer
+  worker --> delivery
+  worker --> postgres
+  coder --> llmClient
+  tester --> llmClient
+  reviewer --> llmClient
+
+  coder --> sandbox
+  tester --> sandbox
+  sandbox --> docker
+  sandbox -. optional .-> e2b
+  worker --> artifacts
+  reviewer --> artifacts
+  delivery --> artifacts
+  delivery --> github
+  delivery --> postgres
+  worker --> sse
+
+  api --> otel
+  worker --> otel
+  llmClient --> otel
+  coder --> otel
+  evals --> coder
+  evals --> tester
+  evals --> postgres
+```
+
 ## Monorepo map
 
 Turborepo + pnpm workspaces. Each package has its own README with the technical detail.

@@ -64,6 +64,17 @@ template.
 
 ---
 
+### [2026-09-08] Root README architecture diagram
+**Phase:** Post-Phase-4 documentation
+**Type:** Progress update
+**Summary:** Added an implementation-aligned Mermaid diagram to the root
+README covering both browser apps, Hono/API services, Temporal workflow and
+worker paths, agents, durable state, sandbox adapters, delivery, and
+observability/evals.
+**Files/areas touched:** `README.md`
+**Related ADR:** None — documents existing architecture only.
+**Follow-ups:** None.
+
 ### [2026-09-08] Prompt-version observability (ADR-86)
 **Phase:** Post-Phase-4 hardening
 **Type:** Architecture change
