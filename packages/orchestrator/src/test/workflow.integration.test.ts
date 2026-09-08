@@ -477,7 +477,7 @@ describe.skipIf(!temporalOn || !dockerAvailable)("full pipeline through the work
             path: "sum.test.js",
             content: [
               "const {test}=require('node:test');const a=require('node:assert');",
-              "const {sum}=require('../sum.js');",
+              "const {sum}=require('./sum.js');",
               "test('adds',()=>a.strictEqual(sum(2,3),5));",
             ].join(""),
           }),

@@ -66,7 +66,7 @@ describe.skipIf(!available)("buildTask against a real Docker sandbox (integratio
     const testFile = [
       "const { test } = require('node:test');",
       "const assert = require('node:assert');",
-      "const { add } = require('../add.js');",
+      "const { add } = require('./add.js');",
       "test('adds', () => { assert.strictEqual(add(2, 2), 4); });",
     ].join("\n");
 
