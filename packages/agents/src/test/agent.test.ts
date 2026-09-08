@@ -8,6 +8,7 @@ const outputSchema = z.object({ options: z.array(z.string()).max(4) });
 
 const spec: AgentSpec<string, z.infer<typeof outputSchema>> = {
   role: "analyst",
+  promptVersion: "test-v1",
   buildMessages: (input: string): ChatMessage[] => [
     { role: "system", content: "sys" },
     { role: "user", content: input },
@@ -19,11 +20,11 @@ const costContext = { organizationId: "org-1" };
 
 function fakeClient(responses: string[]): {
   client: OpenRouterClient;
-  calls: { messages: ChatMessage[] }[];
+  calls: { messages: ChatMessage[]; promptVersion: string }[];
 } {
-  const calls: { messages: ChatMessage[] }[] = [];
-  const completeChat = vi.fn(async (args: { messages: ChatMessage[] }) => {
-    calls.push({ messages: args.messages });
+  const calls: { messages: ChatMessage[]; promptVersion: string }[] = [];
+  const completeChat = vi.fn(async (args: { messages: ChatMessage[]; promptVersion: string }) => {
+    calls.push({ messages: args.messages, promptVersion: args.promptVersion });
     return { content: responses[calls.length - 1]!, model: "m", generationId: "g", cost: 0, usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 } };
   });
   return { client: { completeChat } as unknown as OpenRouterClient, calls };
@@ -41,6 +42,7 @@ describe("runAgent self-repair", () => {
     expect(calls).toHaveLength(2);
     // First attempt: pristine messages.
     expect(calls[0]!.messages).toHaveLength(2);
+    expect(calls[0]!.promptVersion).toBe("test-v1");
     // Retry: prior output echoed as assistant + corrective user instruction.
     const retry = calls[1]!.messages;
     expect(retry).toHaveLength(4);

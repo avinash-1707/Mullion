@@ -98,6 +98,8 @@ Build environment contract (how tasks are executed — plan within it):
 - A task can NEVER read files another task produced. "dependsOn" expresses build order and knowledge flow only, not shared files — each task's description must be self-contained.
 - acceptanceCriteria must be concrete and machine-checkable by running the task's own Node test file (the runner executes \`node --test\` on submit) — "has good UX" is not checkable; "GET /health returns 200 with {ok:true}" is.`;
 
+export const INITIAL_PLAN_PROMPT_VERSION = "planner-initial-v1";
+
 export interface InitialPlanInput {
   idea: string;
   requirements: RequirementsDoc;
@@ -151,6 +153,8 @@ Edit rules:
 - Revise a node by emitting it again (same nodeKey, new content). Remove nodes/edges the change invalidates via removeNodeKeys/removeEdges. Update the task graph if the change adds, removes, or alters build work.
 - If the request is genuinely contradictory to the requirements document or infeasible, output EXACTLY ONE line instead: {"type": "clarification", "statement": plain-language explanation of the conflict, "question": {"text": string, "type": "single_select" | "multi_select", "options": [2-4 strings], "affects": [string]}} — never silently pick an interpretation.
 - Otherwise output 1 to 6 decision lines implementing the change.`;
+
+export const EDIT_PLAN_PROMPT_VERSION = "planner-edit-v1";
 
 export function buildEditMessages(input: EditPromptInput): ChatMessage[] {
   const decisions = input.recentDecisions

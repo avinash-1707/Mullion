@@ -45,6 +45,7 @@ function jsonResponse(body: unknown): Response {
 
 const baseArgs = {
   role: "planner" as const,
+  promptVersion: "test-v1",
   messages: [{ role: "user" as const, content: "hi" }],
   costContext: { organizationId: "org-1" },
 };

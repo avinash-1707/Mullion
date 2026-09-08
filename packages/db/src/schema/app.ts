@@ -579,6 +579,9 @@ export const costEvents = pgTable(
     runId: uuid("run_id").references(() => runs.id),
     source: text("source", { enum: ["llm", "sandbox"] }).notNull(),
     role: text("role"),
+    // Immutable source-defined label for the prompt contract used by an LLM
+    // call; null for sandbox costs and pre-ADR-86 records.
+    promptVersion: text("prompt_version"),
     modelSlug: text("model_slug"),
     // OpenRouter credits are fractional — numeric, never float.
     cost: numeric("cost", { precision: 12, scale: 8 }).notNull(),

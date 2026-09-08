@@ -18,7 +18,12 @@ import { checkBudget, type BudgetConfig } from "../budget.js";
 import { withBackoff } from "../retry.js";
 import { truncateMiddle } from "../truncate.js";
 import { appendMessage, recordSandboxCost, setTaskStatus, type PersistContext } from "./persist.js";
-import { buildCoderSystemPrompt, buildCoderUserMessage, type CoderTaskInput } from "./prompt.js";
+import {
+  buildCoderSystemPrompt,
+  buildCoderUserMessage,
+  CODER_PROMPT_VERSION,
+  type CoderTaskInput,
+} from "./prompt.js";
 import { CODER_TOOL_DEFINITIONS, parseToolCall } from "./tools.js";
 import { inlineVerifier, type Verifier } from "./verify.js";
 
@@ -221,6 +226,7 @@ export async function buildTask(input: BuildTaskInput, deps: BuildTaskDeps): Pro
       completion = await withBackoff(() =>
         deps.llm.completeChatWithTools({
           role: "coder",
+          promptVersion: CODER_PROMPT_VERSION,
           messages,
           tools: CODER_TOOL_DEFINITIONS,
           // Bounds a single turn's output/cost server-side — without it the

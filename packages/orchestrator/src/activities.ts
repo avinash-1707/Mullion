@@ -346,6 +346,7 @@ export function createActivities(deps: ActivityDeps): BuildActivities {
       const verdict = await withBackoff(async () => {
         const completion = await deps.reviewLlm!.completeChat({
           role: "reviewer",
+          promptVersion: buildReviewerAgent.promptVersion,
           messages: buildReviewerAgent.buildMessages({
             requirementsSummary,
             tasks: taskRows.map((t) => ({

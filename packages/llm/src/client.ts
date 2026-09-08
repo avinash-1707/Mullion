@@ -101,6 +101,8 @@ export interface CostContext {
 
 export interface CompleteChatArgs {
   role: AgentRole;
+  /** Immutable source label for the prompt contract that built `messages`. */
+  promptVersion: string;
   messages: ChatMessage[];
   maxTokens?: number | undefined;
   temperature?: number | undefined;
@@ -110,6 +112,8 @@ export interface CompleteChatArgs {
 
 export interface CompleteChatWithToolsArgs {
   role: AgentRole;
+  /** Immutable source label for the prompt contract that built `messages`. */
+  promptVersion: string;
   messages: ToolChatMessage[];
   tools: ToolDefinition[];
   toolChoice?: ToolChoice | undefined;
@@ -304,11 +308,18 @@ export class OpenRouterClient {
   }
 
   async completeChat(args: CompleteChatArgs): Promise<CompleteChatResult> {
-    return withSpan("llm.completeChat", { "mullion.agent_role": args.role }, async (span) => {
-      const result = await this.completeChatImpl(args);
-      setLlmResultAttributes(span, result);
-      return result;
-    });
+    return withSpan(
+      "llm.completeChat",
+      {
+        "mullion.agent_role": args.role,
+        "mullion.prompt.version": args.promptVersion,
+      },
+      async (span) => {
+        const result = await this.completeChatImpl(args);
+        setLlmResultAttributes(span, result);
+        return result;
+      },
+    );
   }
 
   private async completeChatImpl(args: CompleteChatArgs): Promise<CompleteChatResult> {
@@ -371,21 +382,28 @@ export class OpenRouterClient {
    * sidesteps reassembling fragmented tool_calls deltas across SSE chunks.
    */
   async completeChatWithTools(args: CompleteChatWithToolsArgs): Promise<CompleteChatWithToolsResult> {
-    return withSpan("llm.completeChatWithTools", { "mullion.agent_role": args.role }, async (span) => {
-      const result = await this.completeChatWithToolsImpl(args);
-      setLlmResultAttributes(span, result);
-      span.setAttribute("mullion.llm.tool_calls", result.toolCalls.length);
-      // ADR-80: the empirical caching check — cached_tokens stuck at 0
-      // across a loop means the cache never engaged (wrong endpoint,
-      // breakpoint dropped, or a byte-level invalidator in the prefix).
-      if (result.usage.cachedTokens !== undefined) {
-        span.setAttribute("mullion.llm.cached_tokens", result.usage.cachedTokens);
-      }
-      if (result.usage.cacheWriteTokens !== undefined) {
-        span.setAttribute("mullion.llm.cache_write_tokens", result.usage.cacheWriteTokens);
-      }
-      return result;
-    });
+    return withSpan(
+      "llm.completeChatWithTools",
+      {
+        "mullion.agent_role": args.role,
+        "mullion.prompt.version": args.promptVersion,
+      },
+      async (span) => {
+        const result = await this.completeChatWithToolsImpl(args);
+        setLlmResultAttributes(span, result);
+        span.setAttribute("mullion.llm.tool_calls", result.toolCalls.length);
+        // ADR-80: the empirical caching check — cached_tokens stuck at 0
+        // across a loop means the cache never engaged (wrong endpoint,
+        // breakpoint dropped, or a byte-level invalidator in the prefix).
+        if (result.usage.cachedTokens !== undefined) {
+          span.setAttribute("mullion.llm.cached_tokens", result.usage.cachedTokens);
+        }
+        if (result.usage.cacheWriteTokens !== undefined) {
+          span.setAttribute("mullion.llm.cache_write_tokens", result.usage.cacheWriteTokens);
+        }
+        return result;
+      },
+    );
   }
 
   private async completeChatWithToolsImpl(
@@ -488,11 +506,18 @@ export class OpenRouterClient {
   async completeChatStream(
     args: CompleteChatArgs & { onDelta: (text: string) => void | Promise<void> },
   ): Promise<CompleteChatResult> {
-    return withSpan("llm.completeChatStream", { "mullion.agent_role": args.role }, async (span) => {
-      const result = await this.completeChatStreamImpl(args);
-      setLlmResultAttributes(span, result);
-      return result;
-    });
+    return withSpan(
+      "llm.completeChatStream",
+      {
+        "mullion.agent_role": args.role,
+        "mullion.prompt.version": args.promptVersion,
+      },
+      async (span) => {
+        const result = await this.completeChatStreamImpl(args);
+        setLlmResultAttributes(span, result);
+        return result;
+      },
+    );
   }
 
   private async completeChatStreamImpl(
@@ -753,7 +778,7 @@ export class OpenRouterClient {
   }
 
   private async recordCost(
-    args: { role: AgentRole; costContext: CostContext },
+    args: { role: AgentRole; promptVersion: string; costContext: CostContext },
     modelSlug: string,
     cost: number,
     usage: unknown,
@@ -767,6 +792,7 @@ export class OpenRouterClient {
       runId: args.costContext.runId ?? null,
       source: "llm",
       role: args.role,
+      promptVersion: args.promptVersion,
       modelSlug,
       cost: cost.toFixed(8),
       usage,

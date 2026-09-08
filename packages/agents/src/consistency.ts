@@ -134,6 +134,7 @@ export interface ConsistencyReviewInput {
 
 export const consistencyReviewAgent: AgentSpec<ConsistencyReviewInput, ConsistencyIssue[]> = {
   role: "reviewer",
+  promptVersion: "consistency-review-v1",
   temperature: 0,
   maxTokens: 2_000,
   buildMessages(input: ConsistencyReviewInput): ChatMessage[] {

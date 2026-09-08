@@ -2127,3 +2127,23 @@ only); bigger spacing + smoothstep alone (still cuts across cards on
 long/skewed connections).
 **Doc:** `apps/dashboard/src/lib/{graph-layout.ts,edge-path.ts}`,
 `apps/dashboard/src/components/planning/routed-edge.tsx`
+
+### ADR-86 — Prompt versions are immutable source labels persisted with LLM cost events
+**Status:** 🔧 Designed during resilience hardening
+**Context:** The existing traces identify role, served model, generation,
+tokens, cost, and run/task context, but cannot distinguish a prompt revision
+within one role. Prompt and completion bodies intentionally stay out of logs
+under ADR-27/63, so trace payloads cannot serve as an audit mechanism.
+**Decision:** Each production prompt contract declares an immutable,
+source-defined version label. Every LLM call records that label on its
+OpenTelemetry span and its existing `cost_events` row, which already carries
+the session/run correlation. Version labels change only when the system or
+user prompt contract changes. They are not database-configurable: a mutable
+label would let a routing/config change misrepresent the evaluated prompt.
+Historical and sandbox-cost rows remain null.
+**Alternatives considered:** storing prompt/completion text in traces
+(violates the ZDR logging policy); a separate trace table (duplicates the
+existing cost-event correlation); database-managed versions (mutable labels
+can drift from source).
+**Doc:** `packages/agents`, `packages/llm/src/client.ts`,
+`packages/db/src/schema/app.ts`

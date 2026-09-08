@@ -7,6 +7,9 @@ export interface CoderTaskInput {
   acceptanceCriteria: string;
 }
 
+/** Bump only when the Coder's system or task-message contract changes. */
+export const CODER_PROMPT_VERSION = "coder-task-v1";
+
 // Describes the DEFAULT sandbox (node:22-bookworm-slim, no network — see
 // @mullion/sandbox DEFAULT_SANDBOX_IMAGE). A deployment that overrides the
 // image must override this too, or the prompt lies to the model.

@@ -9,7 +9,7 @@ import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-ho
 import type { Db } from "@mullion/db";
 import { OpenRouterClient } from "../client.js";
 
-function fakeDb(): Db {
+function fakeDb(costEvents: Record<string, unknown>[]): Db {
   return {
     select: () => ({
       from: () => ({
@@ -21,7 +21,12 @@ function fakeDb(): Db {
         }),
       }),
     }),
-    insert: () => ({ values: () => Promise.resolve() }),
+    insert: () => ({
+      values: (values: Record<string, unknown>) => {
+        costEvents.push(values);
+        return Promise.resolve();
+      },
+    }),
   } as unknown as Db;
 }
 
@@ -51,9 +56,10 @@ describe("LLM call spans (02 §9)", () => {
   });
 
   it("emits a span per completion carrying role, served model, tokens, and cost", async () => {
+    const costEvents: Record<string, unknown>[] = [];
     const client = new OpenRouterClient({
       apiKey: "k",
-      db: fakeDb(),
+      db: fakeDb(costEvents),
       fetchImpl: vi.fn().mockResolvedValue(
         new Response(JSON.stringify(completion), {
           status: 200,
@@ -64,6 +70,7 @@ describe("LLM call spans (02 §9)", () => {
 
     await client.completeChat({
       role: "coder",
+      promptVersion: "coder-task-v1",
       messages: [{ role: "user", content: "x" }],
       costContext: { organizationId: "org-1" },
     });
@@ -71,16 +78,18 @@ describe("LLM call spans (02 §9)", () => {
     const span = exporter.getFinishedSpans().find((s) => s.name === "llm.completeChat");
     expect(span).toBeDefined();
     expect(span?.attributes["mullion.agent_role"]).toBe("coder");
+    expect(span?.attributes["mullion.prompt.version"]).toBe("coder-task-v1");
     expect(span?.attributes["mullion.llm.served_model"]).toBe("test/model-served");
     expect(span?.attributes["mullion.llm.generation_id"]).toBe("gen-9");
     expect(span?.attributes["mullion.llm.cost_usd"]).toBe(0.004);
     expect(span?.attributes["mullion.llm.completion_tokens"]).toBe(2);
+    expect(costEvents).toContainEqual(expect.objectContaining({ promptVersion: "coder-task-v1" }));
   });
 
   it("marks the span errored when the provider fails", async () => {
     const client = new OpenRouterClient({
       apiKey: "k",
-      db: fakeDb(),
+      db: fakeDb([]),
       fetchImpl: vi
         .fn()
         .mockResolvedValue(new Response("{}", { status: 500 })) as unknown as typeof fetch,
@@ -89,6 +98,7 @@ describe("LLM call spans (02 §9)", () => {
     await expect(
       client.completeChat({
         role: "coder",
+        promptVersion: "coder-task-v1",
         messages: [{ role: "user", content: "x" }],
         costContext: { organizationId: "org-1" },
       }),

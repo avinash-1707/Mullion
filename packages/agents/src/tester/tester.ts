@@ -24,6 +24,7 @@ const MAX_RAW_CHARS = 16_000;
 
 export const testerAgent: AgentSpec<TesterInput, TestReport> = {
   role: "tester",
+  promptVersion: "tester-report-v1",
   buildMessages(input: TesterInput): ChatMessage[] {
     const system = [
       "You are the Tester agent on an automated build team.",

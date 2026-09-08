@@ -22,6 +22,7 @@ export const devRoute = new Hono<{ Variables: RequiredAuthVariables }>()
     const organizationId = c.get("organizationId");
     const result = await openRouter.completeChat({
       role: "analyst",
+      promptVersion: "dev-llm-hello-v1",
       messages: [{ role: "user", content: "Reply with exactly: hello world" }],
       maxTokens: 32,
       costContext: { organizationId, userId: user.id },

@@ -5,6 +5,8 @@ import {
   analystRequirementsAgent,
   buildEditMessages,
   buildInitialPlanMessages,
+  EDIT_PLAN_PROMPT_VERSION,
+  INITIAL_PLAN_PROMPT_VERSION,
   checkBudget,
   checkGraphStructure,
   consistencyReviewAgent,
@@ -448,6 +450,7 @@ async function runInitialPlan(session: SessionRow): Promise<void> {
     try {
       await llm.completeChatStream({
         role: "planner",
+        promptVersion: INITIAL_PLAN_PROMPT_VERSION,
         messages: buildInitialPlanMessages({ idea: session.idea, requirements }),
         maxTokens: 16_000,
         temperature: 0.3,
@@ -532,6 +535,7 @@ async function runEditPrompt(session: SessionRow, prompt: string): Promise<void>
     try {
       await llm.completeChatStream({
         role: "planner",
+        promptVersion: EDIT_PLAN_PROMPT_VERSION,
         messages: buildEditMessages({
           requirements,
           nodes,

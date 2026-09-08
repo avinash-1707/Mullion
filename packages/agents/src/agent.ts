@@ -21,6 +21,8 @@ const MAX_REPAIR_ECHO_CHARS = 8_000;
  */
 export interface AgentSpec<TIn, TOut> {
   role: AgentRole;
+  /** Immutable source label for correlating evaluated prompt revisions. */
+  promptVersion: string;
   buildMessages(input: TIn): ChatMessage[];
   parse(content: string): TOut;
   maxTokens?: number;
@@ -61,6 +63,7 @@ export async function runAgent<TIn, TOut>(
     }
     const result = await client.completeChat({
       role: spec.role,
+      promptVersion: spec.promptVersion,
       messages,
       costContext,
       ...(spec.maxTokens !== undefined ? { maxTokens: spec.maxTokens } : {}),

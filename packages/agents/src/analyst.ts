@@ -73,6 +73,7 @@ Rules:
 
 export const analystQuestionAgent: AgentSpec<QuestionRoundInput, McqQuestion[]> = {
   role: "analyst",
+  promptVersion: "analyst-questions-v1",
   temperature: 0.4,
   maxTokens: 2_000,
   buildMessages(input: QuestionRoundInput): ChatMessage[] {
@@ -111,6 +112,7 @@ Rules:
 
 export const analystRequirementsAgent: AgentSpec<RequirementsInput, RequirementsDoc> = {
   role: "analyst",
+  promptVersion: "analyst-requirements-v1",
   temperature: 0.3,
   maxTokens: 4_000,
   buildMessages(input: RequirementsInput): ChatMessage[] {

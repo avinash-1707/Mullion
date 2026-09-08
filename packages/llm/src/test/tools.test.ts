@@ -42,6 +42,7 @@ const tools = [
 
 const baseArgs = {
   role: "coder" as const,
+  promptVersion: "test-v1",
   messages: [{ role: "user" as const, content: "build it" }],
   tools,
   costContext: { organizationId: "org-1", runId: "run-1" },

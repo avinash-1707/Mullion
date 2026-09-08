@@ -55,6 +55,7 @@ Respond with STRICT JSON only, no markdown fences: {"approved": boolean, "notes"
 
 export const buildReviewerAgent: AgentSpec<BuildReviewInput, BuildReviewVerdict> = {
   role: "reviewer",
+  promptVersion: "build-review-v1",
   temperature: 0,
   maxTokens: 2_000,
   buildMessages(input: BuildReviewInput): ChatMessage[] {

@@ -96,6 +96,7 @@ async function main(): Promise<void> {
     // The app's own client — zdr:true hardcoded, no fallback array (ADR-26/27).
     const result = await client.completeChat({
       role: roleForSlug(slug) as (typeof routing)[number]["role"],
+      promptVersion: "zdr-verification-v1",
       messages: [{ role: "user", content: "ping" }],
       maxTokens: 1,
       costContext: { organizationId: "eval-org" },

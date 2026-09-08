@@ -81,6 +81,7 @@ export function makeTesterVerifier(config: TesterVerifierConfig): Verifier {
         const parsed = await withBackoff(async () => {
           const completion = await config.llm.completeChat({
             role: "tester",
+            promptVersion: testerAgent.promptVersion,
             messages: testerAgent.buildMessages({
               command: config.testCommand,
               exitCode: result.exitCode,

@@ -64,6 +64,22 @@ template.
 
 ---
 
+### [2026-09-08] Prompt-version observability (ADR-86)
+**Phase:** Post-Phase-4 hardening
+**Type:** Architecture change
+**Summary:** Every production agent prompt now has an immutable,
+source-defined version label. The label is attached to every LLM span and
+persisted alongside the existing role/model/token/cost record in
+`cost_events`, retaining the session/run correlation without logging
+prompt or completion bodies. Planner's direct streaming calls, Coder's tool
+loop, Tester, and build Reviewer are covered in addition to AgentSpec-based
+calls. Historical and sandbox-cost rows remain null.
+**Files/areas touched:** `packages/{agents,llm,otel,db}`, `apps/api` planning
+flows, `packages/orchestrator` reviewer activity, migration `0013`.
+**Related ADR:** New — ADR-86 added to `04`.
+**Follow-ups:** None. Bump a prompt's label only when its system or user
+prompt contract changes.
+
 ### [2026-07-12] Dashboard visual pass: no focus rings, smoother motion, custom Select, slight radius
 **Phase:** Post-Phase-4 follow-on (UI polish, `apps/dashboard` only — a
 parallel pass covers `apps/web`)

@@ -9,6 +9,8 @@ export {
 export {
   buildEditMessages,
   buildInitialPlanMessages,
+  EDIT_PLAN_PROMPT_VERSION,
+  INITIAL_PLAN_PROMPT_VERSION,
   plannedDecisionSchema,
   plannerEditLineSchema,
   type EdgeSpec,
@@ -35,7 +37,12 @@ export {
   type ToolCallingLlm,
 } from "./coder/build-task.js";
 export { CODER_TOOL_DEFINITIONS, parseToolCall } from "./coder/tools.js";
-export { buildCoderSystemPrompt, buildCoderUserMessage, type CoderTaskInput } from "./coder/prompt.js";
+export {
+  buildCoderSystemPrompt,
+  buildCoderUserMessage,
+  CODER_PROMPT_VERSION,
+  type CoderTaskInput,
+} from "./coder/prompt.js";
 export { appendMessage, recordSandboxCost, setTaskStatus, type PersistContext } from "./coder/persist.js";
 export {
   inlineVerifier,
