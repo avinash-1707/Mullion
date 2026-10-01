@@ -20,6 +20,6 @@
   "dependencies": {
     "@mullion/artifacts": "workspace:*",
     "@octokit/rest": "^22.0.1",
-    "jszip": "^3.10.1"
+    "jszip": "^3.10.2"
   }
 }
